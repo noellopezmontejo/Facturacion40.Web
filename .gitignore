@@ -1,0 +1,83 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+backend/.env
+
+# Allow example env
+!.env.example
+!backend/.env.example
+
+# Build outputs
+dist/
+build/
+web-build/
+*.tsbuildinfo
+frontend/dist/
+mobile/dist/
+
+# Storage, Generated documents and uploads
+backend/src/storage/*/csd/
+backend/src/storage/*/pdf/
+backend/src/storage/*/xml/
+backend/src/storage/pdf/
+backend/src/storage/xml/
+backend/src/storage/previews/
+backend/scratch/
+
+# Keep SAT XSLT files
+!backend/src/storage/sat_xslt/
+!backend/src/storage/sat_xslt/**
+
+# Certificates, Keys and Secrets
+*.key
+*.cer
+*.pfx
+*.p12
+*.pem
+*.jks
+*.p8
+*.mobileprovision
+
+# Logs and debug files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+backend/preview_debug.log
+backend/update_log.txt
+backend/schema_output.txt
+backend/wsdl.txt
+backend/carta_porte_debug.xml
+backend/test_output.xml
+
+# Root temporary test scripts
+test-auth-req.js
+test-req.js
+test.js
+test2.js
+
+# Expo & Mobile
+.expo/
+mobile/.expo/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+.metro-health-check*
+mobile/ios/
+mobile/android/
+
+# Operating System & Editor Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

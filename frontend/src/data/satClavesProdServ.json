@@ -1,0 +1,214 @@
+[
+  {
+    "clave": "01010101",
+    "desc": "No existe en el catálogo"
+  },
+  {
+    "clave": "84111506",
+    "desc": "Servicios de facturación"
+  },
+  {
+    "clave": "43231500",
+    "desc": "Software de negocios corporativos"
+  },
+  {
+    "clave": "81111508",
+    "desc": "Servicios de diseño de software"
+  },
+  {
+    "clave": "80111600",
+    "desc": "Servicios de personal temporal"
+  },
+  {
+    "clave": "84111500",
+    "desc": "Servicios de contabilidad, auditoría o asesoría fiscal"
+  },
+  {
+    "clave": "80141628",
+    "desc": "Servicios de distribución promocional"
+  },
+  {
+    "clave": "82101503",
+    "desc": "Publicidad en revistas"
+  },
+  {
+    "clave": "82101504",
+    "desc": "Publicidad en diarios"
+  },
+  {
+    "clave": "86121501",
+    "desc": "Escuelas primarias"
+  },
+  {
+    "clave": "86121502",
+    "desc": "Escuelas secundarias"
+  },
+  {
+    "clave": "86121600",
+    "desc": "Educación vocacional"
+  },
+  {
+    "clave": "86121601",
+    "desc": "Escuelas de oficios"
+  },
+  {
+    "clave": "86121700",
+    "desc": "Educación a distancia"
+  },
+  {
+    "clave": "86121701",
+    "desc": "Cursos por correspondencia"
+  },
+  {
+    "clave": "86121702",
+    "desc": "Cursos en línea (Internet)"
+  },
+  {
+    "clave": "51101500",
+    "desc": "Medicamentos y productos farmacéuticos"
+  },
+  {
+    "clave": "51101501",
+    "desc": "Medicamentos analgésicos"
+  },
+  {
+    "clave": "51101502",
+    "desc": "Medicamentos anestésicos"
+  },
+  {
+    "clave": "51101503",
+    "desc": "Medicamentos antiinfecciosos"
+  },
+  {
+    "clave": "51101504",
+    "desc": "Medicamentos oncológicos"
+  },
+  {
+    "clave": "51101505",
+    "desc": "Medicamentos cardiovasculares"
+  },
+  {
+    "clave": "51101506",
+    "desc": "Medicamentos respiratorios"
+  },
+  {
+    "clave": "51101507",
+    "desc": "Medicamentos digestivos"
+  },
+  {
+    "clave": "51101508",
+    "desc": "Medicamentos dermatológicos"
+  },
+  {
+    "clave": "51101509",
+    "desc": "Medicamentos oftálmicos"
+  },
+  {
+    "clave": "51101510",
+    "desc": "Medicamentos hormonales"
+  },
+  {
+    "clave": "51101511",
+    "desc": "Medicamentos neurológicos"
+  },
+  {
+    "clave": "51101512",
+    "desc": "Medicamentos psiquiátricos"
+  },
+  {
+    "clave": "51101513",
+    "desc": "Medicamentos inmunológicos"
+  },
+  {
+    "clave": "51102700",
+    "desc": "Vacunas"
+  },
+  {
+    "clave": "51102710",
+    "desc": "Vacuna contra la influenza"
+  },
+  {
+    "clave": "51102711",
+    "desc": "Vacuna contra el tétanos"
+  },
+  {
+    "clave": "51102712",
+    "desc": "Vacuna contra la hepatitis"
+  },
+  {
+    "clave": "42311500",
+    "desc": "Vendajes y apósitos"
+  },
+  {
+    "clave": "42311501",
+    "desc": "Gasas médicas"
+  },
+  {
+    "clave": "42311503",
+    "desc": "Cintas adhesivas médicas"
+  },
+  {
+    "clave": "42132205",
+    "desc": "Jeringas médicas"
+  },
+  {
+    "clave": "42141501",
+    "desc": "Algodón médico"
+  },
+  {
+    "clave": "12352300",
+    "desc": "Desinfectantes"
+  },
+  {
+    "clave": "51102600",
+    "desc": "Suplementos nutricionales"
+  },
+  {
+    "clave": "51102602",
+    "desc": "Vitaminas"
+  },
+  {
+    "clave": "53131600",
+    "desc": "Artículos de tocador y cosméticos"
+  },
+  {
+    "clave": "53131608",
+    "desc": "Jabones"
+  },
+  {
+    "clave": "53131616",
+    "desc": "Champús"
+  },
+  {
+    "clave": "53131613",
+    "desc": "Desodorantes"
+  },
+  {
+    "clave": "53131602",
+    "desc": "Cremas para la piel"
+  },
+  {
+    "clave": "14111704",
+    "desc": "Papel higiénico"
+  },
+  {
+    "clave": "53131626",
+    "desc": "Toallas sanitarias"
+  },
+  {
+    "clave": "53131627",
+    "desc": "Pañales"
+  },
+  {
+    "clave": "43191501",
+    "desc": "Teléfonos móviles"
+  },
+  {
+    "clave": "43211507",
+    "desc": "Computadoras de escritorio"
+  },
+  {
+    "clave": "43211503",
+    "desc": "Computadoras portátiles"
+  }
+]

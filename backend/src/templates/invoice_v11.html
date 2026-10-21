@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{#if google_fonts_link}}
+    <link rel="stylesheet" href="{{google_fonts_link}}">
+    {{/if}}
+    <style>
+        :root {
+            --primary-color: {{color_primario}};
+            --secondary-color: {{color_secundario}};
+            --font-family: '{{tipo_letra}}', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 30px;
+            color: #0f172a;
+            font-size: 8.5px;
+            line-height: 1.3;
+        }
+
+        .modular-container {
+            display: flex;
+            flex-direction: column;
+            border: 2px solid #1e293b;
+            padding: 25px;
+            min-height: 270mm;
+        }
+
+        .section-header {
+            margin-bottom: 25px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 20px;
+        }
+
+        .emisor-grid {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 15px;
+            flex: 1;
+            text-align: left;
+        }
+
+        .logo-placeholder {
+            width: 120px;
+            height: 120px;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8fafc;
+        }
+
+        .logo-placeholder img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .emisor-data h1 {
+            font-size: 16px;
+            font-weight: 900;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+        }
+
+        .doc-info {
+            width: 280px;
+            text-align: right;
+            border-left: 1px solid #e2e8f0;
+            padding-left: 20px;
+        }
+
+        .doc-title {
+            font-size: 24px;
+            font-weight: 900;
+            color: var(--primary-color);
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+        }
+
+        .meta-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 5px;
+        }
+
+        .meta-label {
+            font-weight: 800;
+            margin-right: 10px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .meta-value {
+            font-weight: 700;
+            width: 150px;
+        }
+
+        .section-info {
+            margin-bottom: 25px;
+        }
+
+        .info-title {
+            background-color: #1e293b;
+            color: white;
+            padding: 5px 12px;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-size: 9px;
+            margin-bottom: 0;
+            text-align: left;
+        }
+
+        .client-grid {
+            border: 1px solid #1e293b;
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            text-align: left;
+        }
+
+        .client-block {
+            padding: 15px;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        .client-block:last-child {
+            border-right: none;
+        }
+
+        .section-concepts {
+            margin-bottom: 25px;
+        }
+
+        .concepts-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #1e293b;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        .concepts-table th {
+            background-color: #f1f5f9;
+            padding: 8px;
+            border: 1px solid #1e293b;
+            text-transform: uppercase;
+            font-weight: 800;
+            text-align: left;
+        }
+
+        .concepts-table td {
+            padding: 8px;
+            border: 1px solid #e2e8f0;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        .concepts-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .section-totals {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 30px;
+            break-inside: avoid;
+        }
+
+        .payment-box {
+            flex: 1;
+            border: 1px solid #1e293b;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .totals-box {
+            width: 250px;
+            border: 1px solid #1e293b;
+            border-collapse: collapse;
+        }
+
+        .totals-box td {
+            padding: 7px 12px;
+            border: 1px solid #1e293b;
+            text-align: right;
+        }
+
+        .total-main {
+            background-color: #1e293b;
+            color: white;
+            font-weight: 900;
+            font-size: 13px;
+        }
+
+        .section-stamps {
+            border: 1px solid #1e293b;
+            padding: 15px;
+            display: flex;
+            gap: 20px;
+            break-inside: avoid;
+            text-align: left;
+        }
+
+        .qr-code {
+            width: 120px;
+        }
+
+        .stamps-data {
+            flex: 1;
+            font-family: monospace;
+            font-size: 6.5px;
+            color: #334155;
+            word-break: break-all;
+        }
+
+        .section-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 7px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            padding-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="modular-container">
+        <div class="section-header">
+            <div class="header-top">
+                <div class="emisor-grid">
+                    <div class="logo-placeholder">
+                        {{#if logo_url}}
+                        <img src="{{logo_url}}" alt="Logo">
+                        {{else}}
+                        <span style="font-weight: 900; color: #cbd5e1; font-size: 18px;">LOGO</span>
+                        {{/if}}
+                    </div>
+                    <div class="emisor-data">
+                        <h1>{{emisor.razon_social}}</h1>
+                        <p><strong>RFC:</strong> {{emisor.rfc}}</p>
+                        <p><strong>REGIMEN:</strong> {{emisor.regimen_fiscal}} - {{emisor.regimen_desc}}</p>
+                        <p><strong>DOMICILIO:</strong> {{emisor.domicilio_calle}} {{emisor.domicilio_numero}}, {{emisor.colonia}}, {{emisor.municipio}}, {{emisor.estado}}. CP: {{emisor.codigo_postal}}</p>
+                    </div>
+                </div>
+                <div class="doc-info">
+                    <h2 class="doc-title">FACTURA</h2>
+                    <div class="meta-row">
+                        <span class="meta-label">ID:</span>
+                        <span class="meta-value" style="font-size: 18px; color: var(--primary-color);">{{documento.serie}} {{documento.folio}}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Fecha:</span>
+                        <span class="meta-value">{{documento.fecha}}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">UUID:</span>
+                        <span class="meta-value" style="font-size: 7px; color: #dc2626; font-family: monospace;">{{documento.uuid}}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-info">
+            <div class="info-title">Identificación del Cliente</div>
+            <div class="client-grid">
+                <div class="client-block">
+                    <p><strong>NOMBRE / RAZÓN SOCIAL:</strong></p>
+                    <p style="font-size: 12px; font-weight: 900; margin-top: 5px;">{{receptor.razon_social}}</p>
+                    <p style="margin-top: 10px;"><strong>RFC:</strong> {{receptor.rfc}}</p>
+                    <p><strong>DOMICILIO:</strong> {{receptor.domicilio_calle}} {{receptor.domicilio_numero}}, {{receptor.colonia}}, {{receptor.municipio}}, {{receptor.estado}}. CP: {{receptor.codigo_postal}}</p>
+                </div>
+                <div class="client-block">
+                    <p><strong>USO CFDI:</strong> {{documento.uso_cfdi}} - {{documento.uso_desc}}</p>
+                    <p><strong>RÉGIMEN FISCAL:</strong> {{receptor.regimen_fiscal}} - {{receptor.regimen_desc}}</p>
+                    <p><strong>LUGAR EXPEDICIÓN:</strong> {{emisor.codigo_postal}}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-concepts">
+            <table class="concepts-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">CANT</th>
+                        <th style="width: 60px;">UNIDAD</th>
+                        <th style="width: 80px;">CLAVE SAT</th>
+                        <th>CONCEPTO / DESCRIPCIÓN</th>
+                        <th style="width: 100px; text-align: right;">VALOR UNIT.</th>
+                        <th style="width: 100px; text-align: right;">IMPORTE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each detalles}}
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">{{this.cantidad}}</td>
+                        <td style="text-align: center; color: #64748b; font-size: 8px; text-transform: uppercase;">
+                            {{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{this.Concepto.unidad}}{{/if}}{{/if}}
+                        </td>
+                        <td style="text-align: center; color: #64748b; font-family: monospace; font-size: 8px;">
+                            {{#if this.clave_sat}}{{this.clave_sat}}{{else}}{{this.Concepto.clave_prod_serv}}{{/if}}
+                        </td>
+                        <td>
+                            <div style="font-weight: 800;">
+                                {{#if this.descripcion}}{{this.descripcion}}{{else}}{{#if this.descripcion}}{{this.descripcion}}{{else}}{{this.Concepto.descripcion}}{{/if}}{{/if}}
+                            </div>
+                        </td>
+                        <td style="text-align: right;">${{formatDecimal this.valor_unitario 6}}</td>
+                        <td style="text-align: right; font-weight: 900;">${{formatDecimal this.importe 6}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-totals">
+            <div class="payment-box">
+                <p><strong>MÉTODO DE PAGO:</strong> {{documento.metodo_pago}}</p>
+                <p><strong>FORMA DE PAGO:</strong> {{documento.forma_pago}}</p>
+                <p><strong>MONEDA:</strong> {{documento.moneda}} | <strong>TIPO CAMBIO:</strong> 1.0000</p>
+                <p style="margin-top: 10px; font-weight: 800; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                    ({{documento.total_en_letra}})
+                </p>
+            </div>
+            <table class="totals-box">
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">SUB-TOTAL</td>
+                    <td style="text-align: right; font-weight: 800;">${{formatDecimal documento.subtotal 2}}</td>
+                </tr>
+                {{#if documento.descuento}}
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">DESCUENTO</td>
+                    <td style="text-align: right;">-${{formatDecimal documento.descuento 2}}</td>
+                </tr>
+                {{/if}}
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">IVA 16%</td>
+                    <td style="text-align: right; font-weight: 800;">${{formatDecimal documento.iva_total 2}}</td>
+                </tr>
+                {{#each retenciones}}
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">RETENCIÓN {{this.impuesto}}</td>
+                    <td style="text-align: right;">-${{formatDecimal this.importe 2}}</td>
+                </tr>
+                {{/each}}
+                {{#each trasladosLocales}}
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">{{this.impuesto}}</td>
+                    <td style="text-align: right;">+${{formatDecimal this.importe 2}}</td>
+                </tr>
+                {{/each}}
+                {{#each retencionesLocales}}
+                <tr>
+                    <td style="font-weight: 800; color: #64748b;">{{this.impuesto}}</td>
+                    <td style="text-align: right;">-${{formatDecimal this.importe 2}}</td>
+                </tr>
+                {{/each}}
+                <tr class="total-main">
+                    <td>TOTAL NETO</td>
+                    <td style="text-align: right; font-size: 16px;">${{formatDecimal documento.total 2}}</td>
+                </tr>
+            </table>
+        </div>
+
+        {{#if documento.uuid}}
+        <div class="section-stamps">
+            <img src="{{qr_url}}" class="qr-code" alt="QR">
+            <div class="stamps-data">
+                <strong>CADENA ORIGINAL DEL COMPLEMENTO DE CERTIFICACIÓN DIGITAL DEL SAT</strong><br>
+                {{documento.cadena_original_tfd}}<br><br>
+                <strong>SELLO DIGITAL DEL CFDI</strong><br>
+                {{documento.sello_cfdi}}<br><br>
+                <strong>SELLO DIGITAL DEL SAT</strong><br>
+                {{documento.sello_sat}}
+            </div>
+        </div>
+        {{/if}}
+
+        <div class="section-footer">
+            ESTE DOCUMENTO ES UNA REPRESENTACIÓN IMPRESA DE UN CFDI VERSION 4.0 | EMITIDO POR ANTIGRAVITY FACTURACIÓN
+        </div>
+    </div>
+</body>
+
+</html>
+</body>
+
+</html>

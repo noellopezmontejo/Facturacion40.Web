@@ -1,0 +1,31 @@
+{
+  "name": "facturacion-backend",
+  "version": "1.0.0",
+  "description": "Backend para Sistema de Facturación Electrónica CFDI 4.0",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node seeders.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "handlebars": "^4.7.8",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^2.1.1",
+    "mysql2": "^3.9.7",
+    "node-forge": "^1.3.3",
+    "puppeteer": "^24.39.1",
+    "qrcode": "^1.5.4",
+    "sequelize": "^6.37.3",
+    "xml2js": "^0.6.2",
+    "xmlbuilder2": "^4.0.3",
+    "xslt3": "^2.7.0"
+  }
+}

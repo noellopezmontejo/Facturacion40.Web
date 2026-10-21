@@ -1,0 +1,1 @@
+import { sequelize } from './src/config/database.js'; import * as models from './src/models/index.js'; sequelize.sync({ alter: true }).then(() => { console.log('Database synced successfully'); process.exit(0); }).catch(err => { console.error(err); process.exit(1); });

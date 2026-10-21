@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{#if google_fonts_link}}
+    <link rel="stylesheet" href="{{google_fonts_link}}">
+    {{/if}}
+    <style>
+        :root {
+            --primary-color: {{color_primario}};
+            --secondary-color: {{color_secundario}};
+            --font-family: {{tipo_letra}}, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            color: #1e293b;
+            font-size: 11px;
+            display: flex;
+            min-height: 297mm;
+        }
+
+        .modular-container {
+            display: flex;
+            width: 100%;
+            min-height: 100%;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 50px 30px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 50px;
+            background-color: white;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .logo-container {
+            margin-bottom: 40px;
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .logo-container img {
+            max-width: 100%;
+            max-height: 80px;
+            object-fit: contain;
+        }
+
+        .sidebar-section {
+            margin-bottom: 30px;
+        }
+
+        .sidebar-title {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            opacity: 0.6;
+            margin-bottom: 12px;
+            font-weight: 800;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 6px;
+        }
+
+        .sidebar p {
+            margin: 4px 0;
+            line-height: 1.4;
+            opacity: 0.9;
+        }
+
+        .doc-header {
+            border-bottom: 4px solid var(--primary-color);
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .doc-title {
+            font-size: 32px;
+            font-weight: 900;
+            color: var(--primary-color);
+            letter-spacing: -1px;
+        }
+
+        .doc-number {
+            font-size: 18px;
+            font-weight: 700;
+            color: #64748b;
+        }
+
+        .section-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .info-block {
+            background: #f8fafc;
+            padding: 25px;
+            border-radius: 16px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .info-block h3 {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--primary-color);
+            margin: 0 0 12px 0;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .info-block p {
+            margin: 4px 0;
+        }
+
+        .section-concepts {
+            margin-bottom: 40px;
+            flex: 1;
+        }
+
+        .concepts-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        .concepts-table th {
+            text-align: left;
+            padding: 15px;
+            background-color: #f1f5f9;
+            color: #475569;
+            font-size: 9px;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .concepts-table th:first-child {
+            border-radius: 8px 0 0 0;
+        }
+
+        .concepts-table th:last-child {
+            border-radius: 0 8px 0 0;
+        }
+
+        .concepts-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .amount {
+            text-align: right;
+            font-weight: 700;
+        }
+
+        .section-totals {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 50px;
+            break-inside: avoid;
+        }
+
+        .totals-box {
+            width: 300px;
+            background: #fff;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f8fafc;
+        }
+
+        .grand-total {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 20px;
+            font-weight: 900;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-stamps {
+            margin-top: 20px;
+            padding: 30px;
+            background-color: #f8fafc;
+            border-radius: 16px;
+            border: 1px solid #f1f5f9;
+            break-inside: avoid;
+        }
+
+        .stamps-flex {
+            display: flex;
+            gap: 30px;
+        }
+
+        .qr-code {
+            width: 130px;
+            height: 130px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stamp-texts {
+            flex: 1;
+            font-size: 7.5px;
+            line-height: 1.4;
+            color: #64748b;
+            word-break: break-all;
+            font-family: monospace;
+        }
+
+        .stamp-label {
+            font-weight: 800;
+            color: #334155;
+            margin-top: 10px;
+            display: block;
+            font-family: var(--font-family);
+            text-transform: uppercase;
+            font-size: 8px;
+        }
+
+        .section-footer {
+            margin-top: 40px;
+            font-size: 9px;
+            color: #94a3b8;
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #f1f5f9;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="modular-container">
+        <div class="sidebar section-header">
+            <div class="logo-container">
+                {{#if logo_url}}
+                <img src="{{logo_url}}" alt="Logo">
+                {{else}}
+                <div style="color: #cbd5e1; font-weight: 900; font-size: 14px;">LOGOTIPO</div>
+                {{/if}}
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Emisor</div>
+                <p style="font-size: 13px; font-weight: 800;">{{emisor.razon_social}}</p>
+                <p><strong>RFC:</strong> {{emisor.rfc}}</p>
+                <p style="font-size: 9px; margin-top: 8px;">{{emisor.regimen_fiscal}} - {{emisor.regimen_desc}}</p>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="sidebar-title">Ubicación Fiscal</div>
+                <p>C.P. {{emisor.codigo_postal}}</p>
+                <p>{{emisor.municipio}}, {{emisor.estado}}</p>
+                <p>México</p>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: auto;">
+                <div class="sidebar-title">Detalles de Pago</div>
+                <p><strong>Moneda:</strong> {{documento.moneda}}</p>
+                <p><strong>Forma:</strong> {{documento.forma_pago}}</p>
+                <p><strong>Método:</strong> {{documento.metodo_pago}}</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="doc-header">
+                <div class="doc-title">FACTURA</div>
+                <div class="doc-number">{{documento.serie}} {{documento.folio}}</div>
+            </div>
+
+            <div class="section-info">
+                <div class="info-block">
+                    <h3>Cliente / Receptor</h3>
+                    <p style="font-size: 14px; font-weight: 800; color: #0f172a;">{{receptor.razon_social}}</p>
+                    <p><strong>RFC:</strong> {{receptor.rfc}}</p>
+                    <p><strong>Uso CFDI:</strong> {{documento.uso_cfdi}} - {{documento.uso_desc}}</p>
+                    <p><strong>C.P. Receptor:</strong> {{receptor.codigo_postal}}</p>
+                </div>
+                <div class="info-block" style="text-align: right;">
+                    <h3>Información de Emisión</h3>
+                    <p><strong>Fecha Emisión:</strong> {{documento.fecha}}</p>
+                    {{#if documento.uuid}}
+                    <p><strong>Folio Fiscal (UUID):</strong></p>
+                    <p style="font-family: monospace; font-size: 9px; color: #64748b;">{{documento.uuid}}</p>
+                    {{/if}}
+                    <p style="margin-top: 10px; font-size: 9px; color: #94a3b8;">CFDI v4.0 | Efectos Fiscales al Pago</p>
+                </div>
+            </div>
+
+            <div class="section-concepts">
+                <table class="concepts-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">CANT</th>
+                            <th style="width: 60px;">UNIDAD</th>
+                            <th style="width: 80px;">CLAVE SAT</th>
+                            <th>DESCRIPCIÓN</th>
+                            <th class="amount" style="width: 100px;">P. UNITARIO</th>
+                            <th class="amount" style="width: 100px;">IMPORTE</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#each detalles}}
+                        <tr>
+                            <td style="color: #64748b; font-weight: 600; text-align: center;">{{this.cantidad}}</td>
+                            <td style="text-align: center; color: #94a3b8; font-size: 8px; text-transform: uppercase;">
+                                {{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{this.Concepto.unidad}}{{/if}}{{/if}}
+                            </td>
+                            <td style="text-align: center; color: #94a3b8; font-family: monospace; font-size: 8px;">
+                                {{#if this.clave_sat}}{{this.clave_sat}}{{else}}{{this.Concepto.clave_prod_serv}}{{/if}}
+                            </td>
+                            <td>
+                                <div style="font-weight: 800; font-size: 12px; color: #1e293b;">{{#if this.descripcion}}{{this.descripcion}}{{else}}{{#if this.descripcion}}{{this.descripcion}}{{else}}{{this.Concepto.descripcion}}{{/if}}{{/if}}</div>
+                                {{#if this.cuenta_predial}}<div style="font-size: 9px; color: #94a3b8;">Predial: {{this.cuenta_predial}}</div>{{/if}}
+                            </td>
+                            <td style="text-align: right; color: #64748b;">${{formatDecimal this.valor_unitario 6}}</td>
+                            <td style="text-align: right; font-weight: 800; color: #111;">${{formatDecimal this.importe 6}}</td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section-totals">
+                <div class="totals-box">
+                    <div class="total-row">
+                        <span style="color: #64748b; font-weight: 700;">SUBTOTAL</span>
+                        <span style="font-weight: 800;">${{formatDecimal documento.subtotal 2}}</span>
+                    </div>
+                    {{#if documento.descuento}}
+                    <div class="total-row">
+                        <span style="color: #64748b; font-weight: 700;">DESCUENTO</span>
+                        <span style="font-weight: 800; color: #ef4444;">-${{formatDecimal documento.descuento 2}}</span>
+                    </div>
+                    {{/if}}
+                    <div class="total-row">
+                        <span style="color: #64748b; font-weight: 700;">IVA (16%)</span>
+                        <span style="font-weight: 800;">${{formatDecimal documento.iva_total 2}}</span>
+                    </div>
+                    {{#each retenciones}}
+                    <div class="total-row" style="font-size: 9px; color: #94a3b8;">
+                        <span>RETENCIÓN {{this.impuesto}} ({{this.tasa}}%)</span>
+                        <span>-${{formatDecimal this.importe 2}}</span>
+                    </div>
+                    {{/each}}
+                    
+                    {{#each trasladosLocales}}
+                    <div class="total-row" style="font-size: 9px; color: #94a3b8;">
+                        <span>{{this.impuesto}} ({{this.tasa}}%)</span>
+                        <span>+${{formatDecimal this.importe 2}}</span>
+                    </div>
+                    {{/each}}
+
+                    {{#each retencionesLocales}}
+                    <div class="total-row" style="font-size: 9px; color: #94a3b8;">
+                        <span>{{this.impuesto}} ({{this.tasa}}%)</span>
+                        <span>-${{formatDecimal this.importe 2}}</span>
+                    </div>
+                    {{/each}}
+                    <div class="grand-total">
+                        <span>TOTAL</span>
+                        <span>${{formatDecimal documento.total 2}}</span>
+                    </div>
+                    <div
+                        style="margin-top: 10px; font-size: 9px; font-weight: 700; color: var(--primary-color); text-transform: uppercase; text-align: right;">
+                        ({{documento.total_en_letra}})
+                    </div>
+
+                </div>
+            </div>
+
+            {{#if documento.uuid}}
+            <div class="section-stamps">
+                <div class="stamps-flex">
+                    <img class="qr-code" src="{{qr_url}}" alt="QR">
+                    <div class="stamp-texts">
+                        <span class="stamp-label">Cadena Original del Complemento de Certificación Digital del SAT</span>
+                        {{documento.cadena_original_tfd}}
+
+                        <span class="stamp-label">Sello Digital del CFDI</span>
+                        {{documento.sello_cfdi}}
+
+                        <span class="stamp-label">Sello Digital del SAT</span>
+                        {{documento.sello_sat}}
+                    </div>
+                </div>
+                <div
+                    style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8;">
+                    <span><strong>No. Certificado SAT:</strong> {{documento.no_certificado_sat}}</span>
+                    <span><strong>Fecha Certificación:</strong> {{documento.fecha_timbrado}}</span>
+                    <span><strong>Certificado Emisor:</strong> {{documento.no_certificado_emisor}}</span>
+                </div>
+            </div>
+            {{/if}}
+
+            <div class="section-footer">
+                ESTE DOCUMENTO ES UNA REPRESENTACIÓN IMPRESA DE UN CFDI v4.0. <br>
+                <strong>RFC PROVEEDOR CERTIFICACIÓN: LSO1306189R5</strong> | EFECTOS FISCALES AL PAGO.
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

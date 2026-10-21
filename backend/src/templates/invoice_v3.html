@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{#if google_fonts_link}}
+    <link rel="stylesheet" href="{{google_fonts_link}}">
+    {{/if}}
+    <style>
+        :root {
+            --primary-color: {{color_primario}};
+            --secondary-color: {{color_secundario}};
+            --font-family: {{tipo_letra}}, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 80px 60px;
+            color: #1e293b;
+            background-color: #fff;
+            line-height: 1.5;
+            font-size: 11px;
+            text-align: center;
+        }
+
+        .modular-container {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 60px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .logo-container {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 30px;
+            padding: 8px;
+            border: 1px solid #f1f5f9;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .logo-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .emisor-name {
+            font-size: 26px;
+            font-weight: 300;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: var(--primary-color);
+            margin: 0;
+            line-height: 1.2;
+        }
+
+        .header-divider {
+            height: 1px;
+            width: 100px;
+            background-color: var(--primary-color);
+            margin: 30px 0;
+            opacity: 0.3;
+        }
+
+        .emisor-info {
+            font-size: 10px;
+            font-weight: 300;
+            font-style: italic;
+            letter-spacing: 0.2em;
+            color: #64748b;
+            max-width: 450px;
+            margin: 0 auto;
+            line-height: 1.8;
+            opacity: 0.8;
+        }
+
+        .section-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 50px;
+            text-align: left;
+            margin-bottom: 60px;
+            padding: 40px 0;
+            border-top: 1px solid #f8fafc;
+            border-bottom: 1px solid #f8fafc;
+            font-style: italic;
+        }
+
+        .info-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .receptor-label {
+            border-left: 2px solid var(--primary-color);
+            padding-left: 15px;
+        }
+
+        .receptor-name {
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .info-value {
+            font-size: 11px;
+            color: #475569;
+        }
+
+        .folio-box {
+            text-align: right;
+        }
+
+        .folio-number {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+
+        .section-concepts {
+            margin-bottom: 60px;
+        }
+
+        .concepts-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        .header-pill {
+            background-color: var(--primary-color);
+            border-radius: 50px;
+            color: white;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.1em;
+        }
+
+        .header-pill th {
+            padding: 15px 15px;
+            border: none;
+        }
+
+        .header-pill th:first-child {
+            border-top-left-radius: 50px;
+            border-bottom-left-radius: 50px;
+            padding-left: 30px;
+        }
+
+        .header-pill th:last-child {
+            border-top-right-radius: 50px;
+            border-bottom-right-radius: 50px;
+            padding-right: 30px;
+            text-align: right;
+        }
+
+        .concepts-table td {
+            padding: 24px 15px;
+            border-bottom: 1px solid #f8fafc;
+            text-align: left;
+        }
+
+        .concepts-table td:last-child {
+            text-align: right;
+        }
+
+        .concept-desc {
+            font-weight: 700;
+            color: #334155;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .concept-sat {
+            font-size: 9px;
+            color: #cbd5e1;
+            font-family: monospace;
+            letter-spacing: 0.05em;
+        }
+
+        .section-totals {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 80px;
+            break-inside: avoid;
+        }
+
+        .summary-box {
+            width: 300px;
+            text-align: left;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f8fafc;
+        }
+
+        .summary-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .summary-value {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .total-row {
+            margin-top: 15px;
+            padding: 15px 25px;
+            background-color: var(--primary-color);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-label {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        .total-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .total-letra {
+            font-size: 9px;
+            font-style: italic;
+            text-transform: uppercase;
+            color: var(--primary-color);
+            margin-top: 12px;
+            text-align: right;
+        }
+
+        .section-stamps {
+            margin-top: 40px;
+            text-align: left;
+            display: flex;
+            gap: 40px;
+            padding: 40px;
+            background-color: #fafafa;
+            border-radius: 30px;
+            break-inside: avoid;
+        }
+
+        .qr-box img {
+            width: 130px;
+            height: 130px;
+            mix-blend-mode: multiply;
+        }
+
+        .stamps-data {
+            flex: 1;
+            font-family: monospace;
+            font-size: 8px;
+            color: #94a3b8;
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
+        .stamp-title {
+            display: block;
+            font-weight: 700;
+            color: #475569;
+            margin-bottom: 5px;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .section-footer {
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 1px solid #f1f5f9;
+            font-size: 10px;
+            color: #cbd5e1;
+            font-style: italic;
+            letter-spacing: 0.1em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="modular-container">
+        <div class="section-header">
+            <div class="logo-container">
+                {{#if logo_url}}
+                <img src="{{logo_url}}" class="logo-img" alt="Logo">
+                {{else}}
+                <div style="font-size: 10px; color: #cbd5e1; letter-spacing: 2px;">LOGO</div>
+                {{/if}}
+            </div>
+            <h1 class="emisor-name">{{emisor.razon_social}}</h1>
+            <div class="header-divider"></div>
+            <div class="emisor-info">
+                RFC: {{emisor.rfc}} • CP: {{emisor.codigo_postal}}<br>
+                {{emisor.regimen_fiscal}} - {{emisor.regimen_desc}}<br>
+                {{emisor.municipio}}, {{emisor.estado}}, México
+            </div>
+        </div>
+
+        <div class="section-info">
+            <div>
+                <span class="info-label receptor-label">Consignado a</span>
+                <div class="receptor-name" style="font-style: italic; font-weight: 700;">{{receptor.razon_social}}</div>
+                <div class="info-value"> RFC: {{receptor.rfc}} • CP: {{receptor.codigo_postal}}</div>
+                <div class="info-value"> Uso: {{documento.uso_cfdi}} - {{documento.uso_desc}}</div>
+            </div>
+            <div class="folio-box">
+                <span class="info-label">Comprobante</span>
+                <div class="info-value">Folio: <span class="folio-number" style="font-style: normal; font-weight: 700;">{{documento.serie}} {{documento.folio}}</span>
+                </div>
+                <div class="info-value">Fecha: {{documento.fecha}}</div>
+                <div class="info-value">Metodo: {{documento.metodo_pago}}</div>
+            </div>
+        </div>
+
+        <div class="section-concepts">
+            <table class="concepts-table">
+                <thead>
+                    <tr class="header-pill">
+                        <th style="width: 50px; text-align: left; padding-left: 20px;">Cant.</th>
+                        <th style="width: 60px; text-align: left;">Unidad</th>
+                        <th style="width: 80px; text-align: left;">Cod. SAT</th>
+                        <th style="text-align: left;">Descripción</th>
+                        <th style="width: 100px; text-align: right;">Precio</th>
+                        <th style="width: 100px; text-align: right; padding-right: 20px;">Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each detalles}}
+                    <tr>
+                        <td style="width: 50px; color: #94a3b8; font-style: italic; padding-left: 20px;">{{this.cantidad}}</td>
+                        <td style="width: 60px; color: #64748b; font-size: 8px; text-transform: uppercase;">
+                            {{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{#if this.unidad}}{{this.unidad}}{{else if this.clave_unidad}}{{this.clave_unidad}}{{else}}{{this.Concepto.unidad}}{{/if}}{{/if}}
+                        </td>
+                        <td style="width: 80px; color: #64748b; font-family: monospace; font-size: 8px;">
+                            {{#if this.clave_sat}}{{this.clave_sat}}{{else}}{{this.Concepto.clave_prod_serv}}{{/if}}
+                        </td>
+                        <td>
+                            <div class="concept-desc">{{#if this.descripcion}}{{this.descripcion}}{{else}}{{#if this.descripcion}}{{this.descripcion}}{{else}}{{this.Concepto.descripcion}}{{/if}}{{/if}}</div>
+                            {{#if this.cuenta_predial}}<div style="font-size: 8px; color: #94a3b8;">Predial: {{this.cuenta_predial}}</div>{{/if}}
+                        </td>
+                        <td style="width: 100px; text-align: right; color: #64748b;">${{formatDecimal this.valor_unitario 6}}</td>
+                        <td style="width: 100px; text-align: right; font-weight: 700; color: #0f172a; padding-right: 20px;">${{formatDecimal this.importe 6}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-totals">
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">Subtotal:</span>
+                    <span class="summary-value">${{formatDecimal documento.subtotal 2}}</span>
+                </div>
+                {{#if documento.descuento}}
+                <div class="summary-row">
+                    <span class="summary-label">Descuento:</span>
+                    <span class="summary-value" style="color: #ef4444;">-${{formatDecimal documento.descuento 2}}</span>
+                </div>
+                {{/if}}
+                <div class="summary-row">
+                    <span class="summary-label">IVA (16%):</span>
+                    <span class="summary-value">${{formatDecimal documento.iva_total 2}}</span>
+                </div>
+                {{#each retenciones}}
+                <div class="summary-row" style="font-size: 9px; color: #94a3b8;">
+                    <span>Retención {{this.impuesto}} ({{this.tasa}}%):</span>
+                    <span>-${{formatDecimal this.importe 2}}</span>
+                </div>
+                {{/each}}
+
+                {{#each trasladosLocales}}
+                <div class="summary-row" style="font-size: 9px; color: #94a3b8;">
+                    <span>{{this.impuesto}} ({{this.tasa}}%):</span>
+                    <span>+${{formatDecimal this.importe 2}}</span>
+                </div>
+                {{/each}}
+
+                {{#each retencionesLocales}}
+                <div class="summary-row" style="font-size: 9px; color: #94a3b8;">
+                    <span>{{this.impuesto}} ({{this.tasa}}%):</span>
+                    <span>-${{formatDecimal this.importe 2}}</span>
+                </div>
+                {{/each}}
+                <div class="total-row" style="transform: rotate(-1deg); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                    <span class="total-label">TOTAL:</span>
+                    <span class="total-value">${{formatDecimal documento.total 2}}</span>
+                </div>
+                <div class="total-letra">({{documento.total_en_letra}})</div>
+            </div>
+        </div>
+
+        {{#if documento.uuid}}
+        <div class="section-stamps">
+            <div class="qr-box">
+                <img src="{{qr_url}}" alt="QR">
+            </div>
+            <div class="stamps-data">
+                <span class="stamp-title">Cadena Original del Complemento de Certificación Digital del SAT</span>
+                {{documento.cadena_original_tfd}}
+
+                <span class="stamp-title">Sello Digital del CFDI</span>
+                {{documento.sello_cfdi}}
+
+                <span class="stamp-title">Sello Digital del SAT</span>
+                {{documento.sello_sat}}
+
+                <div style="margin-top: 20px; font-weight: 700; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                    UUID: {{documento.uuid}} | CERTIFICADO SAT: {{documento.no_certificado_sat}} | FECHA TIMBRADO: {{documento.fecha_timbrado}}
+                </div>
+            </div>
+        </div>
+        {{/if}}
+
+        <div class="section-footer">
+            ESTE DOCUMENTO ES UNA REPRESENTACIÓN IMPRESA DE UN CFDI v4.0. <br>
+            RFC PROVEEDOR CERTIFICACIÓN: LSO1306189R5 | EFECTOS FISCALES AL PAGO.
+        </div>
+    </div>
+</body>
+
+</html>
