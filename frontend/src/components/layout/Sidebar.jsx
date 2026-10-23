@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Users, Building2, FileText, CreditCard, Settings, LogOut, Package, FilePlus, Palette, Truck, UserSquare2, MapPinned, Tag, Landmark, ClipboardList, Wrench } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { NetLogo } from '../NetLogo';
 
 const mainNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -58,11 +59,12 @@ export const Sidebar = () => {
     return (
         <div className="w-64 h-screen bg-slate-900 text-slate-300 flex flex-col font-sans border-r border-slate-800 hidden md:flex">
             <div className="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-900">
-                <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-primary-500/30">
-                        F
+                <div className="flex items-center gap-3">
+                    <NetLogo size="xs" />
+                    <div className="leading-tight">
+                        <span className="font-bold text-white tracking-wide text-base">Facturación<span className="text-cyan-400">4.0</span></span>
+                        <span className="block text-[10px] text-cyan-400/80 font-medium tracking-wider uppercase">Net Consultores</span>
                     </div>
-                    <span className="font-semibold text-white tracking-wide text-lg">Facturación<span className="text-primary-500">4.0</span></span>
                 </div>
             </div>
 
