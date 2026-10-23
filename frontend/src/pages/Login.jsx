@@ -55,14 +55,6 @@ export const Login = () => {
                     {/* LEFT COLUMN: Brand Experience & Identity */}
                     <div className="lg:col-span-7 flex flex-col justify-center space-y-8 text-center lg:text-left pt-6 lg:pt-0">
                         
-                        {/* Company Badge */}
-                        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-900/80 border border-cyan-500/30 text-cyan-300 text-xs font-semibold backdrop-blur-md self-center lg:self-start shadow-lg shadow-cyan-950/40">
-                            <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
-                            </span>
-                            <span>NET CONSULTORES • DESDE 2017</span>
-                        </div>
 
                         {/* Central Brand Header */}
                         <div className="space-y-4">
