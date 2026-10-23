@@ -46,7 +46,11 @@ export const login = async (req, res) => {
 
     } catch (error) {
         console.error('Error en login:', error);
-        res.status(500).json({ message: 'Error interno del servidor.' });
+        res.status(500).json({ 
+            message: 'Error interno del servidor al procesar inicio de sesión.',
+            detail: error.message,
+            code: error.original?.code || error.code
+        });
     }
 };
 

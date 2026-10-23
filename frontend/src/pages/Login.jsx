@@ -22,9 +22,11 @@ export const Login = () => {
             navigate('/');
         } catch (err) {
             if (!err.response) {
-                setError('No se pudo establecer conexión con el servidor (puerto 4000). Verifica que el backend esté iniciado.');
+                setError('No se pudo establecer conexión con el servidor. Verifica que el backend esté iniciado.');
             } else {
-                setError(err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+                const baseMsg = err.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+                const detailMsg = err.response?.data?.detail ? ` Detalle: ${err.response.data.detail}` : '';
+                setError(`${baseMsg}${detailMsg}`);
             }
         } finally {
             setLoading(false);
