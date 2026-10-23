@@ -174,48 +174,39 @@ export const Emisores = () => {
     useEffect(() => {
         const fetchSepomex = async () => {
             if (formData.codigo_postal && formData.codigo_postal.length === 5) {
-                if (selectedEmisor &&
-                    formData.codigo_postal === selectedEmisor.codigo_postal &&
-                    formData.estado === selectedEmisor.estado &&
-                    formData.municipio === selectedEmisor.municipio &&
-                    formData.colonia === selectedEmisor.colonia &&
-                    coloniasOpt.length === 0) {
-                    try {
-                        const res = await api.get(`/sepomex/cp/${formData.codigo_postal}`);
-                        setColoniasOpt(res.data.colonias);
-                        return;
-                    } catch (e) { }
-                }
-
                 setIsFetchingCP(true);
                 try {
                     const res = await api.get(`/sepomex/cp/${formData.codigo_postal}`);
-                    setColoniasOpt(res.data.colonias);
-                    if (res.data.colonias.length > 0) {
-                        setFormData(prev => ({
+                    const cols = res.data.colonias || [];
+                    setColoniasOpt(cols);
+
+                    const estadoNombre = typeof res.data.estado === 'object'
+                        ? (res.data.estado?.nombre || '')
+                        : (res.data.estado || '');
+                    const municipioNombre = typeof res.data.municipio === 'object'
+                        ? (res.data.municipio?.nombre || '')
+                        : (res.data.municipio || '');
+
+                    setFormData(prev => {
+                        const hasMatchingCol = prev.colonia && cols.find(c => c.nombre === prev.colonia);
+                        return {
                             ...prev,
-                            estado: res.data.estado.nombre,
-                            municipio: res.data.municipio.nombre,
-                            colonia: prev.colonia && res.data.colonias.find(c => c.nombre === prev.colonia)
-                                ? prev.colonia
-                                : res.data.colonias[0].nombre
-                        }));
-                    }
+                            estado: estadoNombre || prev.estado,
+                            municipio: municipioNombre || prev.municipio,
+                            colonia: hasMatchingCol ? prev.colonia : (cols[0]?.nombre || prev.colonia || '')
+                        };
+                    });
                 } catch (error) {
-                    setColoniasOpt([]);
-                    setFormData(prev => ({ ...prev, estado: '', municipio: '', colonia: '' }));
+                    console.error("Error al consultar CP en emisor:", error);
                 } finally {
                     setIsFetchingCP(false);
                 }
             } else if (!formData.codigo_postal || formData.codigo_postal.length < 5) {
                 setColoniasOpt([]);
-                if (formData.estado || formData.municipio || formData.colonia) {
-                    setFormData(prev => ({ ...prev, estado: '', municipio: '', colonia: '' }));
-                }
             }
         };
         fetchSepomex();
-    }, [formData.codigo_postal, selectedEmisor]);
+    }, [formData.codigo_postal]);
 
     // SEPOMEX Autocomplete para formulario de nuevo emisor
     useEffect(() => {
@@ -224,26 +215,32 @@ export const Emisores = () => {
                 setIsFetchingNewCP(true);
                 try {
                     const res = await api.get(`/sepomex/cp/${newEmisorData.codigo_postal}`);
-                    setColoniasNewOpt(res.data.colonias);
-                    if (res.data.colonias.length > 0) {
-                        setNewEmisorData(prev => ({
+                    const cols = res.data.colonias || [];
+                    setColoniasNewOpt(cols);
+
+                    const estadoNombre = typeof res.data.estado === 'object'
+                        ? (res.data.estado?.nombre || '')
+                        : (res.data.estado || '');
+                    const municipioNombre = typeof res.data.municipio === 'object'
+                        ? (res.data.municipio?.nombre || '')
+                        : (res.data.municipio || '');
+
+                    setNewEmisorData(prev => {
+                        const hasMatchingCol = prev.colonia && cols.find(c => c.nombre === prev.colonia);
+                        return {
                             ...prev,
-                            estado: res.data.estado.nombre,
-                            municipio: res.data.municipio.nombre,
-                            colonia: res.data.colonias[0].nombre
-                        }));
-                    }
+                            estado: estadoNombre || prev.estado,
+                            municipio: municipioNombre || prev.municipio,
+                            colonia: hasMatchingCol ? prev.colonia : (cols[0]?.nombre || prev.colonia || '')
+                        };
+                    });
                 } catch (error) {
-                    setColoniasNewOpt([]);
-                    setNewEmisorData(prev => ({ ...prev, estado: '', municipio: '', colonia: '' }));
+                    console.error("Error al consultar CP para nuevo emisor:", error);
                 } finally {
                     setIsFetchingNewCP(false);
                 }
             } else if (!newEmisorData.codigo_postal || newEmisorData.codigo_postal.length < 5) {
                 setColoniasNewOpt([]);
-                if (newEmisorData.estado || newEmisorData.municipio || newEmisorData.colonia) {
-                    setNewEmisorData(prev => ({ ...prev, estado: '', municipio: '', colonia: '' }));
-                }
             }
         };
         fetchNewSepomex();
@@ -781,11 +778,11 @@ export const Emisores = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-600 mb-1">Estado</label>
-                                        <input disabled value={newEmisorData.estado} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 font-medium" placeholder="Estado..." />
+                                        <input value={newEmisorData.estado} onChange={e => setNewEmisorData({ ...newEmisorData, estado: e.target.value })} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800 font-medium focus:ring-1 focus:ring-primary-500" placeholder="Estado..." />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Municipio</label>
-                                        <input disabled value={newEmisorData.municipio} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 font-medium" placeholder="Municipio..." />
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1">Municipio / Ciudad</label>
+                                        <input value={newEmisorData.municipio} onChange={e => setNewEmisorData({ ...newEmisorData, municipio: e.target.value })} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800 font-medium focus:ring-1 focus:ring-primary-500" placeholder="Municipio..." />
                                     </div>
 
                                     <div className="col-span-2 flex items-center gap-3 bg-blue-50/50 p-4 rounded-lg border border-blue-100 mt-2">
@@ -938,22 +935,28 @@ export const Emisores = () => {
                                     </div>
                                     <div className="md:col-span-3">
                                         <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Colonia</label>
-                                        <select name="colonia" disabled={coloniasOpt.length === 0} value={formData.colonia} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm bg-white disabled:bg-slate-50 disabled:text-slate-600">
-                                            {coloniasOpt.length === 0 && <option value="">Seleccione al cargar CP...</option>}
-                                            {coloniasOpt.map(col => (
-                                                <option key={col.id} value={col.nombre}>{col.nombre}</option>
-                                            ))}
+                                        <select name="colonia" value={formData.colonia || ''} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm bg-white">
+                                            {coloniasOpt.length === 0 ? (
+                                                <option value={formData.colonia || ''}>{formData.colonia || 'Ingrese CP para cargar colonias...'}</option>
+                                            ) : (
+                                                <>
+                                                    <option value="">-- Seleccionar Colonia --</option>
+                                                    {coloniasOpt.map(col => (
+                                                        <option key={col.id} value={col.nombre}>{col.nombre}</option>
+                                                    ))}
+                                                </>
+                                            )}
                                         </select>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                     <div>
                                         <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Estado</label>
-                                        <input disabled name="estado" value={formData.estado} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 font-medium" />
+                                        <input name="estado" value={formData.estado || ''} onChange={handleChange} placeholder="Estado" type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800 font-medium focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Municipio</label>
-                                        <input disabled name="municipio" value={formData.municipio} type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 font-medium" />
+                                        <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Municipio / Ciudad</label>
+                                        <input name="municipio" value={formData.municipio || ''} onChange={handleChange} placeholder="Municipio o Ciudad" type="text" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white text-slate-800 font-medium focus:border-primary-500 focus:ring-1 focus:ring-primary-500" />
                                     </div>
                                 </div>
                             </div>
