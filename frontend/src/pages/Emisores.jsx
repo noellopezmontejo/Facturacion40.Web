@@ -280,7 +280,7 @@ export const Emisores = () => {
             });
             
             if (res.data && res.data.pdfUrl) {
-                const baseUrl = (api.defaults.baseURL || 'http://localhost:4000/api').replace('/api', '');
+                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
                 const fullUrl = res.data.pdfUrl.startsWith('http') ? res.data.pdfUrl : `${baseUrl}${res.data.pdfUrl}`;
                 
                 const win = window.open(fullUrl, '_blank');

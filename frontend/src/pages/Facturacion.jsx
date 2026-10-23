@@ -554,7 +554,7 @@ export const NuevaFactura = () => {
 
             const response = await api.post('/documentos/preview', payload);
             if (response.data.success) {
-                const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace('/api', '');
+                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
                 const pdfUrl = `${baseUrl}${response.data.pdfUrl}`;
                 
                 // Intentar abrir, si falla por bloqueador, mostrar enlace
@@ -725,7 +725,7 @@ export const NuevaFactura = () => {
                     <button
                         onClick={() => {
                             if (emittedDocument) {
-                                const baseUrl = (api.defaults.baseURL || 'http://localhost:4000/api').replace('/api', '');
+                                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
                                 window.open(`${baseUrl}${emittedDocument.pdf_url}`, '_blank');
                             } else {
                                 handleSubirFactura(false);

@@ -34,7 +34,7 @@ export const Documentos = () => {
             showToast('Archivo no disponible aún.', 'info');
             return;
         }
-        const baseUrl = (api.defaults.baseURL || 'http://localhost:4000/api').replace('/api', '');
+        const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
         const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
         window.open(fullUrl, '_blank');
     };
@@ -44,7 +44,7 @@ export const Documentos = () => {
         try {
             const res = await api.get(`/documentos/${docId}/pdf`);
             if (res.data.success) {
-                const baseUrl = (api.defaults.baseURL || 'http://localhost:4000/api').replace('/api', '');
+                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
                 window.open(`${baseUrl}${res.data.pdfUrl}`, '_blank');
             }
         } catch (error) {

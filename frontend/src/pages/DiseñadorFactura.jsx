@@ -633,7 +633,7 @@ export const DiseñadorFactura = () => {
                 tipo_documento_id: tipo_documento_id
             };
             const res = await api.post(`/emisores/${activeEmisor.id}/preview-pdf`, previewData);
-            const baseUrl = (api.defaults.baseURL || 'http://localhost:4000/api').replace('/api', '');
+            const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
             const fullUrl = res.data.pdfUrl.startsWith('http') ? res.data.pdfUrl : `${baseUrl}${res.data.pdfUrl}`;
             window.open(fullUrl, '_blank');
         } catch (error) {

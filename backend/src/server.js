@@ -3,7 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { sequelize } from './config/database.js';
 
 dotenv.config();
 
@@ -73,7 +75,33 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Facturación CFDI 4.0 Backend Running' });
 });
 
+// Serve frontend static files if present in public/
+const publicDir = path.join(__dirname, '..', 'public');
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/storage')) {
+      return next();
+    }
+    res.sendFile(path.join(publicDir, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({
+      status: 'ok',
+      message: 'Facturación CFDI 4.0 Backend API activa',
+      health: '/api/health'
+    });
+  });
+}
+
 // Server Initialization
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server running on port ${PORT}`);
+  try {
+    await sequelize.authenticate();
+    console.log('Database connection has been established successfully.');
+  } catch (error) {
+    console.error('Unable to connect to the database:', error.message);
+  }
 });
