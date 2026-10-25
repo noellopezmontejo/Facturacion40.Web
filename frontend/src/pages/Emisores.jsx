@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon } from 'lucide-react';
+import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
+import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
 
 const PLANTILLAS_PDF = [
     { id: 'v1', name: 'Estándar' },
@@ -83,6 +84,11 @@ export const Emisores = () => {
     const [saving, setSaving] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [layoutId, setLayoutId] = useState('v1');
+    const [colorPrimario, setColorPrimario] = useState('#004481');
+    const [colorSecundario, setColorSecundario] = useState('#123247');
+    const [suggestedPalettes, setSuggestedPalettes] = useState(getDefaultPalettes());
+    const [dominantColors, setDominantColors] = useState([]);
+    const [isExtractingColors, setIsExtractingColors] = useState(false);
     const [logoUrl, setLogoUrl] = useState(null);
     const [logoFile, setLogoFile] = useState(null);
     const [logoPreview, setLogoPreview] = useState(null);
@@ -261,11 +267,27 @@ export const Emisores = () => {
             const { data } = await api.get(`/estilos/${emisorId}`);
             if (data) {
                 setLayoutId(data.layout_id || 'v1');
-                setLogoUrl(data.logo_url || null);
+                const savedLogoUrl = data.logo_url || null;
+                setLogoUrl(savedLogoUrl);
+                const pri = data.color_primario || '#004481';
+                const sec = data.color_secundario || '#123247';
+                setColorPrimario(pri);
+                setColorSecundario(sec);
+
+                if (savedLogoUrl) {
+                    analyzeLogoColors(getFullLogoUrl(savedLogoUrl), pri, sec);
+                } else {
+                    setSuggestedPalettes(getDefaultPalettes());
+                    setDominantColors([]);
+                }
             }
         } catch (error) {
             setLayoutId('v1');
             setLogoUrl(null);
+            setColorPrimario('#004481');
+            setColorSecundario('#123247');
+            setSuggestedPalettes(getDefaultPalettes());
+            setDominantColors([]);
         }
     };
 
@@ -274,6 +296,35 @@ export const Emisores = () => {
         if (url.startsWith('http')) return url;
         const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
         return `${baseUrl}${url}`;
+    };
+
+    const analyzeLogoColors = async (imgSrc, currentPri, currentSec) => {
+        const src = imgSrc || logoPreview || (logoUrl && !removeLogo ? getFullLogoUrl(logoUrl) : null);
+        if (!src) {
+            setSuggestedPalettes(getDefaultPalettes());
+            setDominantColors([]);
+            return;
+        }
+        setIsExtractingColors(true);
+        try {
+            const result = await extractColorsFromImage(src);
+            setDominantColors(result.dominant || []);
+            setSuggestedPalettes(result.palettes || []);
+
+            // Si los colores actuales son los por defecto (#004481), pre-seleccionar la paleta armónica recomendada
+            if (result.palettes && result.palettes.length > 0) {
+                if (!currentPri || currentPri === '#004481') {
+                    const rec = result.palettes[0];
+                    setColorPrimario(rec.primary);
+                    setColorSecundario(rec.secondary);
+                }
+            }
+        } catch (err) {
+            console.error('Error al analizar paleta del logo:', err);
+            setSuggestedPalettes(getDefaultPalettes());
+        } finally {
+            setIsExtractingColors(false);
+        }
     };
 
     const handleLogoChange = (e) => {
@@ -294,7 +345,10 @@ export const Emisores = () => {
         setRemoveLogo(false);
         const reader = new FileReader();
         reader.onload = () => {
-            setLogoPreview(reader.result);
+            const dataUrl = reader.result;
+            setLogoPreview(dataUrl);
+            // Analizar y generar de inmediato paletas armónicas y de contraste desde la imagen
+            analyzeLogoColors(dataUrl);
         };
         reader.readAsDataURL(file);
     };
@@ -303,6 +357,8 @@ export const Emisores = () => {
         setLogoFile(null);
         setLogoPreview(null);
         setRemoveLogo(true);
+        setSuggestedPalettes(getDefaultPalettes());
+        setDominantColors([]);
     };
 
     const handleSaveLogoQuick = async () => {
@@ -317,6 +373,8 @@ export const Emisores = () => {
                 const formDataLogo = new FormData();
                 formDataLogo.append('logo', logoFile);
                 formDataLogo.append('layout_id', layoutId);
+                formDataLogo.append('color_primario', colorPrimario);
+                formDataLogo.append('color_secundario', colorSecundario);
                 const res = await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
@@ -324,10 +382,15 @@ export const Emisores = () => {
                 setLogoUrl(newUrl);
                 setLogoFile(null);
                 setLogoPreview(null);
-                showToast('✅ Logotipo del emisor actualizado correctamente.');
+                showToast('✅ Logotipo y colores del emisor actualizados correctamente.');
                 fetchEmisores();
             } else if (removeLogo) {
-                await api.put(`/estilos/${selectedEmisor.id}`, { remove_logo: true, layout_id: layoutId });
+                await api.put(`/estilos/${selectedEmisor.id}`, { 
+                    remove_logo: true, 
+                    layout_id: layoutId,
+                    color_primario: colorPrimario,
+                    color_secundario: colorSecundario
+                });
                 setLogoUrl(null);
                 setRemoveLogo(false);
                 showToast('✅ Logotipo del emisor eliminado.');
@@ -355,7 +418,9 @@ export const Emisores = () => {
         setIsGeneratingPdf(true);
         try {
             const res = await api.post(`/emisores/${selectedEmisor.id}/preview-pdf`, { 
-                layout_id: layoutId 
+                layout_id: layoutId,
+                color_primario: colorPrimario,
+                color_secundario: colorSecundario
             });
             
             if (res.data && res.data.pdfUrl) {
@@ -400,18 +465,29 @@ export const Emisores = () => {
                 updatedEmisor = resFiles.data.emisor;
             }
 
-            // Guardar estilo y logotipo
+            // Guardar estilo, logotipo y colores corporativos
             if (logoFile) {
                 const formDataLogo = new FormData();
                 formDataLogo.append('logo', logoFile);
                 formDataLogo.append('layout_id', layoutId);
+                formDataLogo.append('color_primario', colorPrimario);
+                formDataLogo.append('color_secundario', colorSecundario);
                 await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
             } else if (removeLogo) {
-                await api.put(`/estilos/${selectedEmisor.id}`, { remove_logo: true, layout_id: layoutId });
+                await api.put(`/estilos/${selectedEmisor.id}`, { 
+                    remove_logo: true, 
+                    layout_id: layoutId,
+                    color_primario: colorPrimario,
+                    color_secundario: colorSecundario
+                });
             } else {
-                await api.put(`/estilos/${selectedEmisor.id}`, { layout_id: layoutId });
+                await api.put(`/estilos/${selectedEmisor.id}`, { 
+                    layout_id: layoutId,
+                    color_primario: colorPrimario,
+                    color_secundario: colorSecundario
+                });
             }
 
             showToast('✅ Emisor y diseño actualizados con éxito');
@@ -1148,40 +1224,295 @@ export const Emisores = () => {
                         </div>
                     </div>
 
-                    {/* Personalizar Diseño / Plantilla Global */}
+                    {/* Personalizar Diseño / Plantilla Global y Colores */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
-                        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                                <Palette className="w-5 h-5 text-primary-500" />
-                                <h2 className="font-semibold text-slate-800">Personalizar Diseño</h2>
+                                <Palette className="w-5 h-5 text-primary-600" />
+                                <div>
+                                    <h2 className="font-semibold text-slate-800">Personalizar Diseño & Colores de Factura</h2>
+                                    <p className="text-xs text-slate-500">Adecua o contrasta los tonos de tus CFDIs automáticamente con el logotipo de la empresa.</p>
+                                </div>
                             </div>
-                            <span className="text-xs text-slate-500 hidden sm:inline">
+                            <span className="text-xs text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-full font-medium shadow-2xs">
                                 Plantilla actual: <strong className="text-primary-700 font-bold">{PLANTILLAS_PDF.find(p => p.id === layoutId)?.name || 'Estándar'}</strong>
                             </span>
                         </div>
-                        <div className="p-6">
-                            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                                Plantilla Global
-                            </label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-                                {PLANTILLAS_PDF.map((v) => {
-                                    const isSelected = layoutId === v.id;
-                                    return (
+
+                        <div className="p-6 space-y-6">
+                            {/* Selector de Plantilla */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
+                                    1. Selecciona el Modelo / Plantilla Global
+                                </label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                    {PLANTILLAS_PDF.map((v) => {
+                                        const isSelected = layoutId === v.id;
+                                        return (
+                                            <button
+                                                key={v.id}
+                                                type="button"
+                                                onClick={() => setLayoutId(v.id)}
+                                                className={`p-3 border rounded-xl text-xs font-medium transition-all flex flex-col items-center justify-center gap-1.5 shadow-2xs ${
+                                                    isSelected 
+                                                        ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold ring-2 ring-primary-100' 
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <Layout className={`w-4 h-4 mx-auto ${isSelected ? 'text-primary-600' : 'text-slate-600'}`} />
+                                                <span>{v.name}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Sección de Colores vinculados al Logotipo */}
+                            <div className="pt-5 border-t border-slate-200/80 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                            2. Colores Corporativos (Armonizados o Contrastados con el Logo)
+                                        </label>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Elige una paleta calculada directamente de la imagen de tu logotipo o personaliza los tonos a tu gusto.
+                                        </p>
+                                    </div>
+
+                                    {(logoPreview || (logoUrl && !removeLogo)) ? (
                                         <button
-                                            key={v.id}
                                             type="button"
-                                            onClick={() => setLayoutId(v.id)}
-                                            className={`p-3 border rounded-xl text-xs font-medium transition-all flex flex-col items-center justify-center gap-1.5 shadow-2xs ${
-                                                isSelected 
-                                                    ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold ring-2 ring-primary-100' 
-                                                    : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                                            }`}
+                                            onClick={() => analyzeLogoColors()}
+                                            disabled={isExtractingColors}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold shadow-xs transition active:scale-95 disabled:opacity-50 shrink-0"
                                         >
-                                            <Layout className={`w-4 h-4 mx-auto ${isSelected ? 'text-primary-600' : 'text-slate-600'}`} />
-                                            <span>{v.name}</span>
+                                            {isExtractingColors ? (
+                                                <>
+                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                    <span>Analizando logo...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                                    <span>Re-sincronizar con logotipo</span>
+                                                </>
+                                            )}
                                         </button>
-                                    );
-                                })}
+                                    ) : (
+                                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md shrink-0">
+                                            💡 Sube un logo a la derecha para auto-adaptar colores
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Chips de tonos extraídos del logotipo si existen */}
+                                {dominantColors.length > 0 && (
+                                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center gap-3">
+                                        <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                            <Pipette className="w-3.5 h-3.5 text-primary-600" /> Tonos detectados en el logotipo:
+                                        </span>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            {dominantColors.map((hex, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    type="button"
+                                                    title={`Usar ${hex} como color primario`}
+                                                    onClick={() => setColorPrimario(hex)}
+                                                    className="group flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 hover:border-primary-400 rounded-lg text-[11px] font-mono shadow-2xs transition"
+                                                >
+                                                    <span className="w-3.5 h-3.5 rounded-full border border-black/10 shadow-2xs group-hover:scale-110 transition-transform" style={{ backgroundColor: hex }} />
+                                                    <span className="text-slate-700">{hex}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tarjetas de Paletas Inteligentes (Armonía, Contraste, etc.) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {suggestedPalettes.map((pal, idx) => {
+                                        const isSelected = colorPrimario.toLowerCase() === pal.primary.toLowerCase() &&
+                                                           colorSecundario.toLowerCase() === pal.secondary.toLowerCase();
+                                        return (
+                                            <div
+                                                key={idx}
+                                                onClick={() => {
+                                                    setColorPrimario(pal.primary);
+                                                    setColorSecundario(pal.secondary);
+                                                }}
+                                                className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between relative group ${
+                                                    isSelected
+                                                        ? 'border-primary-500 bg-primary-50/50 shadow-sm ring-2 ring-primary-500/20'
+                                                        : 'border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50/60 shadow-2xs'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className="text-xs font-bold text-slate-800 group-hover:text-primary-700 transition-colors">
+                                                            {pal.title}
+                                                        </span>
+                                                        {pal.badge && (
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                                pal.isContrast 
+                                                                    ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                                                    : 'bg-primary-100 text-primary-800 border border-primary-200'
+                                                            }`}>
+                                                                {pal.badge}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed mb-3">
+                                                        {pal.desc}
+                                                    </p>
+                                                </div>
+
+                                                {/* Muestra visual de colores primario y secundario */}
+                                                <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex-1 h-5 rounded-md flex items-center justify-center text-[10px] font-mono text-white font-semibold shadow-2xs" style={{ backgroundColor: pal.primary }}>
+                                                            {pal.primary}
+                                                        </div>
+                                                        <div className="w-16 h-5 rounded-md flex items-center justify-center text-[10px] font-mono text-white font-semibold shadow-2xs" style={{ backgroundColor: pal.secondary }}>
+                                                            {pal.secondary}
+                                                        </div>
+                                                        {isSelected && (
+                                                            <div className="w-5 h-5 rounded-full bg-primary-600 text-white flex items-center justify-center shrink-0">
+                                                                <Check className="w-3 h-3 stroke-[3]" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex justify-between text-[9px] text-slate-400 font-medium px-0.5">
+                                                        <span>Primario (Encabezados)</span>
+                                                        <span>Secundario (Acento)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Ajuste fino manual de colores con color pickers */}
+                                <div className="bg-slate-50/80 rounded-xl border border-slate-200 p-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs font-semibold text-slate-700">Ajuste Fino Manual de Tonos</span>
+                                        <span className="text-[10px] text-slate-400">Puedes escribir el código hexadecimal o usar el selector de color</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {/* Color Primario */}
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                                Color Primario <span className="font-normal text-slate-400">(Banners, títulos de columnas, marcos)</span>
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="color"
+                                                    value={colorPrimario}
+                                                    onChange={(e) => setColorPrimario(e.target.value)}
+                                                    className="w-10 h-10 p-1 rounded-lg border border-slate-300 cursor-pointer bg-white"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={colorPrimario}
+                                                    onChange={(e) => setColorPrimario(e.target.value)}
+                                                    maxLength={7}
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono uppercase bg-white focus:ring-1 focus:ring-primary-500"
+                                                    placeholder="#004481"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Color Secundario */}
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                                Color Secundario / Acento <span className="font-normal text-slate-400">(Totales, foliadores, líneas)</span>
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="color"
+                                                    value={colorSecundario}
+                                                    onChange={(e) => setColorSecundario(e.target.value)}
+                                                    className="w-10 h-10 p-1 rounded-lg border border-slate-300 cursor-pointer bg-white"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={colorSecundario}
+                                                    onChange={(e) => setColorSecundario(e.target.value)}
+                                                    maxLength={7}
+                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono uppercase bg-white focus:ring-1 focus:ring-primary-500"
+                                                    placeholder="#123247"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Miniatura de Previsualización en Vivo de la Factura */}
+                                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-slate-700">Previsualización del Estilo en la Factura</span>
+                                        <button
+                                            type="button"
+                                            onClick={handlePreviewPdf}
+                                            disabled={isGeneratingPdf}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition disabled:opacity-50"
+                                        >
+                                            <Eye className={`w-3.5 h-3.5 ${isGeneratingPdf ? 'animate-pulse' : ''}`} />
+                                            <span>{isGeneratingPdf ? 'Generando PDF...' : 'Ver PDF Completo'}</span>
+                                        </button>
+                                    </div>
+
+                                    {/* Mockup visual dinámico */}
+                                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50 space-y-3">
+                                        {/* Header Mockup */}
+                                        <div
+                                            className="rounded-lg p-3 text-white flex items-center justify-between transition-colors shadow-2xs"
+                                            style={{ backgroundColor: colorPrimario }}
+                                        >
+                                            <div>
+                                                <p className="text-xs font-bold uppercase">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</p>
+                                                <p className="text-[10px] opacity-85 font-mono">{selectedEmisor?.rfc || 'XAXX010101000'} | FACTURA A-0001</p>
+                                            </div>
+                                            <div className="w-10 h-10 bg-white/90 rounded-md p-0.5 flex items-center justify-center shrink-0">
+                                                {(logoPreview || (logoUrl && !removeLogo)) ? (
+                                                    <img
+                                                        src={logoPreview || getFullLogoUrl(logoUrl)}
+                                                        alt="Logo preview"
+                                                        className="max-h-full max-w-full object-contain"
+                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                    />
+                                                ) : (
+                                                    <Building2 className="w-5 h-5 text-slate-700" />
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Table Header Mockup */}
+                                        <div className="rounded overflow-hidden border border-slate-200 bg-white text-[10px]">
+                                            <div
+                                                className="px-3 py-1.5 font-bold uppercase text-white flex justify-between transition-colors"
+                                                style={{ backgroundColor: colorPrimario }}
+                                            >
+                                                <span>Concepto / Descripción</span>
+                                                <span>Importe</span>
+                                            </div>
+                                            <div className="px-3 py-2 flex justify-between text-slate-600 border-b border-slate-100">
+                                                <span>SERVICIOS PROFESIONALES DE FACTURACIÓN ELECTRÓNICA</span>
+                                                <span className="font-semibold text-slate-800">$1,000.00</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Totals Mockup */}
+                                        <div className="flex justify-end">
+                                            <div
+                                                className="px-4 py-2 rounded-lg text-white text-right space-y-0.5 shadow-2xs transition-colors"
+                                                style={{ backgroundColor: colorSecundario }}
+                                            >
+                                                <p className="text-[9px] uppercase tracking-wide opacity-80">Total a Pagar (MXN)</p>
+                                                <p className="text-sm font-bold">$1,160.00</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

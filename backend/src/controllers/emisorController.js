@@ -52,7 +52,7 @@ export const getEmisores = async (req, res) => {
                 where: whereClause,
                 include: [
                     { model: Empresa, attributes: ['id', 'nombre', 'activo'] },
-                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'layout_id'] }
+                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'color_secundario', 'layout_id'] }
                 ],
                 order: [['razon_social', 'ASC']]
             });
@@ -61,7 +61,7 @@ export const getEmisores = async (req, res) => {
                 where: { empresa_id: req.usuario.empresa_id },
                 include: [
                     { model: Empresa, attributes: ['id', 'nombre', 'activo'] },
-                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'layout_id'] }
+                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'color_secundario', 'layout_id'] }
                 ],
                 order: [['razon_social', 'ASC']]
             });
@@ -405,9 +405,12 @@ export const uploadLogoEmisor = async (req, res) => {
         fs.writeFileSync(path.join(fullPath, fileName), req.file.buffer);
 
         const logo_url = `/storage/${emisor.rfc}/logos/${fileName}`;
-        await estilo.update({ logo_url });
+        const updateFields = { logo_url };
+        if (req.body.color_primario) updateFields.color_primario = req.body.color_primario;
+        if (req.body.color_secundario) updateFields.color_secundario = req.body.color_secundario;
+        await estilo.update(updateFields);
 
-        res.json({ message: 'Logotipo actualizado correctamente', logo_url });
+        res.json({ message: 'Logotipo actualizado correctamente', logo_url, color_primario: estilo.color_primario, color_secundario: estilo.color_secundario });
     } catch (error) {
         console.error('Error uploading logo emisor:', error);
         res.status(500).json({ message: 'Error al procesar el logotipo: ' + error.message });

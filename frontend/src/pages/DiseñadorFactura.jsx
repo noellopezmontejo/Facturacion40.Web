@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
 import { SketchPicker } from 'react-color';
-import { Save, Upload, Palette, Layout, Eye, Check } from 'lucide-react';
+import { Save, Upload, Palette, Layout, Eye, Check, Sparkles, Pipette, RefreshCw } from 'lucide-react';
+import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
 
 const RenderMockup = ({ config, activeEmisor, logoPreview }) => {
     const layout = config.layout_id || 'v1';
@@ -518,6 +519,9 @@ export const DiseñadorFactura = () => {
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [showColorPicker, setShowColorPicker] = useState(null);
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const [suggestedPalettes, setSuggestedPalettes] = useState(getDefaultPalettes());
+    const [dominantColors, setDominantColors] = useState([]);
+    const [isExtractingColors, setIsExtractingColors] = useState(false);
 
     useEffect(() => {
         if (!activeEmisor) return;
@@ -575,10 +579,12 @@ export const DiseñadorFactura = () => {
                     }
                 });
                 if (data.logo_url) {
+                    const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
                     const fullUrl = data.logo_url.startsWith('http')
                         ? data.logo_url
-                        : `${import.meta.env.VITE_API_URL.replace('/api', '')}${data.logo_url}`;
+                        : `${baseUrl}${data.logo_url}`;
                     setLogoPreview(fullUrl);
+                    analyzeLogoColors(fullUrl);
                 }
             }
             setLoading(false);
@@ -588,11 +594,36 @@ export const DiseñadorFactura = () => {
         }
     };
 
+    const analyzeLogoColors = async (imgSrc) => {
+        const src = imgSrc || logoPreview;
+        if (!src) {
+            setSuggestedPalettes(getDefaultPalettes());
+            setDominantColors([]);
+            return;
+        }
+        setIsExtractingColors(true);
+        try {
+            const result = await extractColorsFromImage(src);
+            setDominantColors(result.dominant || []);
+            setSuggestedPalettes(result.palettes || []);
+        } catch (err) {
+            console.error('Error al analizar paleta en diseñador:', err);
+        } finally {
+            setIsExtractingColors(false);
+        }
+    };
+
     const handleLogoChange = (e) => {
         const file = e.target.files[0];
         if (file) {
             setSelectedLogo(file);
-            setLogoPreview(URL.createObjectURL(file));
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                setLogoPreview(dataUrl);
+                analyzeLogoColors(dataUrl);
+            };
+            reader.readAsDataURL(file);
         }
     };
 
@@ -681,12 +712,88 @@ export const DiseñadorFactura = () => {
                     </div>
 
                     <div className="space-y-4">
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">Colores Corporativos</label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <span className="text-[10px] text-slate-400 mb-1 block uppercase font-bold">Primario</span>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Colores Corporativos</label>
+                                <p className="text-[10px] text-slate-500">Adecua o contrasta los tonos de tu factura con el logotipo</p>
+                            </div>
+                            {logoPreview && (
+                                <button
+                                    type="button"
+                                    onClick={() => analyzeLogoColors()}
+                                    disabled={isExtractingColors}
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg text-[10px] font-bold transition"
+                                >
+                                    <Sparkles className="w-3 h-3 text-amber-500" />
+                                    <span>{isExtractingColors ? 'Analizando...' : 'Auto-extraer del Logo'}</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Chips de tonos detectados en el logo */}
+                        {dominantColors.length > 0 && (
+                            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-semibold text-slate-600 flex items-center gap-1">
+                                    <Pipette className="w-3 h-3 text-primary-600" /> Tonos del logo:
+                                </span>
+                                {dominantColors.map((hex, idx) => (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        title={`Aplicar ${hex} como primario`}
+                                        onClick={() => setConfig({ ...config, color_primario: hex })}
+                                        className="flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 hover:border-primary-400 rounded text-[10px] font-mono transition"
+                                    >
+                                        <span className="w-3 h-3 rounded-full border border-black/10" style={{ backgroundColor: hex }} />
+                                        <span>{hex}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Paletas de Armonía y Contraste sugeridas */}
+                        <div className="space-y-1.5">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Paletas Inteligentes Sugeridas</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {suggestedPalettes.map((pal, idx) => {
+                                    const isSelected = config.color_primario.toLowerCase() === pal.primary.toLowerCase() &&
+                                                       config.color_secundario.toLowerCase() === pal.secondary.toLowerCase();
+                                    return (
+                                        <div
+                                            key={idx}
+                                            onClick={() => setConfig({ ...config, color_primario: pal.primary, color_secundario: pal.secondary })}
+                                            className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
+                                                isSelected ? 'border-primary-500 bg-primary-50/50 ring-1 ring-primary-500' : 'border-slate-200 hover:border-slate-300 bg-white'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-[11px] font-bold text-slate-800 truncate">{pal.title}</span>
+                                                {pal.badge && (
+                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                                        pal.isContrast ? 'bg-amber-100 text-amber-700' : 'bg-primary-100 text-primary-700'
+                                                    }`}>{pal.badge}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 pt-1">
+                                                <div className="flex-1 h-3.5 rounded text-[8px] text-white font-mono flex items-center justify-center font-bold" style={{ backgroundColor: pal.primary }}>
+                                                    {pal.primary}
+                                                </div>
+                                                <div className="w-12 h-3.5 rounded text-[8px] text-white font-mono flex items-center justify-center font-bold" style={{ backgroundColor: pal.secondary }}>
+                                                    {pal.secondary}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Pickers manuales */}
+                        <div className="grid grid-cols-2 gap-4 pt-1">
+                            <div>
+                                <span className="text-[10px] text-slate-400 mb-1 block uppercase font-bold">Primario (Cabecera)</span>
                                 <div className="flex items-center gap-2">
-                                    <button className="w-8 h-8 rounded-lg border shadow-sm" style={{ backgroundColor: config.color_primario }} onClick={() => setShowColorPicker(showColorPicker === 'primario' ? null : 'primario')} />
+                                    <button className="w-8 h-8 rounded-lg border shadow-sm shrink-0" style={{ backgroundColor: config.color_primario }} onClick={() => setShowColorPicker(showColorPicker === 'primario' ? null : 'primario')} />
                                     <input type="text" value={config.color_primario} onChange={(e) => setConfig({ ...config, color_primario: e.target.value })} className="w-full text-[10px] border rounded px-2 py-1 uppercase font-mono" />
                                 </div>
                                 {showColorPicker === 'primario' && (
@@ -697,9 +804,9 @@ export const DiseñadorFactura = () => {
                                 )}
                             </div>
                             <div>
-                                <span className="text-[10px] text-slate-400 mb-1 block uppercase font-bold">Secundario</span>
+                                <span className="text-[10px] text-slate-400 mb-1 block uppercase font-bold">Secundario (Acento)</span>
                                 <div className="flex items-center gap-2">
-                                    <button className="w-8 h-8 rounded-lg border shadow-sm" style={{ backgroundColor: config.color_secundario }} onClick={() => setShowColorPicker(showColorPicker === 'secundario' ? null : 'secundario')} />
+                                    <button className="w-8 h-8 rounded-lg border shadow-sm shrink-0" style={{ backgroundColor: config.color_secundario }} onClick={() => setShowColorPicker(showColorPicker === 'secundario' ? null : 'secundario')} />
                                     <input type="text" value={config.color_secundario} onChange={(e) => setConfig({ ...config, color_secundario: e.target.value })} className="w-full text-[10px] border rounded px-2 py-1 uppercase font-mono" />
                                 </div>
                                 {showColorPicker === 'secundario' && (
