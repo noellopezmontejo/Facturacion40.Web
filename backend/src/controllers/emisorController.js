@@ -35,7 +35,7 @@ import { Op } from 'sequelize';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { getCerPath, getKeyPath, getPublicUrl, STORAGE_BASE } from '../utils/storageHelper.js';
+import { getCerPath, getKeyPath, getPublicUrl, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
 
 // Configuración de Multer para memoria (luego procesamos nosotros el guardado por RFC)
 const storage = multer.memoryStorage();
@@ -50,13 +50,19 @@ export const getEmisores = async (req, res) => {
             const whereClause = targetEmpresaId ? { empresa_id: Number(targetEmpresaId) } : {};
             emisores = await Emisor.findAll({
                 where: whereClause,
-                include: [{ model: Empresa, attributes: ['id', 'nombre', 'activo'] }],
+                include: [
+                    { model: Empresa, attributes: ['id', 'nombre', 'activo'] },
+                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'layout_id'] }
+                ],
                 order: [['razon_social', 'ASC']]
             });
         } else {
             emisores = await Emisor.findAll({
                 where: { empresa_id: req.usuario.empresa_id },
-                include: [{ model: Empresa, attributes: ['id', 'nombre', 'activo'] }],
+                include: [
+                    { model: Empresa, attributes: ['id', 'nombre', 'activo'] },
+                    { model: ConfiguracionEstilo, as: 'estilo', attributes: ['id', 'logo_url', 'color_primario', 'layout_id'] }
+                ],
                 order: [['razon_social', 'ASC']]
             });
         }
@@ -364,6 +370,47 @@ export const uploadCSD = async (req, res) => {
     } catch (error) {
         console.error('Error uploading CSD:', error);
         res.status(500).json({ message: 'Error al procesar certificados' });
+    }
+};
+
+export const uploadLogoEmisor = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const emisor = await Emisor.findByPk(id);
+        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+
+        let estilo = await ConfiguracionEstilo.findOne({ where: { emisor_id: id } });
+        if (!estilo) {
+            estilo = await ConfiguracionEstilo.create({
+                emisor_id: id,
+                color_primario: '#004481',
+                color_secundario: '#123247',
+                tipo_letra: 'Arial',
+                layout_id: 'v1'
+            });
+        }
+
+        if (req.body.remove_logo === 'true' || req.body.remove_logo === true) {
+            await estilo.update({ logo_url: null });
+            return res.json({ message: 'Logotipo eliminado correctamente', logo_url: null });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se envió ningún archivo de imagen' });
+        }
+
+        const fullPath = getEmissorDir(emisor.rfc, 'logos');
+        const ext = path.extname(req.file.originalname) || '.png';
+        const fileName = `logo_${Date.now()}${ext}`;
+        fs.writeFileSync(path.join(fullPath, fileName), req.file.buffer);
+
+        const logo_url = `/storage/${emisor.rfc}/logos/${fileName}`;
+        await estilo.update({ logo_url });
+
+        res.json({ message: 'Logotipo actualizado correctamente', logo_url });
+    } catch (error) {
+        console.error('Error uploading logo emisor:', error);
+        res.status(500).json({ message: 'Error al procesar el logotipo: ' + error.message });
     }
 };
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getEmisores, createEmisor, updateEmisor, deleteEmisor, uploadCSD, upload, getSeries, getPreviewPDF, upsertSerie, deleteSerie, getCreditos, getEmisorTotalAnual } from '../controllers/emisorController.js';
+import { getEmisores, createEmisor, updateEmisor, deleteEmisor, uploadCSD, uploadLogoEmisor, upload, getSeries, getPreviewPDF, upsertSerie, deleteSerie, getCreditos, getEmisorTotalAnual } from '../controllers/emisorController.js';
 import { verifyToken, checkEmisorPermission } from '../middleware/auth.js';
 
 const router = Router();
@@ -11,6 +11,7 @@ router.use(checkEmisorPermission);
 router.get('/', getEmisores);
 router.post('/', createEmisor);
 router.put('/:id', updateEmisor);
+router.put('/:id/logo', upload.single('logo'), uploadLogoEmisor);
 router.put('/:id/csd', upload.fields([
     { name: 'certificado', maxCount: 1 },
     { name: 'llave_privada', maxCount: 1 }

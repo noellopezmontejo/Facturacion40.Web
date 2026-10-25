@@ -54,10 +54,13 @@ export const updateEstilo = async (req, res) => {
                 : config_adicional;
         }
 
-        if (req.file) {
+        if (req.body.remove_logo === 'true' || req.body.remove_logo === true) {
+            updateData.logo_url = null;
+        } else if (req.file) {
             // Procesar nuevo logo usando el helper de storage
             const fullPath = getEmissorDir(emisor.rfc, 'logos');
-            const fileName = `logo_${Date.now()}${path.extname(req.file.originalname)}`;
+            const ext = path.extname(req.file.originalname) || '.png';
+            const fileName = `logo_${Date.now()}${ext}`;
             fs.writeFileSync(path.join(fullPath, fileName), req.file.buffer);
 
             updateData.logo_url = `/storage/${emisor.rfc}/logos/${fileName}`;

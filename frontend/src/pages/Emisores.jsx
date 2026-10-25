@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette } from 'lucide-react';
+import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
@@ -83,6 +83,13 @@ export const Emisores = () => {
     const [saving, setSaving] = useState(false);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [layoutId, setLayoutId] = useState('v1');
+    const [logoUrl, setLogoUrl] = useState(null);
+    const [logoFile, setLogoFile] = useState(null);
+    const [logoPreview, setLogoPreview] = useState(null);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const [removeLogo, setRemoveLogo] = useState(false);
+    const [newEmisorLogoFile, setNewEmisorLogoFile] = useState(null);
+    const [newEmisorLogoPreview, setNewEmisorLogoPreview] = useState(null);
     const [series, setSeries] = useState([]);
     const [tiposDocOpt, setTiposDocOpt] = useState([]);
     const [newSerie, setNewSerie] = useState({ serie: '', ultimo_folio: 0, tipo_documento_id: '' });
@@ -165,6 +172,9 @@ export const Emisores = () => {
                 password_csd: ''
             });
             setCsdFiles({ certificado: null, llave_privada: null });
+            setLogoFile(null);
+            setLogoPreview(null);
+            setRemoveLogo(false);
             fetchEstilo(selectedEmisor.id);
             fetchSeries(selectedEmisor.id);
         }
@@ -249,13 +259,85 @@ export const Emisores = () => {
     const fetchEstilo = async (emisorId) => {
         try {
             const { data } = await api.get(`/estilos/${emisorId}`);
-            if (data && data.layout_id) {
-                setLayoutId(data.layout_id);
-            } else {
-                setLayoutId('v1');
+            if (data) {
+                setLayoutId(data.layout_id || 'v1');
+                setLogoUrl(data.logo_url || null);
             }
         } catch (error) {
             setLayoutId('v1');
+            setLogoUrl(null);
+        }
+    };
+
+    const getFullLogoUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
+        return `${baseUrl}${url}`;
+    };
+
+    const handleLogoChange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            showToast('El archivo debe ser una imagen válida (PNG, JPG, SVG, WEBP)', 'error');
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('El tamaño de la imagen no debe superar 5 MB', 'error');
+            return;
+        }
+
+        setLogoFile(file);
+        setRemoveLogo(false);
+        const reader = new FileReader();
+        reader.onload = () => {
+            setLogoPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleRemoveLogo = () => {
+        setLogoFile(null);
+        setLogoPreview(null);
+        setRemoveLogo(true);
+    };
+
+    const handleSaveLogoQuick = async () => {
+        if (!selectedEmisor) return;
+        if (!logoFile && !removeLogo) {
+            showToast('Selecciona una imagen para actualizar el logotipo.', 'warning');
+            return;
+        }
+        setIsUploadingLogo(true);
+        try {
+            if (logoFile) {
+                const formDataLogo = new FormData();
+                formDataLogo.append('logo', logoFile);
+                formDataLogo.append('layout_id', layoutId);
+                const res = await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                const newUrl = res.data?.estilo?.logo_url;
+                setLogoUrl(newUrl);
+                setLogoFile(null);
+                setLogoPreview(null);
+                showToast('✅ Logotipo del emisor actualizado correctamente.');
+                fetchEmisores();
+            } else if (removeLogo) {
+                await api.put(`/estilos/${selectedEmisor.id}`, { remove_logo: true, layout_id: layoutId });
+                setLogoUrl(null);
+                setRemoveLogo(false);
+                showToast('✅ Logotipo del emisor eliminado.');
+                fetchEmisores();
+            }
+        } catch (err) {
+            console.error('Error al guardar logo:', err);
+            showToast(err.response?.data?.message || 'Error al guardar el logotipo', 'error');
+        } finally {
+            setIsUploadingLogo(false);
         }
     };
 
@@ -318,7 +400,19 @@ export const Emisores = () => {
                 updatedEmisor = resFiles.data.emisor;
             }
 
-            await api.put(`/estilos/${selectedEmisor.id}`, { layout_id: layoutId });
+            // Guardar estilo y logotipo
+            if (logoFile) {
+                const formDataLogo = new FormData();
+                formDataLogo.append('logo', logoFile);
+                formDataLogo.append('layout_id', layoutId);
+                await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            } else if (removeLogo) {
+                await api.put(`/estilos/${selectedEmisor.id}`, { remove_logo: true, layout_id: layoutId });
+            } else {
+                await api.put(`/estilos/${selectedEmisor.id}`, { layout_id: layoutId });
+            }
 
             showToast('✅ Emisor y diseño actualizados con éxito');
             
@@ -358,6 +452,21 @@ export const Emisores = () => {
 
 
             const res = await api.post('/emisores', payload);
+
+            // Si se seleccionó un logotipo al registrar el emisor, subirlo a su configuración de estilo
+            if (newEmisorLogoFile && res.data?.id) {
+                try {
+                    const formDataLogo = new FormData();
+                    formDataLogo.append('logo', newEmisorLogoFile);
+                    formDataLogo.append('layout_id', 'v1');
+                    await api.put(`/estilos/${res.data.id}`, formDataLogo, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } catch (logoErr) {
+                    console.error('Error al subir logo del nuevo emisor:', logoErr);
+                }
+            }
+
             showToast('✅ Emisor registrado correctamente');
             
             // Si no tiene emisor activo o se creó para la empresa activa, seleccionarlo
@@ -369,6 +478,8 @@ export const Emisores = () => {
             }
 
             setShowNewModal(false);
+            setNewEmisorLogoFile(null);
+            setNewEmisorLogoPreview(null);
             setNewEmisorData({
                 rfc: '', razon_social: '', regimen_fiscal: '601',
                 codigo_postal: '', estado: '', municipio: '', colonia: '',
@@ -430,6 +541,8 @@ export const Emisores = () => {
     };
 
     const handleOpenNewModal = () => {
+        setNewEmisorLogoFile(null);
+        setNewEmisorLogoPreview(null);
         setNewEmisorData({
             rfc: '', razon_social: '', regimen_fiscal: '601',
             codigo_postal: '', estado: '', municipio: '', colonia: '',
@@ -618,8 +731,17 @@ export const Emisores = () => {
 
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-                                            <Building2 className="w-5 h-5" />
+                                        <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center p-1 shrink-0 shadow-2xs">
+                                            {em.estilo?.logo_url ? (
+                                                <img 
+                                                    src={getFullLogoUrl(em.estilo.logo_url)} 
+                                                    alt={em.razon_social} 
+                                                    className="w-full h-full object-contain"
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                />
+                                            ) : (
+                                                <Building2 className="w-6 h-6 text-slate-400" />
+                                            )}
                                         </div>
                                         {currentUser.rol === 'Administrador' && em.Empresa && (
                                             <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded max-w-[150px] truncate" title={em.Empresa.nombre}>
@@ -805,6 +927,68 @@ export const Emisores = () => {
                                         <div>
                                             <p className="text-xs font-bold text-slate-800">Sector Primario (AGAPES)</p>
                                             <p className="text-[10px] text-slate-500 mt-0.5">Activar si el emisor pertenece al sector primario. Exenta la retención de RESICO hasta alcanzar $900,000 MXN en el año fiscal.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Logotipo Opcional para nuevo emisor */}
+                                    <div className="col-span-2 p-3 bg-slate-50/70 rounded-xl border border-slate-200">
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Logotipo del Emisor <span className="text-[10px] text-slate-400 font-normal">(Opcional, para facturas PDF)</span>
+                                        </label>
+                                        <div className="flex items-center gap-4 mt-2">
+                                            <div className="w-14 h-14 rounded-lg bg-white border border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
+                                                {newEmisorLogoPreview ? (
+                                                    <img src={newEmisorLogoPreview} alt="Logo preview" className="w-full h-full object-contain p-1" />
+                                                ) : (
+                                                    <ImageIcon className="w-6 h-6 text-slate-300" />
+                                                )}
+                                            </div>
+                                            <div className="space-y-1 flex-1">
+                                                <input
+                                                    type="file"
+                                                    id="new-emisor-logo-input"
+                                                    accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (!file) return;
+                                                        if (!file.type.startsWith('image/')) {
+                                                            showToast('El archivo debe ser una imagen válida', 'error');
+                                                            return;
+                                                        }
+                                                        if (file.size > 5 * 1024 * 1024) {
+                                                            showToast('El tamaño no debe superar 5 MB', 'error');
+                                                            return;
+                                                        }
+                                                        setNewEmisorLogoFile(file);
+                                                        const reader = new FileReader();
+                                                        reader.onload = () => setNewEmisorLogoPreview(reader.result);
+                                                        reader.readAsDataURL(file);
+                                                    }}
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <label
+                                                        htmlFor="new-emisor-logo-input"
+                                                        className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg shadow-2xs transition"
+                                                    >
+                                                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                                                        <span>{newEmisorLogoFile ? 'Cambiar imagen' : 'Seleccionar logo'}</span>
+                                                    </label>
+                                                    {newEmisorLogoFile && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setNewEmisorLogoFile(null);
+                                                                setNewEmisorLogoPreview(null);
+                                                            }}
+                                                            className="px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg font-medium transition"
+                                                        >
+                                                            Quitar
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400">PNG, JPG o WEBP con fondo transparente recomendado.</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1003,8 +1187,111 @@ export const Emisores = () => {
                     </div>
                 </div>
 
-                {/* Columna Derecha - Certificados CSD */}
+                {/* Columna Derecha - Logotipo y Certificados CSD */}
                 <div className="space-y-6">
+                    {/* Logotipo del Emisor */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <ImageIcon className="w-5 h-5 text-primary-600" />
+                                <h2 className="font-semibold text-slate-800">Logotipo del Emisor</h2>
+                            </div>
+                            {(logoPreview || (logoUrl && !removeLogo)) ? (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                    <CheckCircle2 className="w-3 h-3" /> Configurado
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                                    <AlertTriangle className="w-3 h-3" /> Sin logo
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            {/* Preview Container */}
+                            <div className="w-full h-36 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center p-3 relative overflow-hidden group">
+                                {logoPreview ? (
+                                    <img
+                                        src={logoPreview}
+                                        alt="Nuevo logotipo"
+                                        className="max-h-full max-w-full object-contain"
+                                    />
+                                ) : (logoUrl && !removeLogo) ? (
+                                    <img
+                                        src={getFullLogoUrl(logoUrl)}
+                                        alt={selectedEmisor.razon_social}
+                                        className="max-h-full max-w-full object-contain"
+                                        onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="text-center text-slate-400">
+                                        <ImageIcon className="w-10 h-10 mx-auto mb-1 opacity-40" />
+                                        <p className="text-xs font-medium text-slate-600">Sin logotipo asignado</p>
+                                        <p className="text-[10px] text-slate-400">Aparecerá en el encabezado de las facturas PDF</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Buttons / Actions */}
+                            <div className="space-y-2">
+                                <input
+                                    type="file"
+                                    id="emisor-logo-upload-input"
+                                    accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml"
+                                    className="hidden"
+                                    onChange={handleLogoChange}
+                                />
+                                <div className="flex items-center gap-2">
+                                    <label
+                                        htmlFor="emisor-logo-upload-input"
+                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition"
+                                    >
+                                        <Upload className="w-3.5 h-3.5" />
+                                        <span>{(logoPreview || (logoUrl && !removeLogo)) ? 'Cambiar Logotipo' : 'Subir Logotipo'}</span>
+                                    </label>
+
+                                    {(logoPreview || (logoUrl && !removeLogo)) && (
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveLogo}
+                                            className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition"
+                                            title="Quitar logotipo"
+                                        >
+                                            Quitar
+                                        </button>
+                                    )}
+                                </div>
+
+                                {(logoFile || removeLogo) && (
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveLogoQuick}
+                                        disabled={isUploadingLogo}
+                                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50"
+                                    >
+                                        {isUploadingLogo ? (
+                                            <>
+                                                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                <span>Guardando logotipo...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-3.5 h-3.5" />
+                                                <span>Guardar Logotipo Inmediatamente</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                <p className="text-[10px] text-slate-400 text-center">
+                                    Formatos recomendados: PNG o JPG con fondo transparente (máx. 5 MB).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
                             <div className="flex items-center gap-2">
