@@ -194,6 +194,23 @@ app.listen(PORT, '0.0.0.0', async () => {
 
       console.log('Default admin created: admin@cfdi4.mx / Admin*2026');
     }
+
+    // Ensure default standard taxes exist
+    const impuestosCount = await models.Impuesto.count().catch(() => 0);
+    if (impuestosCount === 0) {
+      await models.Impuesto.bulkCreate([
+        { descripcion: "IVA 16%", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.160000", empresa_id: null },
+        { descripcion: "IVA 8% (Fronterizo)", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.080000", empresa_id: null },
+        { descripcion: "IVA 0%", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.000000", empresa_id: null },
+        { descripcion: "IVA Exento", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Exento", tasa_cuota: "0.000000", empresa_id: null },
+        { descripcion: "Retención IVA 10.6667%", tipo: "retencion", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.106667", empresa_id: null },
+        { descripcion: "Retención IVA 8%", tipo: "retencion", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.080000", empresa_id: null },
+        { descripcion: "Retención ISR 10% (Honorarios)", tipo: "retencion", impuesto_sat: "001", tipo_factor: "Tasa", tasa_cuota: "0.100000", empresa_id: null },
+        { descripcion: "Retención ISR 1.25% (RESICO)", tipo: "retencion", impuesto_sat: "001", tipo_factor: "Tasa", tasa_cuota: "0.012500", empresa_id: null },
+        { descripcion: "IEPS 8% (Alimentos alto valor calórico)", tipo: "traslado", impuesto_sat: "003", tipo_factor: "Tasa", tasa_cuota: "0.080000", empresa_id: null }
+      ]).catch(e => console.log('Impuesto seed notice:', e.message));
+      console.log('Standard CFDI 4.0 taxes initialized.');
+    }
   } catch (error) {
     console.error('Unable to connect to the database or sync:', error.message);
   }

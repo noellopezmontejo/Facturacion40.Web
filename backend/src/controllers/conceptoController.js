@@ -49,12 +49,13 @@ export const getConceptosByEmisor = async (req, res) => {
 
 
 export const createConcepto = async (req, res) => {
-    const { impuestosIds, ...conceptoData } = req.body;
+    const { impuestosIds, impuestos: rawImpuestos, ...conceptoData } = req.body;
     try {
         const newConcepto = await Concepto.create(conceptoData);
 
-        if (impuestosIds && impuestosIds.length > 0) {
-            const impuestos = await Impuesto.findAll({ where: { id: impuestosIds } });
+        const idsToAssign = impuestosIds || (Array.isArray(rawImpuestos) ? rawImpuestos.map(i => i.id || i) : null);
+        if (idsToAssign && idsToAssign.length > 0) {
+            const impuestos = await Impuesto.findAll({ where: { id: idsToAssign } });
             await newConcepto.setImpuestos(impuestos);
         }
 
@@ -67,7 +68,7 @@ export const createConcepto = async (req, res) => {
 
 export const updateConcepto = async (req, res) => {
     const { id } = req.params;
-    const { impuestosIds, ...conceptoData } = req.body;
+    const { impuestosIds, impuestos: rawImpuestos, ...conceptoData } = req.body;
     try {
         const concepto = await Concepto.findByPk(id, {
             include: [{ model: Emisor }]
@@ -83,8 +84,9 @@ export const updateConcepto = async (req, res) => {
 
         await concepto.update(conceptoData);
 
-        if (impuestosIds) {
-            const impuestos = await Impuesto.findAll({ where: { id: impuestosIds } });
+        const idsToAssign = impuestosIds || (Array.isArray(rawImpuestos) ? rawImpuestos.map(i => i.id || i) : null);
+        if (idsToAssign) {
+            const impuestos = await Impuesto.findAll({ where: { id: idsToAssign } });
             await concepto.setImpuestos(impuestos);
         }
 

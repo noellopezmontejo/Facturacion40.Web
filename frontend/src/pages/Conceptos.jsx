@@ -1,24 +1,34 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, Package, Filter, X, Save, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Edit2, Trash2, Package, Filter, X, Save, Check, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
-import mockSatClaves from '../data/satClavesProdServ.json';
+import { SatClaveSelector } from '../components/SatClaveSelector';
+
+const FALLBACK_IMPUESTOS = [
+    { id: 1, descripcion: "IVA 16%", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.160000" },
+    { id: 2, descripcion: "IVA 8% (Fronterizo)", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.080000" },
+    { id: 3, descripcion: "IVA 0%", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.000000" },
+    { id: 4, descripcion: "IVA Exento", tipo: "traslado", impuesto_sat: "002", tipo_factor: "Exento", tasa_cuota: "0.000000" },
+    { id: 5, descripcion: "Retención IVA 10.6667%", tipo: "retencion", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.106667" },
+    { id: 6, descripcion: "Retención IVA 8%", tipo: "retencion", impuesto_sat: "002", tipo_factor: "Tasa", tasa_cuota: "0.080000" },
+    { id: 7, descripcion: "Retención ISR 10% (Honorarios)", tipo: "retencion", impuesto_sat: "001", tipo_factor: "Tasa", tasa_cuota: "0.100000" },
+    { id: 8, descripcion: "Retención ISR 1.25% (RESICO)", tipo: "retencion", impuesto_sat: "001", tipo_factor: "Tasa", tasa_cuota: "0.012500" },
+    { id: 9, descripcion: "IEPS 8% (Alimentos alto valor calórico)", tipo: "traslado", impuesto_sat: "003", tipo_factor: "Tasa", tasa_cuota: "0.080000" }
+];
 
 export const Conceptos = () => {
-    const { activeEmisor } = useAuth();
+    const { activeEmisor, activeEmpresa } = useAuth();
     const { showToast } = useToast();
     const [conceptos, setConceptos] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [impuestosOptions, setImpuestosOptions] = useState([]);
+    const [impuestosOptions, setImpuestosOptions] = useState(FALLBACK_IMPUESTOS);
+    const [loadingImpuestos, setLoadingImpuestos] = useState(false);
     const [addedImpuestos, setAddedImpuestos] = useState([]);
     const [selectedImpuestoToAdd, setSelectedImpuestoToAdd] = useState('');
     const [editId, setEditId] = useState(null);
-    const [satSearchTerm, setSatSearchTerm] = useState('');
-    const [showSatDropdown, setShowSatDropdown] = useState(false);
-    const satInputRef = useRef(null);
     const [formData, setFormData] = useState({
         clave_prod_serv: '01010101',
         clave_unidad: 'H87',
@@ -37,7 +47,7 @@ export const Conceptos = () => {
         setLoading(true);
         try {
             const res = await api.get(`/conceptos/emisor/${activeEmisor.id}`);
-            setConceptos(res.data);
+            setConceptos(Array.isArray(res.data) ? res.data : []);
         } catch (error) {
             console.error("Error fetching conceptos", error);
         } finally {
@@ -45,33 +55,36 @@ export const Conceptos = () => {
         }
     };
 
+    const loadImpuestos = async () => {
+        setLoadingImpuestos(true);
+        try {
+            const empresaId = activeEmisor?.empresa_id || activeEmpresa?.id;
+            const res = await api.get('/impuestos', {
+                params: empresaId ? { empresa_id: empresaId } : {}
+            });
+            if (Array.isArray(res.data) && res.data.length > 0) {
+                setImpuestosOptions(res.data);
+            } else {
+                setImpuestosOptions(FALLBACK_IMPUESTOS);
+            }
+        } catch (error) {
+            console.error("Error fetching impuestos options, using fallback:", error);
+            setImpuestosOptions(FALLBACK_IMPUESTOS);
+        } finally {
+            setLoadingImpuestos(false);
+        }
+    };
 
     useEffect(() => {
         fetchConceptos();
-
-        // Fetch Taxes global catalog to populate the dropdown
-        const fetchImpuestos = async () => {
-            try {
-                const res = await api.get('/impuestos');
-                setImpuestosOptions(res.data);
-            } catch (error) {
-                console.error("Error fetching impuestos options", error);
-            }
-        };
-        fetchImpuestos();
+        loadImpuestos();
     }, [activeEmisor]);
 
-    // SAT Dropdown Click Outside
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (satInputRef.current && !satInputRef.current.contains(event.target)) {
-                setShowSatDropdown(false);
-            }
-        };
-
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+        if (showModal && impuestosOptions.length === 0) {
+            loadImpuestos();
+        }
+    }, [showModal]);
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -104,16 +117,14 @@ export const Conceptos = () => {
     const handleEdit = (concepto) => {
         setEditId(concepto.id);
         setFormData({
-            clave_prod_serv: concepto.clave_prod_serv,
-            clave_unidad: concepto.clave_unidad,
+            clave_prod_serv: concepto.clave_prod_serv || '01010101',
+            clave_unidad: concepto.clave_unidad || 'H87',
             descripcion: concepto.descripcion,
             valor_unitario: concepto.valor_unitario,
             desglosar_impuestos: concepto.desglosar_impuestos || false,
             permitir_editar_descripcion: concepto.permitir_editar_descripcion || false
         });
         setAddedImpuestos(concepto.Impuestos || []);
-        setSatSearchTerm(concepto.clave_prod_serv);
-        setShowSatDropdown(false);
         setShowModal(true);
     };
 
@@ -154,8 +165,6 @@ export const Conceptos = () => {
                 <button onClick={() => {
                     setEditId(null);
                     setFormData({ clave_prod_serv: '01010101', clave_unidad: 'H87', descripcion: '', valor_unitario: '', desglosar_impuestos: false, permitir_editar_descripcion: false });
-                    setSatSearchTerm('01010101');
-                    setShowSatDropdown(false);
                     setAddedImpuestos([]);
                     setShowModal(true);
                 }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-500 shadow-sm shadow-primary-500/20 transition-all">
@@ -181,52 +190,19 @@ export const Conceptos = () => {
                                         <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Descripción</label>
                                         <textarea required value={formData.descripcion} onChange={e => setFormData({ ...formData, descripcion: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none text-sm min-h-[70px] resize-y transition-all" placeholder="Nombre completo o descripción detallada de tu producto o servicio" />
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div ref={satInputRef} className="relative">
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Clave Prod/Serv (SAT)</label>
-                                            <div className="relative">
-                                                <input
-                                                    required
-                                                    value={satSearchTerm}
-                                                    onChange={e => {
-                                                        setSatSearchTerm(e.target.value);
-                                                        setFormData({ ...formData, clave_prod_serv: e.target.value });
-                                                        setShowSatDropdown(true);
-                                                    }}
-                                                    onFocus={() => setShowSatDropdown(true)}
-                                                    type="text"
-                                                    className="w-full pl-3 pr-9 py-2.5 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none text-sm font-mono transition-all"
-                                                    placeholder="Ej. 01010101 o Diseño"
-                                                    autoComplete="off"
-                                                />
-                                                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                                            </div>
-
-                                            {showSatDropdown && (
-                                                <div className="absolute z-10 w-[150%] left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                                                    {mockSatClaves
-                                                        .filter(c => c.clave.includes(satSearchTerm) || c.desc.toLowerCase().includes(satSearchTerm.toLowerCase()))
-                                                        .map(c => (
-                                                            <div
-                                                                key={c.clave}
-                                                                className="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm flex flex-col border-b border-slate-100 last:border-0"
-                                                                onClick={() => {
-                                                                    setFormData({ ...formData, clave_prod_serv: c.clave });
-                                                                    setSatSearchTerm(c.clave);
-                                                                    setShowSatDropdown(false);
-                                                                }}
-                                                            >
-                                                                <span className="font-mono text-xs font-semibold text-slate-700">{c.clave}</span>
-                                                                <span className="text-slate-500 text-xs truncate">{c.desc}</span>
-                                                            </div>
-                                                        ))
-                                                    }
-                                                </div>
-                                            )}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Clave Prod/Serv (SAT) *</label>
+                                            <SatClaveSelector
+                                                value={formData.clave_prod_serv}
+                                                onChange={(clave) => setFormData(prev => ({ ...prev, clave_prod_serv: clave }))}
+                                                onUnitSuggested={(unidad) => setFormData(prev => ({ ...prev, clave_unidad: unidad }))}
+                                                required
+                                            />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Clave de Unidad</label>
-                                            <input required value={formData.clave_unidad} onChange={e => setFormData({ ...formData, clave_unidad: e.target.value.toUpperCase() })} type="text" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none text-sm font-mono uppercase transition-all" placeholder="H87" />
+                                            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">Clave de Unidad *</label>
+                                            <input required value={formData.clave_unidad} onChange={e => setFormData(prev => ({ ...prev, clave_unidad: e.target.value.toUpperCase() }))} type="text" className="w-full px-3 py-2.5 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none text-sm font-mono uppercase transition-all" placeholder="H87 o E48" />
                                         </div>
                                     </div>
                                     <div>

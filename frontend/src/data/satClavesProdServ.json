@@ -1,214 +1,450 @@
 [
   {
     "clave": "01010101",
-    "desc": "No existe en el catálogo"
+    "desc": "No existe en el catálogo",
+    "categoria": "Genéricos",
+    "palabrasClave": "generico no existe varios articulos productos servicios",
+    "unidadSugerida": "ACT"
   },
   {
     "clave": "84111506",
-    "desc": "Servicios de facturación"
+    "desc": "Servicios de facturación",
+    "categoria": "Facturación y Software",
+    "palabrasClave": "timbres paquete de timbres folios cfdi pac facturacion electronica comprobantes timbrado fiscal emision de facturas facturador",
+    "unidadSugerida": "E48"
   },
   {
     "clave": "43231500",
-    "desc": "Software de negocios corporativos"
+    "desc": "Software de negocios corporativos",
+    "categoria": "Facturación y Software",
+    "palabrasClave": "erp crm punto de venta pos sistema administrativo licencia de software paquetera software comercial",
+    "unidadSugerida": "E48"
   },
   {
     "clave": "81111508",
-    "desc": "Servicios de diseño de software"
+    "desc": "Servicios de diseño y desarrollo de software",
+    "categoria": "Facturación y Software",
+    "palabrasClave": "programacion desarrollo web aplicaciones moviles sistemas a medida programador paginas web app",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "80111600",
-    "desc": "Servicios de personal temporal"
+    "clave": "81111811",
+    "desc": "Servicios de mantenimiento y soporte de software de sistemas operativos",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "soporte tecnico asistencia remota poliza de soporte configuracion actualizacion sistemas",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "81112200",
+    "desc": "Servicios de mantenimiento y soporte de software aplicativo",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "soporte de aplicaciones mantenimiento preventivo correctivo mesa de ayuda help desk",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "81112100",
+    "desc": "Servicios de hospedaje en internet (Hosting)",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "hosting servidor web vps hosting dedicado nube cloud almacenamiento hosting correo",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "83111603",
+    "desc": "Servicios de registro de dominios de internet",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "dominio domain registro dns name com mx",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "81112400",
+    "desc": "Servicios de administración de redes y conectividad",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "redes vpn firewall router switch cableado estructurado instalacion de red internet",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "81112306",
+    "desc": "Servicios de respaldo y recuperación de datos",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "backup respaldo en la nube recuperacion de archivos copias de seguridad",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "81112000",
+    "desc": "Servicios de seguridad informática y ciberseguridad",
+    "categoria": "TI y Telecomunicaciones",
+    "palabrasClave": "antivirus seguridad informatica auditoria de seguridad firewall proteccion de datos",
+    "unidadSugerida": "E48"
   },
   {
     "clave": "84111500",
-    "desc": "Servicios de contabilidad, auditoría o asesoría fiscal"
+    "desc": "Servicios de contabilidad, auditoría o asesoría fiscal",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "contador contabilidad honorarios declaraciones sat auditoria estados financieros balances fiscal",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "80101500",
+    "desc": "Servicios de consultoría de negocios y administración",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "consultoria asesoria empresarial administracion de empresas planes de negocio diagnostico",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "80121600",
+    "desc": "Servicios legales y abogacía",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "abogado honorarios legales juicios contratos asesoria juridica litigio derecho",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "80111600",
+    "desc": "Servicios de personal temporal y recursos humanos",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "reclutamiento seleccion de personal nomina staffing headhunting recursos humanos",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "80141600",
+    "desc": "Actividades de ventas y marketing",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "mercadotecnia marketing digital redes sociales community manager publicidad campanas ventas",
+    "unidadSugerida": "E48"
   },
   {
     "clave": "80141628",
-    "desc": "Servicios de distribución promocional"
+    "desc": "Servicios de distribución promocional y volantes",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "promocion volanteo folletos material publicitario",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "82101503",
-    "desc": "Publicidad en revistas"
+    "clave": "82101500",
+    "desc": "Publicidad impresa y medios",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "anuncios publicidad revistas diarios periodicos impresiones lonas espectaculares",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "82101504",
-    "desc": "Publicidad en diarios"
+    "clave": "82101600",
+    "desc": "Servicios de publicidad por internet",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "google ads facebook ads pauta publicitaria seo sem marketing web",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121501",
-    "desc": "Escuelas primarias"
+    "clave": "78101800",
+    "desc": "Servicios de transporte de carga por carretera",
+    "categoria": "Transporte y Logística",
+    "palabrasClave": "flete transporte carta porte logistica envio traslado de mercancia fletes carga trailer camion",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121502",
-    "desc": "Escuelas secundarias"
+    "clave": "78101802",
+    "desc": "Servicios de fletes y mudanzas locales y foráneas",
+    "categoria": "Transporte y Logística",
+    "palabrasClave": "mudanza flete acarreo maniobra de carga camioneta",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121600",
-    "desc": "Educación vocacional"
+    "clave": "78101801",
+    "desc": "Servicios de transporte de carga local en vehículos pequeños",
+    "categoria": "Transporte y Logística",
+    "palabrasClave": "reparto paqueteria paqueteria local envios mensajeria",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121601",
-    "desc": "Escuelas de oficios"
+    "clave": "78141500",
+    "desc": "Servicios de organización de transporte y logística",
+    "categoria": "Transporte y Logística",
+    "palabrasClave": "agente de carga forwarding logistica intermediacion aduanal",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121700",
-    "desc": "Educación a distancia"
+    "clave": "78121600",
+    "desc": "Servicios de almacenaje y bodegaje",
+    "categoria": "Transporte y Logística",
+    "palabrasClave": "bodega almacenamiento custodia resguardo maniobras",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121701",
-    "desc": "Cursos por correspondencia"
+    "clave": "72101500",
+    "desc": "Servicios de mantenimiento y reparación de computadoras y equipo de oficina",
+    "categoria": "Mantenimiento y Reparación",
+    "palabrasClave": "mantenimiento de computadoras reparacion de laptops formateo limpieza interna cambio de piezas mantenimiento preventivo",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "86121702",
-    "desc": "Cursos en línea (Internet)"
+    "clave": "72102900",
+    "desc": "Servicios de mantenimiento de instalaciones y edificios",
+    "categoria": "Mantenimiento y Reparación",
+    "palabrasClave": "mantenimiento de oficinas pintura plomeria electricidad herreria impermeabilizacion albanileria",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101500",
-    "desc": "Medicamentos y productos farmacéuticos"
+    "clave": "72101511",
+    "desc": "Servicios de limpieza de oficinas y comercial",
+    "categoria": "Mantenimiento y Reparación",
+    "palabrasClave": "limpieza conserjeria aseo sanitizacion fumigacion pulido",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101501",
-    "desc": "Medicamentos analgésicos"
+    "clave": "72154000",
+    "desc": "Servicios de instalación y mantenimiento de equipo de telecomunicaciones",
+    "categoria": "Mantenimiento y Reparación",
+    "palabrasClave": "instalacion de camaras cctv conmutador alarmas control de acceso instalacion de antenas",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101502",
-    "desc": "Medicamentos anestésicos"
+    "clave": "72121100",
+    "desc": "Construcción de edificios comerciales e industriales",
+    "categoria": "Construcción",
+    "palabrasClave": "obra civil construccion naves industriales locales remodelacion contratista",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101503",
-    "desc": "Medicamentos antiinfecciosos"
+    "clave": "72121400",
+    "desc": "Servicios de remodelación y adecuación de interiores",
+    "categoria": "Construcción",
+    "palabrasClave": "tablaroca acabados remodelacion canceleria pisos divisiones",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101504",
-    "desc": "Medicamentos oncológicos"
+    "clave": "80131500",
+    "desc": "Arrendamiento de bienes inmuebles",
+    "categoria": "Arrendamiento",
+    "palabrasClave": "renta de oficinas renta de bodega alquiler arrendamiento locales renta de inmueble",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101505",
-    "desc": "Medicamentos cardiovasculares"
+    "clave": "80131502",
+    "desc": "Renta de bienes inmuebles comerciales",
+    "categoria": "Arrendamiento",
+    "palabrasClave": "renta local comercial bodega nave renta edificio",
+    "unidadSugerida": "E48"
   },
   {
-    "clave": "51101506",
-    "desc": "Medicamentos respiratorios"
-  },
-  {
-    "clave": "51101507",
-    "desc": "Medicamentos digestivos"
-  },
-  {
-    "clave": "51101508",
-    "desc": "Medicamentos dermatológicos"
-  },
-  {
-    "clave": "51101509",
-    "desc": "Medicamentos oftálmicos"
-  },
-  {
-    "clave": "51101510",
-    "desc": "Medicamentos hormonales"
-  },
-  {
-    "clave": "51101511",
-    "desc": "Medicamentos neurológicos"
-  },
-  {
-    "clave": "51101512",
-    "desc": "Medicamentos psiquiátricos"
-  },
-  {
-    "clave": "51101513",
-    "desc": "Medicamentos inmunológicos"
-  },
-  {
-    "clave": "51102700",
-    "desc": "Vacunas"
-  },
-  {
-    "clave": "51102710",
-    "desc": "Vacuna contra la influenza"
-  },
-  {
-    "clave": "51102711",
-    "desc": "Vacuna contra el tétanos"
-  },
-  {
-    "clave": "51102712",
-    "desc": "Vacuna contra la hepatitis"
-  },
-  {
-    "clave": "42311500",
-    "desc": "Vendajes y apósitos"
-  },
-  {
-    "clave": "42311501",
-    "desc": "Gasas médicas"
-  },
-  {
-    "clave": "42311503",
-    "desc": "Cintas adhesivas médicas"
-  },
-  {
-    "clave": "42132205",
-    "desc": "Jeringas médicas"
-  },
-  {
-    "clave": "42141501",
-    "desc": "Algodón médico"
-  },
-  {
-    "clave": "12352300",
-    "desc": "Desinfectantes"
-  },
-  {
-    "clave": "51102600",
-    "desc": "Suplementos nutricionales"
-  },
-  {
-    "clave": "51102602",
-    "desc": "Vitaminas"
-  },
-  {
-    "clave": "53131600",
-    "desc": "Artículos de tocador y cosméticos"
-  },
-  {
-    "clave": "53131608",
-    "desc": "Jabones"
-  },
-  {
-    "clave": "53131616",
-    "desc": "Champús"
-  },
-  {
-    "clave": "53131613",
-    "desc": "Desodorantes"
-  },
-  {
-    "clave": "53131602",
-    "desc": "Cremas para la piel"
-  },
-  {
-    "clave": "14111704",
-    "desc": "Papel higiénico"
-  },
-  {
-    "clave": "53131626",
-    "desc": "Toallas sanitarias"
-  },
-  {
-    "clave": "53131627",
-    "desc": "Pañales"
-  },
-  {
-    "clave": "43191501",
-    "desc": "Teléfonos móviles"
+    "clave": "78111808",
+    "desc": "Renta de vehículos de transporte terrestre",
+    "categoria": "Arrendamiento",
+    "palabrasClave": "renta de camioneta alquiler de auto renta de trailer",
+    "unidadSugerida": "E48"
   },
   {
     "clave": "43211507",
-    "desc": "Computadoras de escritorio"
+    "desc": "Computadoras de escritorio",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "pc equipo de computo all in one cpu torre computadora",
+    "unidadSugerida": "H87"
   },
   {
     "clave": "43211503",
-    "desc": "Computadoras portátiles"
+    "desc": "Computadoras portátiles (Laptops)",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "laptop notebook computadora portatil macbook",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "43211500",
+    "desc": "Computadoras",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "computadoras ordenadores servidores estaciones de trabajo",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "43211600",
+    "desc": "Accesorios y componentes de computadoras",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "mouse teclado monitor disco duro memoria ram tarjeta madre fuente de poder webcam cables hdmi usb",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "44103100",
+    "desc": "Impresoras y suministros de cómputo",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "impresora multifuncional escaner toner cartucho tinta kit de mantenimiento impresoras",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "43191501",
+    "desc": "Teléfonos móviles y smartphones",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "celulares smartphone telefonos tablets ipad",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "43222600",
+    "desc": "Equipo de redes y conectividad",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "modem router switch access point rack patch cord rj45 antena wifi",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "46171600",
+    "desc": "Equipo de videovigilancia y cámaras de seguridad",
+    "categoria": "Equipo de Cómputo",
+    "palabrasClave": "camaras dvr nvr cctv sensor alarma biométrico",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "14111500",
+    "desc": "Papelería de oficina y papel",
+    "categoria": "Papelería y Oficina",
+    "palabrasClave": "papel bond hojas membretadas libretas carpetas sobres papel para impresion",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "44122000",
+    "desc": "Artículos de escritorio y papelería",
+    "categoria": "Papelería y Oficina",
+    "palabrasClave": "boligrafos plumas grapas tijeras engrapadoras cinta marcadores clips",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "56101700",
+    "desc": "Muebles de oficina",
+    "categoria": "Papelería y Oficina",
+    "palabrasClave": "sillas escritorios archiveros credenzas mesas de juntas estanteria",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "85121600",
+    "desc": "Servicios de médicos especialistas",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "consulta medica honorarios medicos doctor especialista consulta clinica",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "85121800",
+    "desc": "Servicios de dentistas y odontología",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "dentista ortodoncia odontologo extraccion limpieza dental honorarios dentales",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "85121500",
+    "desc": "Servicios de médicos generales",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "medico general chequeo certificado medico consulta",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "86121702",
+    "desc": "Cursos en línea (Internet) y capacitación",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "capacitacion cursos talleres entrenamiento diplomados educacion webinar",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "86121500",
+    "desc": "Servicios educativos y colegiaturas",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "colegiatura escuela inscripcion educacion privada colegiaturas primaria secundaria universidad",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "90101500",
+    "desc": "Servicios de restaurantes y alimentos",
+    "categoria": "Alimentos y Hostelería",
+    "palabrasClave": "restaurante comida consumo alimentos cafetería buffet banquete catering cena desayuno",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "90101501",
+    "desc": "Servicios de comida para llevar y entrega",
+    "categoria": "Alimentos y Hostelería",
+    "palabrasClave": "comida a domicilio banquetes servicio de cafe coffee break bocadillos",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "90111500",
+    "desc": "Servicios de hoteles y hospedaje",
+    "categoria": "Alimentos y Hostelería",
+    "palabrasClave": "hotel hospedaje habitacion posada alojamiento noche de hotel",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "50192700",
+    "desc": "Comida preparada y alimentos envasados",
+    "categoria": "Alimentos y Hostelería",
+    "palabrasClave": "alimentos abarrotes snacks bebidas galletas botanas refrescos agua",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "51101500",
+    "desc": "Medicamentos y productos farmacéuticos",
+    "categoria": "Salud y Educación",
+    "palabrasClave": "medicinas farmacia jarabes pastillas antibioticos farmaceuticos",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "12352300",
+    "desc": "Desinfectantes y productos de sanitización",
+    "categoria": "Mantenimiento y Reparación",
+    "palabrasClave": "gel antibacterial cloro sanitizante desinfectante alcohol",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "15101514",
+    "desc": "Gasolina regular menor a 91 octanos (Magna)",
+    "categoria": "Combustibles",
+    "palabrasClave": "gasolina magna combustible gasolina verde combustible automotriz litros gasolinera estacion de servicio",
+    "unidadSugerida": "LTR"
+  },
+  {
+    "clave": "15101515",
+    "desc": "Gasolina premium mayor o igual a 91 octanos (Roja)",
+    "categoria": "Combustibles",
+    "palabrasClave": "gasolina premium roja combustible alto octanaje litros gasolinera",
+    "unidadSugerida": "LTR"
+  },
+  {
+    "clave": "15101505",
+    "desc": "Combustible diésel",
+    "categoria": "Combustibles",
+    "palabrasClave": "diesel diésel combustible para tractocamion carga pesado",
+    "unidadSugerida": "LTR"
+  },
+  {
+    "clave": "78181500",
+    "desc": "Servicios de mantenimiento y reparación de vehículos",
+    "categoria": "Automotriz y Transporte",
+    "palabrasClave": "taller mecanico afinacion frenos suspension cambio de aceite hojalateria pintura mecanica automotriz",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "25171700",
+    "desc": "Refacciones y componentes automotrices",
+    "categoria": "Automotriz y Transporte",
+    "palabrasClave": "refacciones filtros balatas bujias amortiguadores aceite motor llantas neumaticos autopartes",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "30121700",
+    "desc": "Materiales de construcción y concreto",
+    "categoria": "Construcción y Ferretería",
+    "palabrasClave": "cemento cal arena grava concreto varilla block yeso pegazulejo materiales",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "27112000",
+    "desc": "Herramientas de mano y ferretería",
+    "categoria": "Construcción y Ferretería",
+    "palabrasClave": "ferreteria taladro martillo pinzas tornillos tuercas clavos herramienta manual",
+    "unidadSugerida": "H87"
+  },
+  {
+    "clave": "84121500",
+    "desc": "Servicios bancarios e instituciones financieras",
+    "categoria": "Servicios Financieros",
+    "palabrasClave": "comision bancaria manejo de cuenta intereses anualidad banca comisiones",
+    "unidadSugerida": "E48"
+  },
+  {
+    "clave": "82121500",
+    "desc": "Servicios de impresión comercial y litografía",
+    "categoria": "Servicios Profesionales",
+    "palabrasClave": "imprenta impresion de lonas tarjetas de presentacion folletos vinil serigrafia",
+    "unidadSugerida": "E48"
   }
 ]
