@@ -289,7 +289,8 @@ export const Emisores = () => {
             }
         } catch (error) {
             console.error('Error opening PDF preview', error);
-            showToast(`Error al generar la vista previa: ${error.message}`, 'error');
+            const msg = error.response?.data?.message || error.response?.data?.error || error.message;
+            showToast(`Error al generar la vista previa: ${msg}`, 'error');
         } finally {
             setIsGeneratingPdf(false);
         }

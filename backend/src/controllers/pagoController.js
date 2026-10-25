@@ -268,7 +268,7 @@ export const previewPagoPDF = async (req, res) => {
     try {
         const { emisor_id, receptor_id, fecha_pago, monto, forma_pago, moneda, tipo_cambio, facturas } = req.body;
         
-        const pdfBuffer = await generarPDFPagoPreview(emisor_id, receptor_id, {
+        const previewResult = await generarPDFPagoPreview(emisor_id, receptor_id, {
             fecha_pago,
             monto,
             forma_pago,
@@ -296,12 +296,15 @@ export const previewPagoPDF = async (req, res) => {
             console.error('[PDF Preview] Error cleaning up old previews:', cleanupErr);
         }
 
-        const filename = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 11)}.pdf`;
+        const isHtml = previewResult && previewResult.isHtml;
+        const fileData = (previewResult && previewResult.data) ? previewResult.data : previewResult;
+        const ext = isHtml ? 'html' : 'pdf';
+        const filename = `preview-${Date.now()}-${Math.random().toString(36).substring(2, 11)}.${ext}`;
         const absolutePath = path.join(previewsDir, filename);
-        await fs.promises.writeFile(absolutePath, pdfBuffer);
+        await fs.promises.writeFile(absolutePath, fileData);
 
         const publicUrl = `/storage/previews/${filename}`;
-        res.json({ success: true, pdfUrl: publicUrl });
+        res.json({ success: true, pdfUrl: publicUrl, isHtmlFallback: !!isHtml });
     } catch (error) {
         console.error('Error generating PDF preview:', error);
         res.status(500).json({ message: error.message || 'Error al generar la vista previa del PDF' });

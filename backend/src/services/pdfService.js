@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ConfiguracionEstilo, Pago, PagoDocumento, Documento, Emisor, Receptor } from '../models/index.js';
-import { getPdfPath, STORAGE_BASE } from '../utils/storageHelper.js';
+import { getPdfPath, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +94,101 @@ function getGoogleFontsLink(fontName) {
     return fonts[fontName] || null;
 }
 
+export const getPuppeteerLaunchOptions = () => {
+    const args = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--mute-audio'
+    ];
+
+    const options = {
+        headless: 'new',
+        args
+    };
+
+    if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        options.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    } else if (process.platform === 'linux') {
+        const commonPaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/snap/bin/chromium'
+        ];
+        for (const p of commonPaths) {
+            if (fs.existsSync(p)) {
+                options.executablePath = p;
+                break;
+            }
+        }
+    }
+
+    return options;
+};
+
+export const createPrintableHtml = (htmlContent, title = 'CFDI 4.0 - Representación Impresa') => {
+    const printToolbar = `
+    <div class="net-preview-toolbar no-print" style="position: sticky; top: 0; z-index: 999999; background: #0f172a; color: #f8fafc; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 20px rgba(0,0,0,0.25); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; border-bottom: 2px solid #0284c7;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="background: linear-gradient(135deg, #0284c7, #0369a1); width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: white; box-shadow: 0 2px 8px rgba(2,132,199,0.4);">
+                N
+            </div>
+            <div>
+                <div style="font-weight: 700; font-size: 14px; letter-spacing: 0.5px; color: #ffffff;">NET CONSULTORES</div>
+                <div style="font-size: 11px; color: #94a3b8;">\${title} &bull; Modo Imprimible (Calidad Vectorial)</div>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button onclick="window.print()" style="background: linear-gradient(135deg, #0284c7, #0ea5e9); color: white; border: none; padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(2,132,199,0.3); transition: all 0.2s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                Imprimir / Guardar como PDF
+            </button>
+            <button onclick="window.close()" style="background: rgba(255,255,255,0.1); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.2); padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                Cerrar
+            </button>
+        </div>
+    </div>
+    `;
+
+    const printStyles = `
+    <style>
+        @media print {
+            .net-preview-toolbar, .no-print { display: none !important; }
+            body { margin: 0 !important; padding: 0 !important; background: white !important; }
+            @page { size: A4; margin: 0; }
+        }
+        @media screen {
+            body { background-color: #f1f5f9 !important; padding-bottom: 40px !important; }
+            .invoice-box, .container, .page, .page-container {
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+                margin: 20px auto !important;
+                background-color: #ffffff !important;
+            }
+        }
+    </style>
+    `;
+
+    let processed = htmlContent;
+    if (processed.includes('</head>')) {
+        processed = processed.replace('</head>', `\${printStyles}</head>`);
+    } else {
+        processed = `\${printStyles}\${processed}`;
+    }
+
+    if (processed.includes('<body')) {
+        processed = processed.replace(/<body[^>]*>/, (match) => `\${match}\n\${printToolbar}`);
+    } else {
+        processed = `\${printToolbar}\n\${processed}`;
+    }
+
+    return processed;
+};
+
 export const generarPDF = async (documento, emisor, receptor, detalles, overrides = null) => {
 
     console.log(`[PDF Service] Iniciando generación real para Documento ID: ${documento.id}`);
@@ -129,7 +224,12 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
             }
         }
 
-        const templatePath = path.join(__dirname, '..', 'templates', templateFileName);
+        let templatePath = path.join(__dirname, '..', 'templates', templateFileName);
+        if (!fs.existsSync(templatePath)) {
+            console.warn(`[PDF Service] La plantilla ${templateFileName} no existe en: ${templatePath}. Usando plantilla v1 por defecto.`);
+            templateFileName = isPago ? 'payment_v1.html' : 'invoice_v1.html';
+            templatePath = path.join(__dirname, '..', 'templates', templateFileName);
+        }
         if (!fs.existsSync(templatePath)) {
             throw new Error(`La plantilla no existe en: ${templatePath}`);
         }
@@ -440,49 +540,100 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
             ? html.replace('</head>', `<style>${modularStyles}</style></head>`)
             : html;
 
-        console.log('[PDF Service] HTML compilado con estilos modulares. Iniciando Puppeteer...');
+        console.log('[PDF Service] HTML compilado con estilos modulares.');
 
-        // 4. Renderizar con Puppeteer
-        const browser = await puppeteer.launch({
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        // 4. Preparar rutas de salida y fallback HTML imprimible
+        const rfcSafe = (emisor && emisor.rfc) ? emisor.rfc.trim().toUpperCase() : 'GENERICO';
+        const uuidSafe = documento.uuid || documento.id || `preview-${Date.now()}`;
+        const pdfDir = getEmissorDir(rfcSafe, 'pdf');
+        const pdfFileName = `${uuidSafe}.pdf`;
+        const htmlFileName = `${uuidSafe}.html`;
+        const pdfPath = path.join(pdfDir, pdfFileName);
+        const htmlPath = path.join(pdfDir, htmlFileName);
 
+        // Guardar representación HTML imprimible enriquecida con la barra Net Consultores
+        const printableHtml = createPrintableHtml(finalHtml, 'Factura CFDI 4.0');
         try {
-            const page = await browser.newPage();
-            console.log('[PDF Service] Página de Puppeteer creada. Renderizando contenido...');
-            await page.setContent(finalHtml, { waitUntil: 'networkidle2', timeout: 30000 });
+            fs.writeFileSync(htmlPath, printableHtml, 'utf8');
+            console.log(`[PDF Service] Respaldo HTML imprimible guardado en: ${htmlPath}`);
+        } catch (htmlSaveErr) {
+            console.warn('[PDF Service] No se pudo guardar archivo HTML:', htmlSaveErr.message);
+        }
 
-            const pdfPath = getPdfPath(emisor.rfc, documento.uuid || documento.id);
-            const folder = path.dirname(pdfPath);
-            if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+        let pdfGenerated = false;
 
-            console.log(`[PDF Service] Generando PDF en: ${pdfPath}`);
-            await page.pdf({
-                path: pdfPath,
-                format: 'A4',
-                printBackground: true,
-                margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
-            });
-            console.log('[PDF Service] PDF generado con éxito');
-        } finally {
-            await browser.close();
-            console.log('[PDF Service] Navegador Puppeteer cerrado');
+        // Intentar renderizar PDF binario con Puppeteer
+        try {
+            console.log('[PDF Service] Intentando renderizar PDF con Puppeteer...');
+            const launchOptions = getPuppeteerLaunchOptions();
+            const browser = await puppeteer.launch(launchOptions);
+
+            try {
+                const page = await browser.newPage();
+                console.log('[PDF Service] Página de Puppeteer creada. Renderizando contenido...');
+                await page.setContent(finalHtml, { waitUntil: 'networkidle2', timeout: 25000 });
+
+                console.log(`[PDF Service] Generando PDF binario en: ${pdfPath}`);
+                await page.pdf({
+                    path: pdfPath,
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+                });
+                pdfGenerated = true;
+                console.log('[PDF Service] PDF binario generado con éxito');
+            } finally {
+                await browser.close().catch(() => {});
+                console.log('[PDF Service] Navegador Puppeteer cerrado');
+            }
+        } catch (puppeteerErr) {
+            console.warn(`[PDF Service] Puppeteer no está disponible o falló en este entorno (${puppeteerErr.message}). Utilizando representación HTML imprimible de alta fidelidad como respaldo.`);
         }
 
         // 5. Retornar Resultado
-        // Construir URL pública (asumiendo helpers existentes)
-        const pdfUrl = `/storage/${emisor.rfc}/pdf/${documento.uuid || documento.id}.pdf`;
+        const chosenUrl = pdfGenerated 
+            ? `/storage/${rfcSafe}/pdf/${pdfFileName}` 
+            : `/storage/${rfcSafe}/pdf/${htmlFileName}`;
 
         return {
             success: true,
-            pdfUrl,
-            message: 'PDF generado exitosamente.'
+            pdfUrl: chosenUrl,
+            htmlUrl: `/storage/${rfcSafe}/pdf/${htmlFileName}`,
+            isHtmlFallback: !pdfGenerated,
+            message: pdfGenerated ? 'PDF generado exitosamente.' : 'Vista previa HTML imprimible generada con éxito.'
         };
 
     } catch (error) {
         console.error('[PDF Service] Error Crítico:', error);
-        throw new Error(`Fallo al generar el reporte PDF: ${error.message}`);
+        // Fallback de emergencia si ocurrió un error previo
+        try {
+            const rfcSafe = (emisor && emisor.rfc) ? emisor.rfc.trim().toUpperCase() : 'GENERICO';
+            const uuidSafe = documento?.uuid || documento?.id || `preview-${Date.now()}`;
+            const pdfDir = getEmissorDir(rfcSafe, 'pdf');
+            const emergencyHtmlPath = path.join(pdfDir, `${uuidSafe}.html`);
+            const fallbackContent = `
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"><title>Vista Previa - CFDI</title></head>
+            <body style="font-family:system-ui,-apple-system,sans-serif;padding:30px;color:#334155;background:#f8fafc;">
+                <div style="max-width:600px;margin:40px auto;background:white;padding:30px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+                    <h2 style="color:#0284c7;margin-top:0;">Net Consultores - Vista Previa</h2>
+                    <p>No se pudo generar la representación completa debido al siguiente detalle:</p>
+                    <pre style="background:#f1f5f9;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto;">${error.message}</pre>
+                    <p style="font-size:13px;color:#64748b;">Por favor verifica la configuración del emisor y los conceptos.</p>
+                </div>
+            </body>
+            </html>`;
+            fs.writeFileSync(emergencyHtmlPath, fallbackContent, 'utf8');
+            return {
+                success: true,
+                pdfUrl: `/storage/${rfcSafe}/pdf/${uuidSafe}.html`,
+                isHtmlFallback: true,
+                message: error.message
+            };
+        } catch (emergencyErr) {
+            throw new Error(`Fallo al generar el reporte PDF: ${error.message}`);
+        }
     }
 };
 
@@ -642,22 +793,34 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
         };
 
         const html = template(data);
-        const browser = await puppeteer.launch({
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+        const printableHtml = createPrintableHtml(html, 'Complemento de Pago (REP)');
 
         try {
-            const page = await browser.newPage();
-            await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
-            const pdfBuffer = await page.pdf({
-                format: 'A4',
-                printBackground: true,
-                margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
-            });
-            return pdfBuffer;
-        } finally {
-            await browser.close();
+            console.log('[PDF Service] Intentando renderizar PDF para pago con Puppeteer...');
+            const launchOptions = getPuppeteerLaunchOptions();
+            const browser = await puppeteer.launch(launchOptions);
+
+            try {
+                const page = await browser.newPage();
+                await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
+                const pdfBuffer = await page.pdf({
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+                });
+                return {
+                    isHtml: false,
+                    data: pdfBuffer
+                };
+            } finally {
+                await browser.close().catch(() => {});
+            }
+        } catch (puppeteerErr) {
+            console.warn(`[PDF Service] Puppeteer no disponible para preview de pago (${puppeteerErr.message}). Utilizando HTML imprimible.`);
+            return {
+                isHtml: true,
+                data: Buffer.from(printableHtml, 'utf8')
+            };
         }
     } catch (error) {
         console.error('[PDF Service] Error en preview PDF:', error);
