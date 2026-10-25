@@ -80,7 +80,7 @@ export const updateEstilo = async (req, res) => {
             });
         }
 
-        res.json({ message: 'Configuración de estilo actualizada', estilo: updateData });
+        res.json({ message: 'Configuración de estilo actualizada', estilo: updateData, logo_url: updateData.logo_url });
     } catch (error) {
         console.error('Error updating estilo:', error);
         res.status(500).json({ message: 'Error al actualizar configuración de estilo' });

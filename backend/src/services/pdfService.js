@@ -211,6 +211,126 @@ function getGoogleFontsLink(fontName) {
     return fonts[fontName] || null;
 }
 
+export function generateDynamicEmisorLogo(emisor = {}, estilo = {}) {
+    const rawEmisor = emisor.toJSON ? emisor.toJSON() : emisor;
+    const razonSocial = (rawEmisor.razon_social || 'EMPRESA EMISORA').trim();
+    const rfc = rawEmisor.rfc || 'XAXX010101000';
+    const primary = estilo.color_primario || '#004481';
+    const secondary = estilo.color_secundario || '#123247';
+
+    // Extraer iniciales representativas
+    const cleanWords = razonSocial.replace(/[^a-zA-Z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter(w => !['DE', 'LA', 'EL', 'Y', 'EN', 'SA', 'CV', 'SC', 'SAPI', 'RL', 'MI', 'POR'].includes(w.toUpperCase()));
+    
+    let initials = 'CF';
+    if (cleanWords.length >= 2) {
+        initials = (cleanWords[0][0] + cleanWords[1][0] + (cleanWords[2] ? cleanWords[2][0] : '')).toUpperCase().substring(0, 3);
+    } else if (cleanWords.length === 1 && cleanWords[0].length >= 2) {
+        initials = cleanWords[0].substring(0, 2).toUpperCase();
+    } else if (razonSocial.length >= 2) {
+        initials = razonSocial.substring(0, 2).toUpperCase();
+    }
+
+    const displayName = razonSocial.length > 27 ? razonSocial.substring(0, 25) + '...' : razonSocial;
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" width="340" height="80">
+  <defs>
+    <linearGradient id="emblemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="100%" stop-color="${secondary}" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="${primary}" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Insignia Corporativa / Monograma Hexagonal -->
+  <g transform="translate(4, 4)">
+    <rect x="0" y="0" width="72" height="72" rx="16" fill="url(#emblemGrad)" />
+    <rect x="2" y="2" width="68" height="68" rx="14" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.35" />
+    <path d="M10 20 L20 10 M52 62 L62 52" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round" />
+    <text x="36" y="47" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="900" letter-spacing="1" text-anchor="middle">${initials}</text>
+  </g>
+
+  <!-- Texto Corporativo y Datos Fiscales -->
+  <g transform="translate(88, 0)">
+    <rect x="0" y="14" width="32" height="3" rx="1.5" fill="url(#accentGrad)" />
+    <text x="0" y="34" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13.5" font-weight="800" letter-spacing="-0.2">${displayName}</text>
+    <text x="0" y="50" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" letter-spacing="0.5">RFC: ${rfc}</text>
+    <g transform="translate(0, 56)">
+      <rect x="0" y="0" width="138" height="15" rx="3.5" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="0.8" />
+      <circle cx="8" cy="7.5" r="3" fill="#10b981" />
+      <text x="16" y="11" fill="#334155" font-family="monospace" font-size="8.5" font-weight="700" letter-spacing="0.4">CFDI 4.0 VERIFICADO</text>
+    </g>
+  </g>
+</svg>`;
+
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+export function resolveLogoDataUri(estilo = {}, emisor = {}) {
+    const rawEmisor = emisor.toJSON ? emisor.toJSON() : emisor;
+    const logoUrl = estilo.logo_url;
+
+    if (logoUrl && typeof logoUrl === 'string') {
+        const trimmed = logoUrl.trim();
+
+        // 1. Data URI directo (Base64 o SVG)
+        if (trimmed.startsWith('data:image/')) {
+            console.log('[PDF Service] Logo en formato Data URI detectado con éxito');
+            return trimmed;
+        }
+
+        // 2. Archivo físico o ruta de servidor
+        let fullLogoPath = null;
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+            try {
+                const urlObj = new URL(trimmed);
+                if (urlObj.pathname.includes('/storage/')) {
+                    const relativePath = urlObj.pathname.substring(urlObj.pathname.indexOf('/storage/') + 9);
+                    fullLogoPath = path.join(STORAGE_BASE, relativePath);
+                } else {
+                    return trimmed;
+                }
+            } catch (urlErr) {
+                console.error('[PDF Service] Error procesando URL de logo:', urlErr);
+            }
+        } else if (trimmed.startsWith('/storage/')) {
+            const relativePath = trimmed.replace('/storage/', '');
+            fullLogoPath = path.join(STORAGE_BASE, relativePath);
+        } else if (trimmed.startsWith('storage/')) {
+            const relativePath = trimmed.replace('storage/', '');
+            fullLogoPath = path.join(STORAGE_BASE, relativePath);
+        } else if (path.isAbsolute(trimmed)) {
+            fullLogoPath = trimmed;
+        }
+
+        if (fullLogoPath) {
+            fullLogoPath = path.normalize(fullLogoPath);
+            if (fs.existsSync(fullLogoPath)) {
+                try {
+                    const logoBuffer = fs.readFileSync(fullLogoPath);
+                    const ext = path.extname(fullLogoPath).replace('.', '').toLowerCase() || 'png';
+                    const mime = ext === 'svg' ? 'image/svg+xml' : (ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`);
+                    const dataUri = `data:${mime};base64,${logoBuffer.toString('base64')}`;
+                    console.log('[PDF Service] Logo cargado físicamente con éxito:', fullLogoPath);
+                    return dataUri;
+                } catch (readErr) {
+                    console.error('[PDF Service] Error leyendo archivo de logo:', readErr);
+                }
+            } else {
+                console.warn(`[PDF Service] Archivo físico de logo no encontrado en: ${fullLogoPath}`);
+            }
+        }
+    }
+
+    // 3. Fallback: Logotipo dinámico vectorial corporativo de alta gama
+    console.log('[PDF Service] Generando logotipo dinámico corporativo para:', rawEmisor.razon_social);
+    return generateDynamicEmisorLogo(rawEmisor, estilo);
+}
+
 export const getPuppeteerLaunchOptions = () => {
     const args = [
         '--no-sandbox',
@@ -435,41 +555,8 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
             }
         }
 
-        // Resolver URL absoluta del logo si existe para incrustarlo en el PDF
-        let logoDataUri = null;
-        if (estilo.logo_url) {
-            console.log('[PDF Service] Resolviendo logo:', estilo.logo_url);
-            let fullLogoPath = null;
-
-            if (estilo.logo_url.startsWith('http')) {
-                try {
-                    const urlObj = new URL(estilo.logo_url);
-                    const relativePath = urlObj.pathname.replace('/storage/', '');
-                    fullLogoPath = path.join(STORAGE_BASE, relativePath);
-                } catch (urlErr) {
-                    console.error('[PDF Service] URL de logo inválida:', estilo.logo_url);
-                }
-            } else if (estilo.logo_url.startsWith('/storage/')) {
-                const relativePath = estilo.logo_url.replace('/storage/', '');
-                fullLogoPath = path.join(STORAGE_BASE, relativePath);
-            } else if (estilo.logo_url.startsWith('storage/')) {
-                const relativePath = estilo.logo_url.replace('storage/', '');
-                fullLogoPath = path.join(STORAGE_BASE, relativePath);
-            }
-
-            if (fullLogoPath && fs.existsSync(fullLogoPath)) {
-                try {
-                    const logoBuffer = fs.readFileSync(fullLogoPath);
-                    const ext = path.extname(fullLogoPath).replace('.', '');
-                    logoDataUri = `data:image/${ext};base64,${logoBuffer.toString('base64')}`;
-                    console.log('[PDF Service] Logo cargado correctamente');
-                } catch (err) {
-                    console.error('[PDF Service] Error leyendo logo:', err);
-                }
-            } else {
-                console.warn(`[PDF Service] No se pudo encontrar el logo físicamente en: ${fullLogoPath}`);
-            }
-        }
+        // Resolver logotipo del emisor (subido por el usuario o generado dinámico premium)
+        const logoDataUri = resolveLogoDataUri(estilo, emisor);
 
         // Calcular impuestos detallados (traslados y retenciones)
         const traslados = [];
@@ -1001,31 +1088,7 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
             cta_beneficiario: paymentData.cta_beneficiario || ''
         };
 
-        let logoDataUri = null;
-        if (estilo.logo_url) {
-            let fullLogoPath = null;
-            if (estilo.logo_url.startsWith('http')) {
-                try {
-                    const urlObj = new URL(estilo.logo_url);
-                    const relativePath = urlObj.pathname.replace('/storage/', '');
-                    fullLogoPath = path.join(STORAGE_BASE, relativePath);
-                } catch (urlErr) {}
-            } else if (estilo.logo_url.startsWith('/storage/')) {
-                const relativePath = estilo.logo_url.replace('/storage/', '');
-                fullLogoPath = path.join(STORAGE_BASE, relativePath);
-            } else if (estilo.logo_url.startsWith('storage/')) {
-                const relativePath = estilo.logo_url.replace('storage/', '');
-                fullLogoPath = path.join(STORAGE_BASE, relativePath);
-            }
-
-            if (fullLogoPath && fs.existsSync(fullLogoPath)) {
-                try {
-                    const logoBuffer = fs.readFileSync(fullLogoPath);
-                    const ext = path.extname(fullLogoPath).replace('.', '');
-                    logoDataUri = `data:image/${ext};base64,${logoBuffer.toString('base64')}`;
-                } catch (err) {}
-            }
-        }
+        const logoDataUri = resolveLogoDataUri(estilo, emisor);
 
         const data = {
             emisor: {

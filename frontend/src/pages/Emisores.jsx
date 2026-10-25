@@ -378,8 +378,8 @@ export const Emisores = () => {
                 const res = await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
-                const newUrl = res.data?.estilo?.logo_url;
-                setLogoUrl(newUrl);
+                const newUrl = res.data?.estilo?.logo_url || res.data?.logo_url;
+                if (newUrl) setLogoUrl(newUrl);
                 setLogoFile(null);
                 setLogoPreview(null);
                 showToast('✅ Logotipo y colores del emisor actualizados correctamente.');
@@ -417,10 +417,12 @@ export const Emisores = () => {
         if (!selectedEmisor) return;
         setIsGeneratingPdf(true);
         try {
+            const currentLogo = logoPreview || (logoUrl && !removeLogo ? logoUrl : null);
             const res = await api.post(`/emisores/${selectedEmisor.id}/preview-pdf`, { 
                 layout_id: layoutId,
                 color_primario: colorPrimario,
-                color_secundario: colorSecundario
+                color_secundario: colorSecundario,
+                logo_url: currentLogo
             });
             
             if (res.data && res.data.pdfUrl) {
