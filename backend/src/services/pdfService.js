@@ -25,6 +25,123 @@ handlebars.registerHelper('formatDecimal', function (value, decimals) {
     return num.toFixed(decimals);
 });
 
+handlebars.registerHelper('formatCurrency', function (value, decimals = 2) {
+    if (value === undefined || value === null || value === '') return '$0.00';
+    const num = parseFloat(value);
+    if (isNaN(num)) return '$0.00';
+    return '$' + num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+});
+
+handlebars.registerHelper('eq', function (a, b) {
+    return a === b;
+});
+
+handlebars.registerHelper('or', function (a, b) {
+    return a || b;
+});
+
+// Catálogos Oficiales SAT para CFDI 4.0
+export const CAT_REGIMEN_FISCAL = {
+    '601': 'General de Ley Personas Morales',
+    '603': 'Personas Morales con Fines no Lucrativos',
+    '605': 'Sueldos y Salarios e Ingresos Asimilados a Salarios',
+    '606': 'Arrendamiento',
+    '607': 'Régimen de Enajenación o Adquisición de Bienes',
+    '608': 'Demás ingresos',
+    '610': 'Residentes en el Extranjero sin Establecimiento Permanente en México',
+    '611': 'Ingresos por Dividendos (socios y accionistas)',
+    '612': 'Personas Físicas con Actividades Empresariales y Profesionales',
+    '614': 'Ingresos por intereses',
+    '615': 'Régimen de los ingresos por obtención de premios',
+    '616': 'Sin obligaciones fiscales',
+    '620': 'Sociedades Cooperativas de Producción que optan por diferir sus ingresos',
+    '621': 'Incorporación Fiscal',
+    '622': 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras',
+    '623': 'Opcional para Grupos de Sociedades',
+    '624': 'Coordinados',
+    '625': 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas',
+    '626': 'Régimen Simplificado de Confianza (RESICO)'
+};
+
+export const CAT_FORMA_PAGO = {
+    '01': 'Efectivo',
+    '02': 'Cheque nominativo',
+    '03': 'Transferencia electrónica de fondos',
+    '04': 'Tarjeta de crédito',
+    '05': 'Monedero electrónico',
+    '06': 'Dinero electrónico',
+    '08': 'Vales de despensa',
+    '12': 'Dación en pago',
+    '13': 'Pago por subrogación',
+    '14': 'Pago por consignación',
+    '15': 'Condonación',
+    '17': 'Compensación',
+    '23': 'Novación',
+    '24': 'Confusión',
+    '25': 'Remisión de deuda',
+    '26': 'Prescripción o caducidad',
+    '27': 'A satisfacción del acreedor',
+    '28': 'Tarjeta de débito',
+    '29': 'Tarjeta de servicios',
+    '30': 'Aplicación de anticipos',
+    '31': 'Intermediario pagos',
+    '99': 'Por definir'
+};
+
+export const CAT_METODO_PAGO = {
+    'PUE': 'Pago en una sola exhibición',
+    'PPD': 'Pago en parcialidades o diferido'
+};
+
+export const CAT_USO_CFDI = {
+    'G01': 'Adquisición de mercancías',
+    'G02': 'Devoluciones, descuentos o bonificaciones',
+    'G03': 'Gastos en general',
+    'I01': 'Construcciones',
+    'I02': 'Mobiliario y equipo de oficina por inversiones',
+    'I03': 'Equipo de transporte',
+    'I04': 'Equipo de computo y accesorios',
+    'I05': 'Dados, troqueles, moldes, matrices y herramental',
+    'I06': 'Comunicaciones telefónicas',
+    'I07': 'Comunicaciones satelitales',
+    'I08': 'Otra maquinaria y equipo',
+    'D01': 'Honorarios médicos, dentales y gastos hospitalarios',
+    'D02': 'Gastos médicos por incapacidad o discapacidad',
+    'D03': 'Gastos funerales',
+    'D04': 'Donativos',
+    'D05': 'Intereses reales efectivamente pagados por créditos hipotecarios (casa habitación)',
+    'D06': 'Aportaciones voluntarias al SAR',
+    'D07': 'Primas por seguros de gastos médicos',
+    'D08': 'Gastos de transportación escolar obligatoria',
+    'D09': 'Depósitos en cuentas personales especiales para el ahorro, planes de pensiones',
+    'D10': 'Pagos por servicios educativos (colegiaturas)',
+    'S01': 'Sin efectos fiscales',
+    'CP01': 'Pagos',
+    'CN01': 'Nómina'
+};
+
+export const CAT_TIPO_COMPROBANTE = {
+    'I': 'Ingreso',
+    'E': 'Egreso',
+    'T': 'Traslado',
+    'N': 'Nómina',
+    'P': 'Pago'
+};
+
+export const CAT_OBJETO_IMP = {
+    '01': 'No objeto de impuesto',
+    '02': 'Sí objeto de impuesto',
+    '03': 'Sí objeto de impuesto y no obligado al desglose',
+    '04': 'Sí objeto de impuesto y no causa impuesto'
+};
+
+export const CAT_EXPORTACION = {
+    '01': 'No aplica',
+    '02': 'Definitiva con clave A1',
+    '03': 'Temporal',
+    '04': 'Definitiva con clave distinta a A1'
+};
+
 function numeroALetras(num) {
     const Unidades = (n) => ['UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'][n - 1];
     const Decenas = (n) => ['DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'][n - 1];
@@ -301,12 +418,20 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         if (documento.uuid) {
             console.log('[PDF Service] Generando QR para UUID:', documento.uuid);
             try {
-                const last8Sello = documento.sello ? documento.sello.substring(documento.sello.length - 8) : '';
-                const satUrl = `https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id=${documento.uuid}&re=${emisor.rfc}&rr=${receptor.rfc}&tt=${documento.total}&fe=${last8Sello}`;
-                qrUrlBase64 = await QRCode.toDataURL(satUrl);
+                const selloSource = documento.sello_cfdi || documento.sello || 'SELLO_CFDI_PREVIEW';
+                const last8Sello = selloSource.length >= 8 ? selloSource.slice(-8) : '8FA485C1';
+                const totalFloat = parseFloat(documento.total || 0).toFixed(6);
+                const satUrl = `https://verificacfdi.facturaelectronica.sat.gob.mx/default.aspx?id=${documento.uuid}&re=${emisor.rfc}&rr=${receptor.rfc}&tt=${totalFloat}&fe=${last8Sello}`;
+                qrUrlBase64 = await QRCode.toDataURL(satUrl, {
+                    width: 160,
+                    margin: 1,
+                    color: {
+                        dark: '#0f172a',
+                        light: '#ffffff'
+                    }
+                });
             } catch (qrErr) {
                 console.error('[PDF Service] Error generando QR:', qrErr);
-                // No detenemos el proceso si falla el QR
             }
         }
 
@@ -447,41 +572,197 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
             }
         }
 
+        // 3.4 Preparar datos enriquecidos para CFDI 4.0
+        const emisorRaw = emisor.toJSON ? emisor.toJSON() : emisor;
+        const receptorRaw = receptor.toJSON ? receptor.toJSON() : receptor;
+        const docRaw = documento.toJSON ? documento.toJSON() : documento;
+
+        // Resolver catálogos fiscales
+        const regimenEmisorCode = emisorRaw.regimen_fiscal || '601';
+        const regimenEmisorDesc = CAT_REGIMEN_FISCAL[regimenEmisorCode] || emisorRaw.regimen_desc || 'General de Ley Personas Morales';
+        const regimenEmisorDisplay = `${regimenEmisorCode} - ${regimenEmisorDesc}`;
+
+        const regimenReceptorCode = receptorRaw.regimen_fiscal || '601';
+        const regimenReceptorDesc = CAT_REGIMEN_FISCAL[regimenReceptorCode] || receptorRaw.regimen_desc || 'General de Ley Personas Morales';
+        const regimenReceptorDisplay = `${regimenReceptorCode} - ${regimenReceptorDesc}`;
+
+        const usoCfdiCode = docRaw.uso_cfdi || 'G03';
+        const usoCfdiDesc = CAT_USO_CFDI[usoCfdiCode] || docRaw.uso_desc || 'Gastos en general';
+        const usoCfdiDisplay = `${usoCfdiCode} - ${usoCfdiDesc}`;
+
+        const formaPagoCode = docRaw.forma_pago || '01';
+        const formaPagoDesc = CAT_FORMA_PAGO[formaPagoCode] || 'Efectivo';
+        const formaPagoDisplay = `${formaPagoCode} - ${formaPagoDesc}`;
+
+        const metodoPagoCode = docRaw.metodo_pago || 'PUE';
+        const metodoPagoDesc = CAT_METODO_PAGO[metodoPagoCode] || 'Pago en una sola exhibición';
+        const metodoPagoDisplay = `${metodoPagoCode} - ${metodoPagoDesc}`;
+
+        const tipoCompCode = docRaw.tipo_comprobante || 'I';
+        const tipoCompDesc = CAT_TIPO_COMPROBANTE[tipoCompCode] || 'Ingreso';
+        const tipoCompDisplay = `${tipoCompCode} - ${tipoCompDesc}`;
+
+        const exportacionCode = docRaw.exportacion || '01';
+        const exportacionDesc = CAT_EXPORTACION[exportacionCode] || 'No aplica';
+        const exportacionDisplay = `${exportacionCode} - ${exportacionDesc}`;
+
+        const monedaCode = docRaw.moneda || 'MXN';
+        const monedaDesc = monedaCode === 'MXN' ? 'MXN - Peso Mexicano' : (monedaCode === 'USD' ? 'USD - Dólar Estadounidense' : monedaCode);
+
+        // Mapear conceptos / detalles con todos los campos SAT CFDI 4.0
+        const detallesFormatted = detalles.map((d, idx) => {
+            const raw = d.toJSON ? d.toJSON() : d;
+            const conceptoObj = raw.Concepto || {};
+            const cant = parseFloat(raw.cantidad || 1);
+            const valUnit = parseFloat(raw.valor_unitario !== undefined ? raw.valor_unitario : (conceptoObj.precio_unitario || 0));
+            const imp = parseFloat(raw.importe !== undefined ? raw.importe : (cant * valUnit));
+            const desc = parseFloat(raw.descuento || 0);
+            const base = imp - desc;
+
+            const claveSat = raw.clave_sat || raw.clave_prod_serv || conceptoObj.clave_prod_serv || '84111506';
+            const claveUnidad = raw.clave_unidad || conceptoObj.clave_unidad || 'E48';
+            const unidad = raw.unidad || conceptoObj.unidad || 'Servicio';
+            const noId = raw.no_identificacion || raw.codigo || conceptoObj.codigo || `ITEM-0${idx + 1}`;
+            const descripcion = raw.descripcion || conceptoObj.descripcion || 'Concepto sin descripción';
+            const objetoImp = raw.objeto_imp || '02';
+            const objetoImpDesc = CAT_OBJETO_IMP[objetoImp] || 'Sí objeto de impuesto';
+            const objetoImpDisplay = `${objetoImp} - ${objetoImpDesc}`;
+
+            // Calcular desglose de impuesto de la partida
+            const impuestosItem = [];
+            if (objetoImp === '02') {
+                const ivaTasa = 0.16;
+                const ivaImp = base * ivaTasa;
+                impuestosItem.push({
+                    impuesto: '002 IVA',
+                    tipo: 'Traslado',
+                    factor: 'Tasa',
+                    tasa: '16.00%',
+                    tasa_cuota: '0.160000',
+                    base: base.toFixed(2),
+                    importe: ivaImp.toFixed(2)
+                });
+            }
+
+            return {
+                ...raw,
+                no_identificacion: noId,
+                clave_sat: claveSat,
+                clave_prod_serv: claveSat,
+                clave_unidad: claveUnidad,
+                unidad: unidad,
+                descripcion: descripcion,
+                objeto_imp: objetoImp,
+                objeto_imp_desc: objetoImpDesc,
+                objeto_imp_display: objetoImpDisplay,
+                cantidad_form: cant.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+                valor_unitario_form: valUnit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 }),
+                importe_form: imp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                descuento_form: desc > 0 ? desc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null,
+                impuestos_item: impuestosItem
+            };
+        });
+
+        // Tabla formal de resumen de impuestos SAT
+        const resumenImpuestosSat = [];
+        const baseSubtotal = computedSubtotal - parseFloat(docRaw.descuento || 0);
+        if (totalTraslados > 0 || parseFloat(docRaw.total_impuestos_trasladados || 0) > 0) {
+            const amtTras = totalTraslados > 0 ? totalTraslados : parseFloat(docRaw.total_impuestos_trasladados || 0);
+            resumenImpuestosSat.push({
+                tipo: 'Traslado',
+                impuesto: '002 - IVA',
+                tipo_factor: 'Tasa',
+                tasa_cuota: '0.160000',
+                tasa_porcentaje: '16.00%',
+                base: baseSubtotal.toFixed(2),
+                importe: amtTras.toFixed(2)
+            });
+        }
+        retenciones.forEach(ret => {
+            resumenImpuestosSat.push({
+                tipo: 'Retención',
+                impuesto: ret.impuesto,
+                tipo_factor: 'Tasa',
+                tasa_cuota: (parseFloat(ret.tasa) / 100).toFixed(6),
+                tasa_porcentaje: `${ret.tasa}%`,
+                base: baseSubtotal.toFixed(2),
+                importe: ret.importe
+            });
+        });
+
         const data = {
             emisor: {
-                ...(emisor.toJSON ? emisor.toJSON() : emisor),
-                regimen_desc: emisor.regimen_desc || 'General de Ley Personas Morales'
+                ...emisorRaw,
+                regimen_fiscal: regimenEmisorCode,
+                regimen_desc: regimenEmisorDesc,
+                regimen_display: regimenEmisorDisplay,
+                codigo_postal: emisorRaw.codigo_postal || '29960',
+                municipio: emisorRaw.municipio || '',
+                estado: emisorRaw.estado || '',
+                pais: emisorRaw.pais || 'México'
             },
             receptor: {
-                ...(receptor.toJSON ? receptor.toJSON() : receptor),
-                regimen_desc: receptor.regimen_desc || 'Personas Físicas con Actividades Empresariales'
+                ...receptorRaw,
+                regimen_fiscal: regimenReceptorCode,
+                regimen_desc: regimenReceptorDesc,
+                regimen_display: regimenReceptorDisplay,
+                codigo_postal: receptorRaw.codigo_postal || '00000',
+                municipio: receptorRaw.municipio || '',
+                estado: receptorRaw.estado || '',
+                pais: receptorRaw.pais || 'México'
             },
             documento: {
-                ...(documento.toJSON ? documento.toJSON() : documento),
-                uso_desc: documento.uso_desc || 'Gastos en general',
+                ...docRaw,
+                serie: docRaw.serie || 'A',
+                folio: docRaw.folio || '0001',
+                tipo_comprobante: tipoCompCode,
+                tipo_comprobante_desc: tipoCompDesc,
+                tipo_comprobante_display: tipoCompDisplay,
+                uso_cfdi: usoCfdiCode,
+                uso_desc: usoCfdiDesc,
+                uso_cfdi_display: usoCfdiDisplay,
+                forma_pago: formaPagoCode,
+                forma_pago_desc: formaPagoDesc,
+                forma_pago_display: formaPagoDisplay,
+                metodo_pago: metodoPagoCode,
+                metodo_pago_desc: metodoPagoDesc,
+                metodo_pago_display: metodoPagoDisplay,
+                exportacion: exportacionCode,
+                exportacion_desc: exportacionDesc,
+                exportacion_display: exportacionDisplay,
+                moneda: monedaCode,
+                moneda_desc: monedaDesc,
+                tipo_cambio: docRaw.tipo_cambio || '1.000000',
+                condiciones_pago: docRaw.condiciones_pago || 'Contado Inmediato',
+                lugar_expedicion: docRaw.lugar_expedicion || emisorRaw.codigo_postal || '29960',
+                rfc_pac: docRaw.rfc_pac || 'LSO1306189R5',
+                subtotal_form: parseFloat(docRaw.subtotal || computedSubtotal).toFixed(2),
+                descuento_form: parseFloat(docRaw.descuento || 0).toFixed(2),
                 iva_total: totalTraslados.toFixed(2),
+                iva_total_form: totalTraslados.toFixed(2),
+                total_form: parseFloat(docRaw.total || 0).toFixed(2),
                 total_retenciones: totalRetenciones.toFixed(2),
                 total_traslados_locales: totalTrasladosLocales.toFixed(2),
                 total_retenciones_locales: totalRetencionesLocales.toFixed(2),
-                total_en_letra: numeroALetras(documento.total),
-                fecha: documento.fecha ? new Date(documento.fecha).toLocaleString('es-MX') : new Date().toLocaleString('es-MX'),
-                // Campos de certificación
-                fecha_timbrado: documento.fecha_timbrado ? new Date(documento.fecha_timbrado).toLocaleString('es-MX') : '',
-                no_certificado_emisor: documento.no_certificado_emisor,
-                no_certificado_sat: documento.no_certificado_sat,
-                sello_cfdi: documento.sello_cfdi,
-                sello_sat: documento.sello_sat,
-                cadena_original_tfd: documento.cadena_original_tfd
+                total_en_letra: numeroALetras(parseFloat(docRaw.total || 0)),
+                fecha: docRaw.fecha ? new Date(docRaw.fecha).toLocaleString('es-MX') : new Date().toLocaleString('es-MX'),
+                fecha_timbrado: docRaw.fecha_timbrado ? new Date(docRaw.fecha_timbrado).toLocaleString('es-MX') : (docRaw.uuid ? new Date().toLocaleString('es-MX') : ''),
+                no_certificado_emisor: docRaw.no_certificado_emisor || emisorRaw.no_certificado || '00001000000504465028',
+                no_certificado_sat: docRaw.no_certificado_sat || '00001000000509846663',
+                sello_cfdi: docRaw.sello_cfdi || docRaw.sello || '',
+                sello_sat: docRaw.sello_sat || '',
+                cadena_original_tfd: docRaw.cadena_original_tfd || docRaw.cadena_original || ''
             },
-            detalles: detalles.map(d => (d.toJSON ? d.toJSON() : d)),
+            detalles: detallesFormatted,
+            resumenImpuestosSat: resumenImpuestosSat,
             doctosRelacionados: doctosRelacionados.map(dr => (dr.toJSON ? dr.toJSON() : dr)),
             pago: pagoInfo ? (pagoInfo.toJSON ? pagoInfo.toJSON() : pagoInfo) : null,
             retenciones: retenciones,
             trasladosLocales: trasladosLocales,
             retencionesLocales: retencionesLocales,
-            color_primario: estilo.color_primario,
-            color_secundario: estilo.color_secundario,
-            tipo_letra: estilo.tipo_letra,
+            color_primario: estilo.color_primario || '#004481',
+            color_secundario: estilo.color_secundario || '#123247',
+            tipo_letra: estilo.tipo_letra || 'Inter',
             logo_url: logoDataUri,
             qr_url: qrUrlBase64,
             google_fonts_link: getGoogleFontsLink(estilo.tipo_letra)

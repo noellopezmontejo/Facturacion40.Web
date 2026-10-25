@@ -483,43 +483,73 @@ export const getPreviewPDF = async (req, res) => {
         const emisor = await Emisor.findByPk(id);
         if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
 
-        // Crear objetos mock para la vista previa
+        // Crear objetos mock profesionales y completos para la vista previa CFDI 4.0
+        const emisorCp = emisor.codigo_postal || '29960';
         const dummyDocumento = {
             id: 'preview',
-            serie: 'SAMPLE',
-            folio: '0001',
+            serie: 'A',
+            folio: '1024',
             tipo_documento_id: (overrides && overrides.tipo_documento_id) ? overrides.tipo_documento_id : null,
+            tipo_comprobante: 'I',
             fecha: new Date(),
+            fecha_timbrado: new Date(Date.now() - 60000),
+            lugar_expedicion: emisorCp,
+            exportacion: '01',
             uso_cfdi: 'G03',
-            forma_pago: '01',
+            forma_pago: '03',
             metodo_pago: 'PUE',
+            condiciones_pago: 'Contado Inmediato',
             moneda: 'MXN',
-            subtotal: 1000.00,
-            descuento: 0,
-            total: 1160.00,
-            uuid: '8FA485C1-766C-4C35-8EF6-4127A76B4D08', // UUID de ejemplo para mostrar sellos
-            sello: 'MOCK_SELLO_DIGITAL_PARA_PREVISUALIZACION',
-            sello_sat: 'MOCK_SELLO_SAT_PARA_PREVISUALIZACION',
-            cadena_original: '||1.1|8FA485C1-766C-4C35-8EF6-4127A76B4D08|2026-03-12T12:40:43|LSO1306189R5|...'
+            tipo_cambio: '1.000000',
+            subtotal: 2500.00,
+            descuento: 0.00,
+            total_impuestos_trasladados: 400.00,
+            total: 2900.00,
+            uuid: '4E70B182-E7A9-4C35-8EF6-8FA485C1766C',
+            no_certificado_emisor: emisor.no_certificado || '00001000000504465028',
+            no_certificado_sat: '00001000000509846663',
+            rfc_pac: 'LSO1306189R5',
+            sello_cfdi: 'm3X8qPl9K1wZtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkL==',
+            sello_sat: 'K9jL1mNoPqRsTuVwXyZ0123456789aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789aBcDeFgHiJkLmNoPqRsTuVwXyZ01==',
+            cadena_original_tfd: '||1.1|4E70B182-E7A9-4C35-8EF6-8FA485C1766C|2026-10-25T10:15:30|LSO1306189R5|m3X8qPl9K1wZtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkLzXcvBnmQweRtYuIoP1aSdfgHjkL==|00001000000509846663||'
         };
 
         const dummyReceptor = {
-            razon_social: 'CLIENTE DE PRUEBA S.A. DE C.V.',
-            rfc: 'XAXX010101000',
+            razon_social: 'CORPORATIVO EMPRESARIAL DEL SURESTE S.A. DE C.V.',
+            rfc: 'CES180420KM9',
             regimen_fiscal: '601',
-            codigo_postal: '00000'
+            codigo_postal: '06600',
+            municipio: 'Cuauhtémoc',
+            estado: 'Ciudad de México',
+            pais: 'México'
         };
 
         const dummyDetalles = [
             {
                 cantidad: 1,
-                valor_unitario: 1000.00,
-                importe: 1000.00,
-                Concepto: {
-                    descripcion: 'CONCEPTO DE PRUEBA PARA DISEÑO DE FACTURA',
-                    unidad: 'PZ',
-                    clave_sat: '01010101'
-                }
+                clave_sat: '84111506',
+                clave_prod_serv: '84111506',
+                clave_unidad: 'E48',
+                unidad: 'Unidad de servicio',
+                no_identificacion: 'SERV-FAC-01',
+                descripcion: 'SERVICIOS PROFESIONALES DE FACTURACIÓN ELECTRÓNICA CFDI 4.0 - PLAN ANUAL EMPRESARIAL CON TIMBRADO MULTI-SERIE Y COMPLEMENTOS FISCALES',
+                objeto_imp: '02',
+                valor_unitario: 1500.00,
+                descuento: 0.00,
+                importe: 1500.00
+            },
+            {
+                cantidad: 2,
+                clave_sat: '43231500',
+                clave_prod_serv: '43231500',
+                clave_unidad: 'H87',
+                unidad: 'Pieza',
+                no_identificacion: 'LIC-CONCIL-02',
+                descripcion: 'LICENCIA DE USUARIO CONCURRENTE PARA MÓDULO DE EMISIÓN, CANCELACIÓN Y CONCILIACIÓN FISCAL SAT AUTOMATIZADA',
+                objeto_imp: '02',
+                valor_unitario: 500.00,
+                descuento: 0.00,
+                importe: 1000.00
             }
         ];
 

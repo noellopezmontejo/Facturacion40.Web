@@ -6,18 +6,18 @@ import api from '../api/axios';
 import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
 
 const PLANTILLAS_PDF = [
-    { id: 'v1', name: 'Estándar' },
-    { id: 'v2', name: 'Moderna' }, 
-    { id: 'v3', name: 'Elegante' },
-    { id: 'v4', name: 'Minimalista' },
-    { id: 'v5', name: 'Corporativa' },
-    { id: 'v6', name: 'Tecnológica' },
-    { id: 'v7', name: 'Tradicional Pro' },
-    { id: 'v8', name: 'Contemporánea' },
-    { id: 'v9', name: 'Ejecutiva' },
-    { id: 'v10', name: 'Gubernamental' },
-    { id: 'v11', name: 'Industrial' },
-    { id: 'v12', name: 'Premium Detail' }
+    { id: 'v1', name: 'Estándar Ejecutiva', tag: 'Corporativa', desc: 'Net Consultores Signature con tarjetas y desglose SAT' },
+    { id: 'v2', name: 'Barra Lateral', tag: 'Moderna', desc: 'Sidebar corporativo elegante con QR y sellos ordenados' }, 
+    { id: 'v3', name: 'Nórdica Clean', tag: 'Minimalista', desc: 'Estilo suizo minimalista con tipografía nítida y líneas finas' },
+    { id: 'v4', name: 'Notarial Clásica', tag: 'Certificado', desc: 'Marco institucional formal para despachos y corporativos' },
+    { id: 'v5', name: 'Horizon Cards', tag: 'Tarjetas Pro', desc: 'Tarjetas flotantes modernas con acentos en color primario' },
+    { id: 'v6', name: 'Industrial ERP', tag: 'Gran Formato', desc: 'Alta densidad con código SKU y desglose de partidas' },
+    { id: 'v7', name: 'Tradicional Pro', tag: 'SAT Clásico', desc: 'Formato tradicional SAT modernizado con recuadros limpios' },
+    { id: 'v8', name: 'Contemporánea', tag: 'SaaS / FinTech', desc: 'Estilo fintech con chips dinámicos y degradados sutiles' },
+    { id: 'v9', name: 'Prestige Gold', tag: 'Ejecutiva Top', desc: 'Acento corporativo profundo de alto prestigio y distinción' },
+    { id: 'v10', name: 'Gubernamental', tag: 'Estricto SAT', desc: 'Matriz estricta de cumplimiento normativo y proveedores' },
+    { id: 'v11', name: 'Split Dynamic', tag: 'Bicolor', desc: 'Encabezado asimétrico audaz con totales de alto contraste' },
+    { id: 'v12', name: 'Compact Express', tag: 'Multi-partidas', desc: 'Optimizado para múltiples conceptos con máxima claridad' }
 ];
 
 export const Emisores = () => {
@@ -1245,7 +1245,7 @@ export const Emisores = () => {
                                 <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
                                     1. Selecciona el Modelo / Plantilla Global
                                 </label>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                     {PLANTILLAS_PDF.map((v) => {
                                         const isSelected = layoutId === v.id;
                                         return (
@@ -1253,14 +1253,24 @@ export const Emisores = () => {
                                                 key={v.id}
                                                 type="button"
                                                 onClick={() => setLayoutId(v.id)}
-                                                className={`p-3 border rounded-xl text-xs font-medium transition-all flex flex-col items-center justify-center gap-1.5 shadow-2xs ${
+                                                className={`p-3 border rounded-xl text-left transition-all flex flex-col justify-between gap-2 shadow-2xs ${
                                                     isSelected 
-                                                        ? 'border-primary-500 bg-primary-50 text-primary-700 font-semibold ring-2 ring-primary-100' 
+                                                        ? 'border-primary-500 bg-primary-50/70 text-primary-900 ring-2 ring-primary-200 shadow-sm' 
                                                         : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
                                                 }`}
                                             >
-                                                <Layout className={`w-4 h-4 mx-auto ${isSelected ? 'text-primary-600' : 'text-slate-600'}`} />
-                                                <span>{v.name}</span>
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                        isSelected ? 'bg-primary-600 text-white' : 'bg-slate-100 text-slate-600'
+                                                    }`}>
+                                                        {v.tag}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-400 font-bold">{v.id.toUpperCase()}</span>
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-bold leading-tight text-slate-800">{v.name}</div>
+                                                    <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">{v.desc}</p>
+                                                </div>
                                             </button>
                                         );
                                     })}
@@ -1461,56 +1471,182 @@ export const Emisores = () => {
                                         </button>
                                     </div>
 
-                                    {/* Mockup visual dinámico */}
-                                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50 space-y-3">
-                                        {/* Header Mockup */}
-                                        <div
-                                            className="rounded-lg p-3 text-white flex items-center justify-between transition-colors shadow-2xs"
-                                            style={{ backgroundColor: colorPrimario }}
-                                        >
-                                            <div>
-                                                <p className="text-xs font-bold uppercase">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</p>
-                                                <p className="text-[10px] opacity-85 font-mono">{selectedEmisor?.rfc || 'XAXX010101000'} | FACTURA A-0001</p>
+                                    {/* Mockup visual dinámico premium */}
+                                    <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-2xs space-y-3 font-sans">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[11px]">
+                                            <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorPrimario }} />
+                                                <span>Plantilla: <strong>{PLANTILLAS_PDF.find(p => p.id === layoutId)?.name || 'Estándar'}</strong></span>
+                                                <span className="text-[10px] text-primary-700 font-bold bg-primary-50 px-2 py-0.5 rounded-full border border-primary-100">
+                                                    {PLANTILLAS_PDF.find(p => p.id === layoutId)?.tag}
+                                                </span>
                                             </div>
-                                            <div className="w-10 h-10 bg-white/90 rounded-md p-0.5 flex items-center justify-center shrink-0">
-                                                {(logoPreview || (logoUrl && !removeLogo)) ? (
-                                                    <img
-                                                        src={logoPreview || getFullLogoUrl(logoUrl)}
-                                                        alt="Logo preview"
-                                                        className="max-h-full max-w-full object-contain"
-                                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                                    />
-                                                ) : (
-                                                    <Building2 className="w-5 h-5 text-slate-700" />
-                                                )}
-                                            </div>
+                                            <span className="text-[10px] font-mono text-slate-400">CFDI v4.0 &bull; Ingreso</span>
                                         </div>
 
-                                        {/* Table Header Mockup */}
-                                        <div className="rounded overflow-hidden border border-slate-200 bg-white text-[10px]">
-                                            <div
-                                                className="px-3 py-1.5 font-bold uppercase text-white flex justify-between transition-colors"
-                                                style={{ backgroundColor: colorPrimario }}
-                                            >
-                                                <span>Concepto / Descripción</span>
-                                                <span>Importe</span>
+                                        {layoutId === 'v2' ? (
+                                            /* Layout v2: Barra Lateral */
+                                            <div className="flex rounded-lg overflow-hidden border border-slate-200 min-h-[220px]">
+                                                {/* Sidebar */}
+                                                <div className="w-1/3 p-3 text-white flex flex-col justify-between" style={{ backgroundColor: colorSecundario }}>
+                                                    <div className="space-y-2">
+                                                        <div className="w-12 h-10 bg-white rounded p-1 flex items-center justify-center">
+                                                             {(logoPreview || (logoUrl && !removeLogo)) ? (
+                                                                 <img src={logoPreview || getFullLogoUrl(logoUrl)} alt="Logo" className="max-h-full max-w-full object-contain" />
+                                                             ) : (
+                                                                 <Building2 className="w-5 h-5 text-slate-700" />
+                                                             )}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-bold uppercase leading-tight">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</p>
+                                                            <p className="text-[9px] opacity-80 font-mono mt-0.5">{selectedEmisor?.rfc || 'XAXX010101000'}</p>
+                                                        </div>
+                                                        <div className="text-[8px] opacity-75 leading-tight pt-1 border-t border-white/20">
+                                                            <p>C.P. {selectedEmisor?.codigo_postal || '29960'}</p>
+                                                            <p>Régimen: 601 General Ley</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-white/10 rounded p-1.5 text-center text-[8px] font-mono">
+                                                        QR SAT &bull; TIMBRADO
+                                                    </div>
+                                                </div>
+                                                {/* Content */}
+                                                <div className="w-2/3 p-3 bg-slate-50/50 flex flex-col justify-between space-y-2">
+                                                    <div className="flex justify-between items-start border-b border-slate-200 pb-1.5">
+                                                        <div>
+                                                            <span className="text-[9px] font-bold text-slate-800">FACTURA A-1024</span>
+                                                            <p className="text-[8px] text-slate-400">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+                                                        </div>
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>PUE</span>
+                                                    </div>
+                                                    <div className="bg-white p-2 rounded border border-slate-200 text-[9px] space-y-0.5">
+                                                         <p className="font-bold text-slate-800">CLIENTE: CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                         <p className="text-[8px] text-slate-500">RFC: CES180420KM9 &bull; Uso: G03 Gastos en general</p>
+                                                    </div>
+                                                    <div className="bg-white rounded border border-slate-200 text-[8.5px] divide-y divide-slate-100">
+                                                         <div className="p-1.5 flex justify-between">
+                                                             <span>Servicios Facturación Electrónica CFDI 4.0</span>
+                                                             <span className="font-bold text-slate-800">$1,500.00</span>
+                                                         </div>
+                                                         <div className="p-1.5 flex justify-between">
+                                                             <span>Licencia Timbrado Multi-Serie SAT</span>
+                                                             <span className="font-bold text-slate-800">$1,000.00</span>
+                                                         </div>
+                                                    </div>
+                                                    <div className="flex justify-end pt-1">
+                                                         <div className="text-right px-3 py-1 rounded text-white" style={{ backgroundColor: colorPrimario }}>
+                                                             <span className="text-[8px] opacity-80 uppercase block">Total a Pagar</span>
+                                                             <span className="text-xs font-bold">$2,900.00 MXN</span>
+                                                         </div>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div className="px-3 py-2 flex justify-between text-slate-600 border-b border-slate-100">
-                                                <span>SERVICIOS PROFESIONALES DE FACTURACIÓN ELECTRÓNICA</span>
-                                                <span className="font-semibold text-slate-800">$1,000.00</span>
-                                            </div>
-                                        </div>
+                                        ) : (
+                                            /* Layout Estándar / Corporativo / Horizon / Notarial */
+                                            <div className="space-y-2.5">
+                                                {/* Header Mockup */}
+                                                <div
+                                                    className="rounded-lg p-3 text-white flex items-center justify-between transition-colors shadow-2xs"
+                                                    style={{ backgroundColor: colorPrimario }}
+                                                >
+                                                    <div className="space-y-0.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-bold uppercase">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</span>
+                                                            <span className="text-[9px] bg-white/20 px-1.5 py-0.2 rounded font-bold">CFDI 4.0</span>
+                                                        </div>
+                                                        <p className="text-[10px] opacity-90 font-mono">RFC: {selectedEmisor?.rfc || 'XAXX010101000'} &bull; SERIE A &bull; FOLIO 1024</p>
+                                                        <p className="text-[8.5px] opacity-75">Lugar de Expedición: C.P. {selectedEmisor?.codigo_postal || '29960'} &bull; Régimen: 601</p>
+                                                    </div>
+                                                    <div className="w-12 h-11 bg-white rounded-md p-1 flex items-center justify-center shrink-0 shadow-xs">
+                                                        {(logoPreview || (logoUrl && !removeLogo)) ? (
+                                                            <img
+                                                                src={logoPreview || getFullLogoUrl(logoUrl)}
+                                                                alt="Logo preview"
+                                                                className="max-h-full max-w-full object-contain"
+                                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                            />
+                                                        ) : (
+                                                            <Building2 className="w-5 h-5 text-slate-700" />
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                        {/* Totals Mockup */}
-                                        <div className="flex justify-end">
-                                            <div
-                                                className="px-4 py-2 rounded-lg text-white text-right space-y-0.5 shadow-2xs transition-colors"
-                                                style={{ backgroundColor: colorSecundario }}
-                                            >
-                                                <p className="text-[9px] uppercase tracking-wide opacity-80">Total a Pagar (MXN)</p>
-                                                <p className="text-sm font-bold">$1,160.00</p>
+                                                {/* UUID Bar */}
+                                                <div className="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 flex items-center justify-between text-[9px]">
+                                                    <span className="text-slate-500 font-bold uppercase text-[8px]">Folio Fiscal (UUID SAT):</span>
+                                                    <span className="font-mono font-bold text-slate-800">4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
+                                                </div>
+
+                                                {/* Receptor Info Card */}
+                                                <div className="bg-slate-50/60 p-2.5 rounded-lg border border-slate-200 text-[9px] grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Receptor:</span>
+                                                        <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                        <p className="text-slate-500">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Condiciones Fiscales:</span>
+                                                        <p className="text-slate-700">Forma: 03 Transferencia &bull; Método: PUE</p>
+                                                        <p className="text-slate-500">Uso: G03 Gastos en general &bull; Moneda: MXN</p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Concepts Table */}
+                                                <div className="rounded-lg overflow-hidden border border-slate-200 bg-white text-[9.5px]">
+                                                    <div
+                                                        className="px-3 py-1.5 font-bold uppercase text-white flex justify-between transition-colors text-[8.5px]"
+                                                        style={{ backgroundColor: colorPrimario }}
+                                                    >
+                                                        <span>Concepto / Partida & Desglose Fiscal SAT</span>
+                                                        <span>Importe</span>
+                                                    </div>
+                                                    <div className="p-2 border-b border-slate-100 flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold text-slate-800">1.00 E48 - SERVICIOS FACTURACIÓN ELECTRÓNICA CFDI 4.0</p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
+                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 84111506</span>
+                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$240.00)</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="font-bold text-slate-800">$1,500.00</span>
+                                                    </div>
+                                                    <div className="p-2 flex justify-between items-start bg-slate-50/40">
+                                                        <div>
+                                                            <p className="font-semibold text-slate-800">2.00 H87 - LICENCIA DE TIMBRADO SAT MULTI-SERIE</p>
+                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
+                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 43231500</span>
+                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$160.00)</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="font-bold text-slate-800">$1,000.00</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Amount in words & Totals */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                                                    <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[8.5px]">
+                                                        <span className="text-[7.5px] font-bold text-slate-400 uppercase block">Importe con Letra:</span>
+                                                        <span className="font-bold text-slate-700">SON: DOS MIL NOVECIENTOS PESOS 00/100 M.N.</span>
+                                                    </div>
+
+                                                    <div className="flex justify-end">
+                                                         <div
+                                                             className="px-4 py-2 rounded-lg text-white text-right space-y-0.5 shadow-2xs transition-colors w-full sm:w-auto"
+                                                             style={{ backgroundColor: colorSecundario }}
+                                                         >
+                                                             <div className="flex justify-between gap-4 text-[8.5px] opacity-85">
+                                                                 <span>Subtotal: $2,500.00</span>
+                                                                 <span>IVA (16%): $400.00</span>
+                                                             </div>
+                                                             <div className="text-sm font-bold flex justify-between gap-4 pt-0.5 border-t border-white/20">
+                                                                 <span>TOTAL NETO:</span>
+                                                                 <span>$2,900.00 MXN</span>
+                                                             </div>
+                                                         </div>
+                                                     </div>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
