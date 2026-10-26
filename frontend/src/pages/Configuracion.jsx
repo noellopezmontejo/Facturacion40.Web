@@ -730,12 +730,12 @@ export const Configuracion = () => {
                         {/* Métricas del PAC */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-indigo-700/50">
                             <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3.5 border border-white/10">
-                                <span className="text-[11px] text-indigo-200/80 block">Disponibles en Cuenta</span>
+                                <span className="text-[11px] text-indigo-200/80 block">Disponibles Asignación</span>
                                 <span className="text-2xl font-black tracking-tight text-white block mt-0.5">
                                     {pacResumen ? Number(pacResumen.creditos_disponibles || 0).toLocaleString() : '—'}
                                 </span>
                                 <span className="text-[10px] text-emerald-400 font-bold mt-1 inline-flex items-center gap-1">
-                                    ✔ Listos para asignar
+                                    ✔ Listos para transferir
                                 </span>
                             </div>
 
@@ -750,7 +750,7 @@ export const Configuracion = () => {
                             </div>
 
                             <div className="bg-white/5 backdrop-blur-xs rounded-xl p-3.5 border border-white/10">
-                                <span className="text-[11px] text-indigo-200/80 block">Total Comprados</span>
+                                <span className="text-[11px] text-indigo-200/80 block">Timbres Contratados</span>
                                 <span className="text-2xl font-black tracking-tight text-white block mt-0.5">
                                     {pacResumen ? Number(pacResumen.creditos_totales || 0).toLocaleString() : '—'}
                                 </span>

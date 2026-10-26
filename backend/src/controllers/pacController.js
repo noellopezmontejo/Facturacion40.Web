@@ -24,27 +24,25 @@ export const getResumenCuentaIntegrador = async (req, res) => {
     try {
         const rfcIntegrador = getPacRfcIntegrador();
         
-        // Priorizar el emisor del RFC integrador configurado, el id en query o el primer emisor en producción
-        let emisorRef = null;
+        // 1. Consultar la BOLSA MAESTRA global del Integrador PAC (rfcEmisor vacío devuelve el saldo total de la cuenta: 54,740 contratados, 1,785 disponibles de asignación)
+        const pacResult = await getCreditosDisponibles({ rfc: '', modo_prueba: false });
+
+        // 2. Si se solicitó un emisor específico en query, consultar su saldo individual de timbrado
+        let emisorIndividual = null;
         if (req.query.emisor_id) {
-            emisorRef = await Emisor.findByPk(req.query.emisor_id);
+            const em = await Emisor.findByPk(req.query.emisor_id);
+            if (em) {
+                const emResult = await getCreditosDisponibles(em);
+                emisorIndividual = {
+                    id: em.id,
+                    rfc: em.rfc,
+                    razon_social: em.razon_social,
+                    disponibles: emResult.disponibles || 0,
+                    totales: emResult.totales || 0,
+                    utilizados: emResult.utilizados || 0
+                };
+            }
         }
-        if (!emisorRef) {
-            emisorRef = await Emisor.findOne({ where: { rfc: rfcIntegrador } });
-        }
-        if (!emisorRef) {
-            emisorRef = await Emisor.findOne({ where: { modo_prueba: false } });
-        }
-        if (!emisorRef) {
-            emisorRef = await Emisor.findOne({ order: [['id', 'ASC']] });
-        }
-
-        const emisorParaConsulta = {
-            rfc: emisorRef?.rfc || rfcIntegrador,
-            modo_prueba: emisorRef ? Boolean(emisorRef.modo_prueba) : false
-        };
-
-        const pacResult = await getCreditosDisponibles(emisorParaConsulta);
         
         // Total de emisores y folios asignados localmente
         const totalEmisores = await Emisor.count();
@@ -60,6 +58,8 @@ export const getResumenCuentaIntegrador = async (req, res) => {
             latencia_ms: pacResult.latencia_ms || 0,
             pac_nombre: pacResult.pac_nombre || 'PROFACT (PAC SAT No. 58073)',
             modo_prueba: pacResult.modo_prueba,
+            rfc_cuenta: rfcIntegrador,
+            emisor_individual: emisorIndividual,
             estadisticas_locales: {
                 total_emisores: totalEmisores,
                 emisores_registrados_pac: emisoresRegistradosPac,

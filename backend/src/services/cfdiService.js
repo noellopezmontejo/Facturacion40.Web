@@ -562,7 +562,7 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
 /**
  * Consulta de folios / timbres disponibles del PAC Profact (SOAP ObtieneTimbresDisponibles)
  */
-export const getCreditosDisponibles = async (emisor) => {
+export const getCreditosDisponibles = async (emisor = {}) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = getPacToken();
     
@@ -573,7 +573,8 @@ export const getCreditosDisponibles = async (emisor) => {
         };
     }
 
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ObtieneTimbresDisponibles xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor></ObtieneTimbresDisponibles></s:Body></s:Envelope>`;
+    const rfcParam = (emisor?.rfc || '').trim();
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ObtieneTimbresDisponibles xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${rfcParam}</rfcEmisor></ObtieneTimbresDisponibles></s:Body></s:Envelope>`;
     
     try {
         const startTime = Date.now();
@@ -606,7 +607,7 @@ export const getCreditosDisponibles = async (emisor) => {
 
         const isSuccess = codigo === '0' || tipoCuenta.toUpperCase() === 'OK' || tipoCuenta.toUpperCase() === 'INTEGRADORES';
 
-        if (isSuccess && typeof emisor.update === 'function') {
+        if (isSuccess && rfcParam && typeof emisor?.update === 'function') {
             await emisor.update({ ultimos_folios_pac: timbresDisponibles }).catch(() => {});
         }
 
