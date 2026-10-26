@@ -453,7 +453,7 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         let isPago = documento.tipo_comprobante === 'P';
         let templateFileName = isPago ? `payment_v1.html` : `invoice_${layoutId}.html`;
 
-        if (estilo.template_mapping && documento.tipo_documento_id && !isPago) {
+        if (!overrides?.layout_id && estilo.template_mapping && documento.tipo_documento_id && !isPago) {
             const mappedLayout = estilo.template_mapping[documento.tipo_documento_id];
             if (mappedLayout) {
                 templateFileName = `invoice_${mappedLayout}.html`;

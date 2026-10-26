@@ -1486,169 +1486,887 @@ export const Emisores = () => {
                                             <span className="text-[10px] font-mono text-slate-400">CFDI v4.0 &bull; Ingreso</span>
                                         </div>
 
-                                        {layoutId === 'v2' ? (
-                                            /* Layout v2: Barra Lateral */
-                                            <div className="flex rounded-lg overflow-hidden border border-slate-200 min-h-[220px]">
-                                                {/* Sidebar */}
-                                                <div className="w-1/3 p-3 text-white flex flex-col justify-between" style={{ backgroundColor: colorSecundario }}>
-                                                    <div className="space-y-2">
-                                                        <div className="w-12 h-10 bg-white rounded p-1 flex items-center justify-center">
-                                                             {(logoPreview || (logoUrl && !removeLogo)) ? (
-                                                                 <img src={logoPreview || getFullLogoUrl(logoUrl)} alt="Logo" className="max-h-full max-w-full object-contain" />
-                                                             ) : (
-                                                                 <Building2 className="w-5 h-5 text-slate-700" />
-                                                             )}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold uppercase leading-tight">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</p>
-                                                            <p className="text-[9px] opacity-80 font-mono mt-0.5">{selectedEmisor?.rfc || 'XAXX010101000'}</p>
-                                                        </div>
-                                                        <div className="text-[8px] opacity-75 leading-tight pt-1 border-t border-white/20">
-                                                            <p>C.P. {selectedEmisor?.codigo_postal || '29960'}</p>
-                                                            <p>Régimen: 601 General Ley</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="bg-white/10 rounded p-1.5 text-center text-[8px] font-mono">
-                                                        QR SAT &bull; TIMBRADO
-                                                    </div>
-                                                </div>
-                                                {/* Content */}
-                                                <div className="w-2/3 p-3 bg-slate-50/50 flex flex-col justify-between space-y-2">
-                                                    <div className="flex justify-between items-start border-b border-slate-200 pb-1.5">
-                                                        <div>
-                                                            <span className="text-[9px] font-bold text-slate-800">FACTURA A-1024</span>
-                                                            <p className="text-[8px] text-slate-400">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
-                                                        </div>
-                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>PUE</span>
-                                                    </div>
-                                                    <div className="bg-white p-2 rounded border border-slate-200 text-[9px] space-y-0.5">
-                                                         <p className="font-bold text-slate-800">CLIENTE: CORPORATIVO EMPRESARIAL DEL SURESTE</p>
-                                                         <p className="text-[8px] text-slate-500">RFC: CES180420KM9 &bull; Uso: G03 Gastos en general</p>
-                                                    </div>
-                                                    <div className="bg-white rounded border border-slate-200 text-[8.5px] divide-y divide-slate-100">
-                                                         <div className="p-1.5 flex justify-between">
-                                                             <span>Servicios Facturación Electrónica CFDI 4.0</span>
-                                                             <span className="font-bold text-slate-800">$1,500.00</span>
-                                                         </div>
-                                                         <div className="p-1.5 flex justify-between">
-                                                             <span>Licencia Timbrado Multi-Serie SAT</span>
-                                                             <span className="font-bold text-slate-800">$1,000.00</span>
-                                                         </div>
-                                                    </div>
-                                                    <div className="flex justify-end pt-1">
-                                                         <div className="text-right px-3 py-1 rounded text-white" style={{ backgroundColor: colorPrimario }}>
-                                                             <span className="text-[8px] opacity-80 uppercase block">Total a Pagar</span>
-                                                             <span className="text-xs font-bold">$2,900.00 MXN</span>
-                                                         </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            /* Layout Estándar / Corporativo / Horizon / Notarial */
-                                            <div className="space-y-2.5">
-                                                {/* Header Mockup */}
-                                                <div
-                                                    className="rounded-lg p-3 text-white flex items-center justify-between transition-colors shadow-2xs"
-                                                    style={{ backgroundColor: colorPrimario }}
-                                                >
-                                                    <div className="space-y-0.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-bold uppercase">{selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.'}</span>
-                                                            <span className="text-[9px] bg-white/20 px-1.5 py-0.2 rounded font-bold">CFDI 4.0</span>
-                                                        </div>
-                                                        <p className="text-[10px] opacity-90 font-mono">RFC: {selectedEmisor?.rfc || 'XAXX010101000'} &bull; SERIE A &bull; FOLIO 1024</p>
-                                                        <p className="text-[8.5px] opacity-75">Lugar de Expedición: C.P. {selectedEmisor?.codigo_postal || '29960'} &bull; Régimen: 601</p>
-                                                    </div>
-                                                    <div className="w-12 h-11 bg-white rounded-md p-1 flex items-center justify-center shrink-0 shadow-xs">
-                                                        {(logoPreview || (logoUrl && !removeLogo)) ? (
-                                                            <img
-                                                                src={logoPreview || getFullLogoUrl(logoUrl)}
-                                                                alt="Logo preview"
-                                                                className="max-h-full max-w-full object-contain"
-                                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                                            />
-                                                        ) : (
-                                                            <Building2 className="w-5 h-5 text-slate-700" />
-                                                        )}
-                                                    </div>
-                                                </div>
+                                        {/* Renderizado de Maqueta Específica según la Plantilla Seleccionada (v1 a v12) */}
+                                        {(() => {
+                                            const logoSrc = logoPreview || (logoUrl && !removeLogo ? getFullLogoUrl(logoUrl) : null);
+                                            const emisorName = selectedEmisor?.razon_social || 'MI EMPRESA S.A. DE C.V.';
+                                            const emisorRfc = selectedEmisor?.rfc || 'XAXX010101000';
+                                            const emisorCp = selectedEmisor?.codigo_postal || '29960';
 
-                                                {/* UUID Bar */}
-                                                <div className="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 flex items-center justify-between text-[9px]">
-                                                    <span className="text-slate-500 font-bold uppercase text-[8px]">Folio Fiscal (UUID SAT):</span>
-                                                    <span className="font-mono font-bold text-slate-800">4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
-                                                </div>
+                                            const renderLogo = (imgClass = "max-h-full max-w-full object-contain", fallbackClass = "w-5 h-5 text-slate-700") => {
+                                                if (logoSrc) {
+                                                    return (
+                                                        <img
+                                                            src={logoSrc}
+                                                            alt="Logo preview"
+                                                            className={imgClass}
+                                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                        />
+                                                    );
+                                                }
+                                                return <Building2 className={fallbackClass} />;
+                                            };
 
-                                                {/* Receptor Info Card */}
-                                                <div className="bg-slate-50/60 p-2.5 rounded-lg border border-slate-200 text-[9px] grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Receptor:</span>
-                                                        <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
-                                                        <p className="text-slate-500">RFC: CES180420KM9 &bull; C.P. 06600</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase block">Condiciones Fiscales:</span>
-                                                        <p className="text-slate-700">Forma: 03 Transferencia &bull; Método: PUE</p>
-                                                        <p className="text-slate-500">Uso: G03 Gastos en general &bull; Moneda: MXN</p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Concepts Table */}
-                                                <div className="rounded-lg overflow-hidden border border-slate-200 bg-white text-[9.5px]">
-                                                    <div
-                                                        className="px-3 py-1.5 font-bold uppercase text-white flex justify-between transition-colors text-[8.5px]"
-                                                        style={{ backgroundColor: colorPrimario }}
-                                                    >
-                                                        <span>Concepto / Partida & Desglose Fiscal SAT</span>
-                                                        <span>Importe</span>
-                                                    </div>
-                                                    <div className="p-2 border-b border-slate-100 flex justify-between items-start">
-                                                        <div>
-                                                            <p className="font-semibold text-slate-800">1.00 E48 - SERVICIOS FACTURACIÓN ELECTRÓNICA CFDI 4.0</p>
-                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
-                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 84111506</span>
-                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$240.00)</span>
+                                            switch (layoutId) {
+                                                case 'v2':
+                                                    /* Layout v2: Barra Lateral */
+                                                    return (
+                                                        <div className="flex rounded-lg overflow-hidden border border-slate-200 min-h-[220px]">
+                                                            {/* Sidebar */}
+                                                            <div className="w-1/3 p-3 text-white flex flex-col justify-between" style={{ backgroundColor: colorSecundario }}>
+                                                                <div className="space-y-2">
+                                                                    <div className="w-12 h-10 bg-white rounded p-1 flex items-center justify-center">
+                                                                        {renderLogo("max-h-full max-w-full object-contain", "w-5 h-5 text-slate-700")}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-[10px] font-bold uppercase leading-tight">{emisorName}</p>
+                                                                        <p className="text-[9px] opacity-80 font-mono mt-0.5">{emisorRfc}</p>
+                                                                    </div>
+                                                                    <div className="text-[8px] opacity-75 leading-tight pt-1 border-t border-white/20">
+                                                                        <p>C.P. {emisorCp}</p>
+                                                                        <p>Régimen: 601 General Ley</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-white/10 rounded p-1.5 text-center text-[8px] font-mono">
+                                                                    QR SAT &bull; TIMBRADO
+                                                                </div>
+                                                            </div>
+                                                            {/* Content */}
+                                                            <div className="w-2/3 p-3 bg-slate-50/50 flex flex-col justify-between space-y-2">
+                                                                <div className="flex justify-between items-start border-b border-slate-200 pb-1.5">
+                                                                    <div>
+                                                                        <span className="text-[9px] font-bold text-slate-800">FACTURA A-1024</span>
+                                                                        <p className="text-[8px] text-slate-400 font-mono">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+                                                                    </div>
+                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>PUE</span>
+                                                                </div>
+                                                                <div className="bg-white p-2 rounded border border-slate-200 text-[9px] space-y-0.5">
+                                                                    <p className="font-bold text-slate-800">CLIENTE: CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-[8px] text-slate-500">RFC: CES180420KM9 &bull; Uso: G03 Gastos en general</p>
+                                                                </div>
+                                                                <div className="bg-white rounded border border-slate-200 text-[8.5px] divide-y divide-slate-100">
+                                                                    <div className="p-1.5 flex justify-between">
+                                                                        <span>Servicios Facturación Electrónica CFDI 4.0</span>
+                                                                        <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                    </div>
+                                                                    <div className="p-1.5 flex justify-between">
+                                                                        <span>Licencia Timbrado Multi-Serie SAT</span>
+                                                                        <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex justify-end pt-1">
+                                                                    <div className="text-right px-3 py-1 rounded text-white" style={{ backgroundColor: colorPrimario }}>
+                                                                        <span className="text-[8px] opacity-80 uppercase block">Total a Pagar</span>
+                                                                        <span className="text-xs font-bold">$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <span className="font-bold text-slate-800">$1,500.00</span>
-                                                    </div>
-                                                    <div className="p-2 flex justify-between items-start bg-slate-50/40">
-                                                        <div>
-                                                            <p className="font-semibold text-slate-800">2.00 H87 - LICENCIA DE TIMBRADO SAT MULTI-SERIE</p>
-                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
-                                                                <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 43231500</span>
-                                                                <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$160.00)</span>
+                                                    );
+
+                                                case 'v3':
+                                                    /* Layout v3: Nórdica Clean (Minimalista Suizo) */
+                                                    return (
+                                                        <div className="space-y-3 bg-white p-3 border border-slate-200 rounded-lg">
+                                                            <div className="flex justify-between items-start pb-2 border-b-2" style={{ borderColor: colorPrimario }}>
+                                                                <div className="flex items-start gap-3">
+                                                                    <div className="w-12 h-11 bg-slate-50 rounded p-1 border border-slate-100 flex items-center justify-center shrink-0">
+                                                                        {renderLogo("max-h-full max-w-full object-contain", "w-5 h-5 text-slate-700")}
+                                                                    </div>
+                                                                    <div>
+                                                                        <h2 className="text-xs font-bold text-slate-900 tracking-tight">{emisorName}</h2>
+                                                                        <p className="text-[9px] text-slate-500 font-mono">RFC: {emisorRfc}</p>
+                                                                        <p className="text-[8px] text-slate-400">C.P. {emisorCp} &bull; Régimen 601 General de Ley</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <span className="text-xl font-light text-slate-800 tracking-tight block">FACTURA</span>
+                                                                    <span className="text-xs font-bold font-mono block" style={{ color: colorPrimario }}>A - 1024</span>
+                                                                    <span className="text-[8px] text-slate-400 font-mono">CFDI 4.0 &bull; INGRESO</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-2 gap-4 text-[8.5px] py-1 border-b border-slate-100">
+                                                                <div className="space-y-0.5">
+                                                                    <span className="text-[7.5px] uppercase font-bold text-slate-400 tracking-wider block">CLIENTE / RECEPTOR</span>
+                                                                    <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-slate-500 font-mono">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div className="space-y-0.5 text-right">
+                                                                    <span className="text-[7.5px] uppercase font-bold text-slate-400 tracking-wider block">DETALLES FISCALES</span>
+                                                                    <p className="text-slate-700">PUE &bull; Transferencia (03)</p>
+                                                                    <p className="text-slate-500 font-mono text-[8px]">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="text-[8.5px]">
+                                                                <div className="flex justify-between py-1 border-b font-bold uppercase tracking-wider text-[8px]" style={{ borderColor: colorPrimario, color: colorPrimario }}>
+                                                                    <span>CONCEPTO / DESCRIPCIÓN</span>
+                                                                    <span>TOTAL</span>
+                                                                </div>
+                                                                <div className="py-2 border-b border-slate-100 flex justify-between items-start">
+                                                                    <div>
+                                                                        <p className="font-medium text-slate-800">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                        <span className="text-[7.5px] text-slate-400 font-mono">SAT: 84111506 &bull; Cant: 1.00 &bull; IVA 16%</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                </div>
+                                                                <div className="py-2 border-b border-slate-100 flex justify-between items-start">
+                                                                    <div>
+                                                                        <p className="font-medium text-slate-800">Licencia Timbrado Multi-Serie SAT</p>
+                                                                        <span className="text-[7.5px] text-slate-400 font-mono">SAT: 43231500 &bull; Cant: 2.00 &bull; IVA 16%</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end pt-1">
+                                                                <div className="text-right space-y-0.5 text-[8.5px]">
+                                                                    <div className="text-slate-500">Subtotal: <span className="font-mono text-slate-700">$2,500.00</span> &bull; IVA: <span className="font-mono text-slate-700">$400.00</span></div>
+                                                                    <div className="text-sm font-bold pt-1" style={{ color: colorPrimario }}>
+                                                                        TOTAL: <span className="font-mono">$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                        <span className="font-bold text-slate-800">$1,000.00</span>
-                                                    </div>
-                                                </div>
+                                                    );
 
-                                                {/* Amount in words & Totals */}
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
-                                                    <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[8.5px]">
-                                                        <span className="text-[7.5px] font-bold text-slate-400 uppercase block">Importe con Letra:</span>
-                                                        <span className="font-bold text-slate-700">SON: DOS MIL NOVECIENTOS PESOS 00/100 M.N.</span>
-                                                    </div>
+                                                case 'v4':
+                                                    /* Layout v4: Notarial Clásica (Instrumento Jurídico Formal) */
+                                                    return (
+                                                        <div className="p-3.5 space-y-2.5 bg-[#fefefc] border-4 border-double rounded" style={{ borderColor: colorSecundario }}>
+                                                            <div className="text-center space-y-1 pb-2 border-b border-slate-300">
+                                                                <div className="w-12 h-12 mx-auto bg-white rounded-full p-1 border-2 border-slate-300 flex items-center justify-center shadow-xs">
+                                                                    {renderLogo("max-h-full max-w-full object-contain", "w-5 h-5 text-slate-700")}
+                                                                </div>
+                                                                <span className="text-[7.5px] font-serif uppercase tracking-widest text-slate-500 block">INSTRUMENTO PÚBLICO FISCAL DIGITAL</span>
+                                                                <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-slate-900 leading-tight">{emisorName}</h2>
+                                                                <div className="flex items-center justify-center gap-2 text-[8px] font-mono text-slate-600">
+                                                                    <span>RFC: {emisorRfc}</span>
+                                                                    <span>&bull;</span>
+                                                                    <span>C.P. {emisorCp}</span>
+                                                                    <span>&bull;</span>
+                                                                    <span>FOLIO NOTARIAL A-1024</span>
+                                                                </div>
+                                                                <div className="text-[7.5px] text-slate-400 font-serif italic">❖ CERTIFICACIÓN OFICIAL DE COMPROBANTE FISCAL ❖</div>
+                                                            </div>
 
-                                                    <div className="flex justify-end">
-                                                         <div
-                                                             className="px-4 py-2 rounded-lg text-white text-right space-y-0.5 shadow-2xs transition-colors w-full sm:w-auto"
-                                                             style={{ backgroundColor: colorSecundario }}
-                                                         >
-                                                             <div className="flex justify-between gap-4 text-[8.5px] opacity-85">
-                                                                 <span>Subtotal: $2,500.00</span>
-                                                                 <span>IVA (16%): $400.00</span>
-                                                             </div>
-                                                             <div className="text-sm font-bold flex justify-between gap-4 pt-0.5 border-t border-white/20">
-                                                                 <span>TOTAL NETO:</span>
-                                                                 <span>$2,900.00 MXN</span>
-                                                             </div>
-                                                         </div>
-                                                     </div>
-                                                </div>
-                                            </div>
-                                        )}
+                                                            <div className="border border-slate-300 p-2 text-[8.5px] bg-white grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <span className="text-[7.5px] font-serif uppercase font-bold text-slate-500 block">PARTE RECEPTORA:</span>
+                                                                    <p className="font-bold font-serif text-slate-900">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-slate-600 font-mono text-[8px]">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[7.5px] font-serif uppercase font-bold text-slate-500 block">REGISTRO FISCAL:</span>
+                                                                    <p className="text-slate-700 font-mono text-[8px]">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+                                                                    <p className="text-slate-600">PUE &bull; Gastos en general (G03)</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 text-[8.5px] bg-white">
+                                                                <div className="bg-slate-100 border-b border-slate-300 py-1 px-2 font-serif font-bold text-[8px] uppercase flex justify-between text-slate-700">
+                                                                    <span>Partida / Concepto Jurídico</span>
+                                                                    <span>Importe Liquidable</span>
+                                                                </div>
+                                                                <div className="p-2 border-b border-slate-200 flex justify-between items-center">
+                                                                    <div>
+                                                                        <p className="font-serif font-semibold text-slate-900">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                        <span className="text-[7.5px] text-slate-500 font-mono">Clave SAT 84111506 &bull; Unidad E48 &bull; Traslado IVA 16%</span>
+                                                                    </div>
+                                                                    <span className="font-serif font-bold text-slate-900">$1,500.00</span>
+                                                                </div>
+                                                                <div className="p-2 flex justify-between items-center bg-slate-50/50">
+                                                                    <div>
+                                                                        <p className="font-serif font-semibold text-slate-900">Licencia Timbrado Multi-Serie SAT</p>
+                                                                        <span className="text-[7.5px] text-slate-500 font-mono">Clave SAT 43231500 &bull; Unidad H87 &bull; Traslado IVA 16%</span>
+                                                                    </div>
+                                                                    <span className="font-serif font-bold text-slate-900">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 p-2 bg-slate-50 flex items-center justify-between text-[8px]">
+                                                                <span className="font-serif italic text-slate-600">Doy fe de la validez fiscal conforme al Art. 29 y 29-A del CFF.</span>
+                                                                <div className="text-right font-serif">
+                                                                    <span className="text-[7.5px] text-slate-500 block">TOTAL LIQUIDADO:</span>
+                                                                    <span className="text-xs font-bold text-slate-900" style={{ color: colorSecundario }}>$2,900.00 MXN</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v5':
+                                                    /* Layout v5: Horizon Cards (Tarjetas Pro Modulares) */
+                                                    return (
+                                                        <div className="space-y-2.5">
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                <div className="bg-white rounded-lg border border-slate-200 p-2 shadow-2xs border-t-3 space-y-1" style={{ borderTopColor: colorPrimario }}>
+                                                                    <div className="w-8 h-7 bg-slate-50 rounded p-0.5 flex items-center justify-center">
+                                                                        {renderLogo("max-h-full max-w-full object-contain", "w-4 h-4 text-slate-600")}
+                                                                    </div>
+                                                                    <p className="text-[9px] font-bold text-slate-800 uppercase truncate">{emisorName}</p>
+                                                                    <p className="text-[7.5px] font-mono text-slate-500">{emisorRfc}</p>
+                                                                </div>
+                                                                <div className="bg-white rounded-lg border border-slate-200 p-2 shadow-2xs border-t-3 space-y-1" style={{ borderTopColor: colorSecundario }}>
+                                                                    <span className="text-[7.5px] font-bold uppercase text-slate-400 block">COMPROBANTE</span>
+                                                                    <p className="text-[10px] font-bold text-slate-800">SERIE A - 1024</p>
+                                                                    <p className="text-[7.5px] text-slate-500 font-mono">CFDI 4.0 &bull; PUE</p>
+                                                                </div>
+                                                                <div className="bg-white rounded-lg border border-slate-200 p-2 shadow-2xs border-t-3 space-y-1" style={{ borderTopColor: colorPrimario }}>
+                                                                    <span className="text-[7.5px] font-bold uppercase text-slate-400 block">RECEPTOR</span>
+                                                                    <p className="text-[9px] font-bold text-slate-800 uppercase truncate">CORPORATIVO EMPRESARIAL</p>
+                                                                    <p className="text-[7.5px] font-mono text-slate-500">CES180420KM9</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="bg-white rounded-lg border border-slate-200 p-2 shadow-2xs space-y-1.5 text-[8.5px]">
+                                                                <div className="flex justify-between items-center pb-1 border-b border-slate-100 text-[8px] font-bold uppercase text-slate-400">
+                                                                    <span>Conceptos de Factura</span>
+                                                                    <span>Importe</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                        <span className="text-[7.5px] text-slate-400">1.00 E48 &bull; SAT 84111506</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                </div>
+                                                                <div className="flex justify-between items-center py-1">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">Licencia Timbrado Multi-Serie SAT</p>
+                                                                        <span className="text-[7.5px] text-slate-400">2.00 H87 &bull; SAT 43231500</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end">
+                                                                <div className="rounded-lg p-2.5 text-white flex items-center justify-between gap-6 shadow-2xs" style={{ backgroundColor: colorPrimario }}>
+                                                                    <div className="text-[8px] opacity-85">
+                                                                        <p>Subtotal: $2,500.00</p>
+                                                                        <p>IVA 16%: $400.00</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <span className="text-[7.5px] uppercase opacity-75 block">Total Neto</span>
+                                                                        <span className="text-xs font-bold">$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v6':
+                                                    /* Layout v6: Industrial ERP (Gran Formato y Monospace) */
+                                                    return (
+                                                        <div className="space-y-1.5 font-mono text-[8px]">
+                                                            <div className="bg-slate-900 text-white p-2 rounded-t flex items-center justify-between border-b-2" style={{ borderBottomColor: colorPrimario }}>
+                                                                <div>
+                                                                    <span className="text-[7px] text-slate-400 uppercase tracking-widest block">ORDEN DE FACTURACIÓN INDUSTRIAL - CFDI 4.0</span>
+                                                                    <h3 className="text-[10px] font-bold text-white uppercase">{emisorName}</h3>
+                                                                    <p className="text-[8px] text-slate-300">RFC: {emisorRfc} &bull; C.P. {emisorCp}</p>
+                                                                </div>
+                                                                <div className="w-10 h-9 bg-white rounded p-0.5 flex items-center justify-center">
+                                                                    {renderLogo("max-h-full max-w-full object-contain", "w-4 h-4 text-slate-800")}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 border border-slate-300 bg-slate-100 divide-x divide-slate-300 text-[7.5px] p-1 text-center">
+                                                                <div><span className="text-slate-500 block">FOLIO DOC</span><strong>A-1024</strong></div>
+                                                                <div><span className="text-slate-500 block">PLANTA C.P.</span><strong>{emisorCp}</strong></div>
+                                                                <div><span className="text-slate-500 block">MONEDA</span><strong>MXN (1.0)</strong></div>
+                                                                <div><span className="text-slate-500 block">CONDICIÓN</span><strong>PUE CONTADO</strong></div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 text-[8px]">
+                                                                <div className="bg-slate-800 text-white font-bold uppercase grid grid-cols-12 p-1 text-[7.5px]">
+                                                                    <span className="col-span-2">SKU / SAT</span>
+                                                                    <span className="col-span-1">CANT</span>
+                                                                    <span className="col-span-6">DESCRIPCIÓN DE PARTIDA</span>
+                                                                    <span className="col-span-3 text-right">IMPORTE</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 p-1 border-b border-slate-200 bg-white items-center">
+                                                                    <span className="col-span-2 text-slate-600 font-bold">84111506</span>
+                                                                    <span className="col-span-1">1.00</span>
+                                                                    <span className="col-span-6 truncate font-sans text-slate-800">Servicios Facturación CFDI 4.0</span>
+                                                                    <span className="col-span-3 text-right font-bold">$1,500.00</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 p-1 border-b border-slate-200 bg-slate-50 items-center">
+                                                                    <span className="col-span-2 text-slate-600 font-bold">43231500</span>
+                                                                    <span className="col-span-1">2.00</span>
+                                                                    <span className="col-span-6 truncate font-sans text-slate-800">Licencia Timbrado Multi-Serie SAT</span>
+                                                                    <span className="col-span-3 text-right font-bold">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 bg-slate-50 p-1.5 flex justify-between items-center text-[8px]">
+                                                                <div className="text-slate-500 text-[7px]">UUID: 4E70B182-E7A9-4C35-8EF6-8FA485C1766C</div>
+                                                                <div className="text-right space-y-0.5">
+                                                                    <div className="text-slate-600">SUBTOTAL: $2,500.00 | IVA (16%): $400.00</div>
+                                                                    <div className="font-bold text-[9px] text-slate-900" style={{ color: colorPrimario }}>TOTAL NETO: $2,900.00 MXN</div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v7':
+                                                    /* Layout v7: Tradicional Pro (SAT Clásico Modernizado) */
+                                                    return (
+                                                        <div className="space-y-2 text-[8.5px]">
+                                                            <div className="grid grid-cols-12 gap-1.5">
+                                                                <div className="col-span-5 border border-slate-300 rounded overflow-hidden">
+                                                                    <div className="px-2 py-0.5 text-white font-bold text-[7.5px] uppercase" style={{ backgroundColor: colorPrimario }}>DATOS DEL EMISOR</div>
+                                                                    <div className="p-1.5 bg-white space-y-0.5">
+                                                                        <p className="font-bold text-slate-900 leading-tight uppercase truncate">{emisorName}</p>
+                                                                        <p className="font-mono text-slate-600 text-[8px]">RFC: {emisorRfc}</p>
+                                                                        <p className="text-slate-500 text-[7.5px]">C.P. {emisorCp} &bull; Régimen 601</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="col-span-4 border border-slate-300 rounded overflow-hidden">
+                                                                    <div className="px-2 py-0.5 text-white font-bold text-[7.5px] uppercase" style={{ backgroundColor: colorSecundario }}>FOLIO FISCAL Y DATOS</div>
+                                                                    <div className="p-1.5 bg-white space-y-0.5 font-mono text-[7.5px]">
+                                                                        <p className="font-bold text-slate-800">SERIE A &bull; FOLIO 1024</p>
+                                                                        <p className="text-slate-500 truncate">UUID: 4E70B182...</p>
+                                                                        <p className="text-slate-600 font-sans">Tipo: I - Ingreso</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="col-span-3 border border-slate-300 rounded p-1 bg-white flex items-center justify-center">
+                                                                    {renderLogo("max-h-11 max-w-full object-contain", "w-5 h-5 text-slate-700")}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 rounded overflow-hidden">
+                                                                <div className="bg-slate-100 border-b border-slate-300 px-2 py-0.5 font-bold uppercase text-[7.5px] text-slate-700">DATOS DEL RECEPTOR</div>
+                                                                <div className="p-1.5 bg-white grid grid-cols-2 gap-2 text-[8px]">
+                                                                    <div>
+                                                                        <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                        <p className="font-mono text-slate-600">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-slate-700">Uso CFDI: G03 Gastos en general</p>
+                                                                        <p className="text-slate-700">Forma: 03 Transferencia &bull; Método: PUE</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-300 rounded overflow-hidden text-[8px]">
+                                                                <div className="text-white font-bold uppercase grid grid-cols-12 py-1 px-2" style={{ backgroundColor: colorPrimario }}>
+                                                                    <span className="col-span-2">CANT / CLAVE</span>
+                                                                    <span className="col-span-7">DESCRIPCIÓN DE LA PARTIDA</span>
+                                                                    <span className="col-span-3 text-right">IMPORTE</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 py-1.5 px-2 border-b border-slate-200 bg-white items-center">
+                                                                    <span className="col-span-2 font-mono">1.00 - 84111506</span>
+                                                                    <span className="col-span-7 font-semibold text-slate-800">Servicios Facturación Electrónica CFDI 4.0</span>
+                                                                    <span className="col-span-3 text-right font-mono font-bold">$1,500.00</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 py-1.5 px-2 bg-slate-50 items-center">
+                                                                    <span className="col-span-2 font-mono">2.00 - 43231500</span>
+                                                                    <span className="col-span-7 font-semibold text-slate-800">Licencia Timbrado Multi-Serie SAT</span>
+                                                                    <span className="col-span-3 text-right font-mono font-bold">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end">
+                                                                <div className="border border-slate-300 rounded bg-white p-2 text-right text-[8px] space-y-0.5 w-48">
+                                                                    <div className="flex justify-between text-slate-600"><span>SUBTOTAL:</span><span>$2,500.00</span></div>
+                                                                    <div className="flex justify-between text-slate-600"><span>IVA 16%:</span><span>$400.00</span></div>
+                                                                    <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-0.5 text-[9px]">
+                                                                        <span>TOTAL:</span><span style={{ color: colorPrimario }}>$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v8':
+                                                    /* Layout v8: Contemporánea (SaaS / FinTech con Chips Dinámicos) */
+                                                    return (
+                                                        <div className="space-y-2.5 text-[9px]">
+                                                            <div className="rounded-2xl p-3 text-white flex items-center justify-between shadow-xs transition-colors"
+                                                                style={{ background: `linear-gradient(135deg, ${colorPrimario} 0%, ${colorSecundario} 100%)` }}>
+                                                                <div className="space-y-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-xs font-bold uppercase">{emisorName}</span>
+                                                                    </div>
+                                                                    <p className="text-[9px] opacity-90 font-mono">RFC: {emisorRfc} &bull; FOLIO A-1024</p>
+                                                                    <div className="flex items-center gap-1.5 pt-0.5">
+                                                                        <span className="text-[7.5px] bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full font-bold">CFDI 4.0</span>
+                                                                        <span className="text-[7.5px] bg-emerald-400/30 text-emerald-100 px-2 py-0.5 rounded-full font-bold">Ingreso Vigente</span>
+                                                                        <span className="text-[7.5px] bg-white/20 backdrop-blur-xs px-2 py-0.5 rounded-full font-bold">PUE</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="w-12 h-11 bg-white rounded-xl p-1 flex items-center justify-center shrink-0 shadow-xs">
+                                                                    {renderLogo("max-h-full max-w-full object-contain", "w-5 h-5 text-slate-700")}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs border-l-4 grid grid-cols-2 gap-2 text-[8.5px]"
+                                                                style={{ borderLeftColor: colorPrimario }}>
+                                                                <div>
+                                                                    <span className="text-[7.5px] font-bold text-slate-400 uppercase block">CLIENTE FISCAL:</span>
+                                                                    <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-slate-500 font-mono text-[8px]">CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[7.5px] font-bold text-slate-400 uppercase block">CONDICIONES:</span>
+                                                                    <p className="text-slate-700">03 Transferencia &bull; G03 Gastos</p>
+                                                                    <p className="text-slate-400 font-mono text-[7.5px]">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-white text-[8.5px] divide-y divide-slate-100">
+                                                                <div className="p-2 flex justify-between items-center">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                                                                        <div>
+                                                                            <p className="font-semibold text-slate-800">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                            <span className="text-[7.5px] text-slate-400">1.00 E48 &bull; SAT 84111506 &bull; IVA 16%</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                </div>
+                                                                <div className="p-2 flex justify-between items-center bg-slate-50/40">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                        <div>
+                                                                            <p className="font-semibold text-slate-800">Licencia Timbrado Multi-Serie SAT</p>
+                                                                            <span className="text-[7.5px] text-slate-400">2.00 H87 &bull; SAT 43231500 &bull; IVA 16%</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end">
+                                                                <div className="rounded-xl px-4 py-2 text-white flex items-center justify-between gap-5 shadow-xs"
+                                                                    style={{ background: `linear-gradient(135deg, ${colorSecundario} 0%, ${colorPrimario} 100%)` }}>
+                                                                    <div className="text-[8px] opacity-85">
+                                                                        <span>Sub: $2,500</span> &bull; <span>IVA: $400</span>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <span className="text-[7.5px] opacity-75 uppercase block">Total Pagar</span>
+                                                                        <span className="text-xs font-bold">$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v9':
+                                                    /* Layout v9: Prestige Gold (Ejecutiva Top & Luxury) */
+                                                    return (
+                                                        <div className="p-3 bg-[#0a0f1d] text-slate-100 rounded-xl space-y-2.5 border border-amber-500/40 shadow-md">
+                                                            <div className="flex items-center justify-between pb-2 border-b border-amber-400/40">
+                                                                <div className="space-y-0.5">
+                                                                    <span className="text-[7px] text-amber-400 uppercase tracking-widest font-mono font-bold block">CFDI PRESTIGE ENTERPRISE &bull; SERIE A-1024</span>
+                                                                    <h2 className="text-xs font-serif font-bold uppercase tracking-wider text-amber-200">{emisorName}</h2>
+                                                                    <p className="text-[8px] font-mono text-slate-400">RFC: {emisorRfc} &bull; C.P. {emisorCp} &bull; RÉGIMEN 601</p>
+                                                                </div>
+                                                                <div className="w-12 h-11 bg-white/10 rounded-lg p-1 border border-amber-400/50 flex items-center justify-center shrink-0">
+                                                                    {renderLogo("max-h-full max-w-full object-contain brightness-110", "w-5 h-5 text-amber-400")}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-amber-500/30 bg-white/5 rounded px-2.5 py-1 flex items-center justify-between text-[7.5px] font-mono text-amber-300">
+                                                                <span>FOLIO FISCAL (UUID): 4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
+                                                                <span className="text-slate-400">TIMBRADO SAT</span>
+                                                            </div>
+
+                                                            <div className="border border-white/10 bg-white/5 p-2 rounded-lg grid grid-cols-2 gap-2 text-[8px]">
+                                                                <div>
+                                                                    <span className="text-[7px] text-amber-400/80 uppercase font-mono block">RECEPTOR CORPORATIVO</span>
+                                                                    <p className="font-serif font-bold text-slate-200">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-slate-400 font-mono text-[7.5px]">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[7px] text-amber-400/80 uppercase font-mono block">CONDICIÓN DE PAGO</span>
+                                                                    <p className="text-slate-300">Forma: 03 Transferencia &bull; PUE Contado</p>
+                                                                    <p className="text-slate-400">Uso: G03 Gastos en general &bull; MXN</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-amber-500/20 rounded-lg overflow-hidden bg-black/20 text-[8px]">
+                                                                <div className="px-2 py-1 bg-amber-400/10 border-b border-amber-500/30 font-bold uppercase text-[7.5px] text-amber-300 flex justify-between">
+                                                                    <span>Partida / Concepto Exclusivo</span>
+                                                                    <span>Importe</span>
+                                                                </div>
+                                                                <div className="p-2 border-b border-white/5 flex justify-between items-center">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-200">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                        <span className="text-[7px] text-slate-400 font-mono">Clave SAT 84111506 &bull; IVA 16% (+$240.00)</span>
+                                                                    </div>
+                                                                    <span className="font-mono font-bold text-amber-200">$1,500.00</span>
+                                                                </div>
+                                                                <div className="p-2 flex justify-between items-center">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-200">Licencia Timbrado Multi-Serie SAT</p>
+                                                                        <span className="text-[7px] text-slate-400 font-mono">Clave SAT 43231500 &bull; IVA 16% (+$160.00)</span>
+                                                                    </div>
+                                                                    <span className="font-mono font-bold text-amber-200">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-end pt-0.5">
+                                                                <div className="border border-amber-400/60 bg-gradient-to-r from-amber-500/20 to-amber-600/30 rounded-lg px-4 py-2 text-right">
+                                                                    <span className="text-[7px] text-amber-300 uppercase tracking-widest font-mono block">TOTAL LIQUIDADO MXN</span>
+                                                                    <span className="text-sm font-serif font-black text-amber-200">$2,900.00 MXN</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v10':
+                                                    /* Layout v10: Gubernamental (Estricto SAT & Matriz Institucional Sector Público) */
+                                                    return (
+                                                        <div className="space-y-2 text-[8px] font-sans">
+                                                            {/* Barra Superior Institucional Sector Público */}
+                                                            <div className="bg-slate-900 text-white text-[8px] font-bold uppercase tracking-wider py-1 px-2.5 flex items-center justify-between">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                                                    <span>ESTADOS UNIDOS MEXICANOS &bull; COMPROBANTE FISCAL DIGITAL SECTOR PÚBLICO</span>
+                                                                </div>
+                                                                <span className="font-mono text-[7px] text-slate-400">NORMATIVA SAT ANEXO 20</span>
+                                                            </div>
+
+                                                            {/* Recuadro Rígido de 3 Celdas Tabulares (Sin redondeo) */}
+                                                            <div className="border border-slate-800 grid grid-cols-12 bg-white">
+                                                                {/* Celda 1: Logotipo */}
+                                                                <div className="col-span-3 border-r border-slate-800 p-2 flex items-center justify-center bg-white min-h-[64px]">
+                                                                    {renderLogo("max-h-12 max-w-full object-contain", "w-6 h-6 text-slate-700")}
+                                                                </div>
+                                                                {/* Celda 2: Datos del Emisor / Ente */}
+                                                                <div className="col-span-6 border-r border-slate-800 p-2 space-y-0.5">
+                                                                    <span className="text-[7.5px] font-bold uppercase text-slate-500 block">ENTE FISCAL EMISOR:</span>
+                                                                    <h3 className="text-[10px] font-extrabold uppercase text-slate-900 leading-tight">{emisorName}</h3>
+                                                                    <p className="text-[8.5px] font-mono text-slate-700 font-bold">RFC: {emisorRfc}</p>
+                                                                    <p className="text-[7.5px] text-slate-600">C.P. {emisorCp} &bull; Régimen: 601 General de Ley Personas Morales</p>
+                                                                </div>
+                                                                {/* Celda 3: Datos del Comprobante Fiscal */}
+                                                                <div className="col-span-3 p-2 bg-slate-100 text-center flex flex-col justify-center space-y-0.5">
+                                                                    <span className="text-[7.5px] font-extrabold text-slate-700 uppercase">CFDI 4.0 INGRESO</span>
+                                                                    <span className="text-sm font-black tracking-tight" style={{ color: colorPrimario }}>A - 1024</span>
+                                                                    <span className="text-[7px] font-mono text-slate-500">EXPEDICIÓN: C.P. {emisorCp}</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Folio Fiscal SAT Rígido */}
+                                                            <div className="border border-slate-800 bg-slate-50 px-2.5 py-1 flex items-center justify-between text-[8px] font-mono">
+                                                                <span><strong className="text-slate-700">FOLIO FISCAL (UUID):</strong> 4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
+                                                                <span className="text-slate-500">CERT. SAT: 00001000000509846663</span>
+                                                            </div>
+
+                                                            {/* 2 Paneles de Requisitos con Ribete Oscuro */}
+                                                            <div className="grid grid-cols-2 gap-2 text-[8px]">
+                                                                <div>
+                                                                    <div className="bg-slate-800 text-white text-[7.5px] font-bold uppercase px-2 py-0.5 tracking-wider">
+                                                                        DATOS DEL RECEPTOR / ENTE PÚBLICO
+                                                                    </div>
+                                                                    <div className="border border-t-0 border-slate-800 p-2 space-y-0.5 bg-white">
+                                                                        <p className="font-bold text-slate-900 uppercase">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                        <p className="font-mono text-slate-700 font-bold">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                        <p className="text-slate-500">Régimen: 601 &bull; Domicilio Fiscal: CDMX</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <div className="bg-slate-800 text-white text-[7.5px] font-bold uppercase px-2 py-0.5 tracking-wider">
+                                                                        DATOS FISCALES DEL COMPROBANTE
+                                                                    </div>
+                                                                    <div className="border border-t-0 border-slate-800 p-2 space-y-0.5 bg-white">
+                                                                        <p><strong className="text-slate-900">Método de Pago:</strong> PUE Pago en una sola exhibición</p>
+                                                                        <p><strong className="text-slate-900">Forma de Pago:</strong> 03 Transferencia electrónica</p>
+                                                                        <p><strong className="text-slate-900">Uso CFDI:</strong> G03 Gastos en general &bull; Moneda: MXN</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Matriz Tabular Estricta (Bordes rígidos 1px) */}
+                                                            <div className="border border-slate-800 text-[8px] bg-white">
+                                                                <div
+                                                                    className="text-white font-bold uppercase grid grid-cols-12 py-1 px-2 border-b border-slate-800"
+                                                                    style={{ backgroundColor: colorPrimario }}
+                                                                >
+                                                                    <span className="col-span-1">Cant</span>
+                                                                    <span className="col-span-2">Clave SAT</span>
+                                                                    <span className="col-span-7">Concepto / Partida Presupuestal Fiscal</span>
+                                                                    <span className="col-span-2 text-right">Importe</span>
+                                                                </div>
+                                                                <div className="border-b border-slate-300 py-1.5 px-2 grid grid-cols-12 items-center bg-white">
+                                                                    <span className="col-span-1 font-mono font-bold">1.00</span>
+                                                                    <span className="col-span-2 font-mono text-slate-600">84111506 E48</span>
+                                                                    <div className="col-span-7">
+                                                                        <span className="font-semibold text-slate-800">SERVICIOS PROFESIONALES DE FACTURACIÓN CFDI 4.0</span>
+                                                                        <span className="ml-2 font-mono text-[7px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">IVA 16% (+$240.00)</span>
+                                                                    </div>
+                                                                    <span className="col-span-2 text-right font-mono font-bold text-slate-900">$1,500.00</span>
+                                                                </div>
+                                                                <div className="border-b border-slate-300 py-1.5 px-2 grid grid-cols-12 items-center bg-slate-50">
+                                                                    <span className="col-span-1 font-mono font-bold">2.00</span>
+                                                                    <span className="col-span-2 font-mono text-slate-600">43231500 H87</span>
+                                                                    <div className="col-span-7">
+                                                                        <span className="font-semibold text-slate-800">LICENCIA DE TIMBRADO SAT MULTI-SERIE</span>
+                                                                        <span className="ml-2 font-mono text-[7px] text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">IVA 16% (+$160.00)</span>
+                                                                    </div>
+                                                                    <span className="col-span-2 text-right font-mono font-bold text-slate-900">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Recuadro de Totales y Retenciones Gubernamentales */}
+                                                            <div className="border border-slate-800 bg-slate-50 p-2 grid grid-cols-2 gap-2 text-[8px]">
+                                                                <div>
+                                                                    <span className="font-bold text-slate-700 block uppercase text-[7.5px]">DESGLOSE IMPUESTOS Y RETENCIONES:</span>
+                                                                    <div className="text-[7.5px] text-slate-600 space-y-0.5 mt-0.5">
+                                                                        <p>&bull; TRASLADO IVA (16.00%): $400.00 MXN</p>
+                                                                        <p>&bull; RETENCIÓN IVA (0.00%): $0.00 MXN</p>
+                                                                        <p>&bull; RETENCIÓN ISR (0.00%): $0.00 MXN</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="border border-slate-800 bg-white p-1.5 space-y-0.5">
+                                                                    <div className="flex justify-between text-slate-700">
+                                                                        <span>SUBTOTAL:</span>
+                                                                        <span className="font-mono font-semibold">$2,500.00</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-slate-700">
+                                                                        <span>IMPUESTOS TRASLADADOS:</span>
+                                                                        <span className="font-mono font-semibold">$400.00</span>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-slate-900 font-bold border-t border-slate-800 pt-0.5 text-[9px]">
+                                                                        <span style={{ color: colorPrimario }}>TOTAL LIQUIDABLE:</span>
+                                                                        <span className="font-mono font-black">$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v11':
+                                                    /* Layout v11: Split Dynamic (Bicolor Asimétrico 50/50) */
+                                                    return (
+                                                        <div className="space-y-2.5 text-[9px]">
+                                                            <div className="rounded-xl overflow-hidden border border-slate-200 grid grid-cols-2 shadow-2xs">
+                                                                <div className="p-3 bg-white space-y-1">
+                                                                    <div className="w-10 h-9 bg-slate-50 rounded p-1 border border-slate-200 flex items-center justify-center">
+                                                                        {renderLogo("max-h-full max-w-full object-contain", "w-4 h-4 text-slate-700")}
+                                                                    </div>
+                                                                    <div>
+                                                                        <h3 className="text-[10px] font-bold text-slate-900 uppercase leading-tight">{emisorName}</h3>
+                                                                        <p className="text-[8px] font-mono text-slate-500">RFC: {emisorRfc}</p>
+                                                                        <p className="text-[7.5px] text-slate-400">C.P. {emisorCp} &bull; Régimen 601</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="p-3 text-white flex flex-col justify-between" style={{ backgroundColor: colorPrimario }}>
+                                                                    <div className="flex justify-between items-start">
+                                                                        <span className="text-[8px] font-bold uppercase tracking-wider bg-white/20 px-1.5 py-0.5 rounded">CFDI 4.0</span>
+                                                                        <span className="text-xs font-bold font-mono">SERIE A-1024</span>
+                                                                    </div>
+                                                                    <div className="bg-white rounded-lg p-2 text-slate-900 text-right mt-2 shadow-xs">
+                                                                        <span className="text-[7px] uppercase font-bold text-slate-400 block">TOTAL A PAGAR</span>
+                                                                        <span className="text-xs font-black" style={{ color: colorPrimario }}>$2,900.00 MXN</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-2 gap-2 text-[8.5px]">
+                                                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                                                    <span className="text-[7.5px] font-bold text-slate-400 uppercase block">RECEPTOR</span>
+                                                                    <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL</p>
+                                                                    <p className="text-slate-500 font-mono text-[7.5px]">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-0.5">
+                                                                    <span className="text-[7.5px] font-bold text-slate-400 uppercase block">CONDICIONES</span>
+                                                                    <p className="text-slate-700">PUE &bull; 03 Transferencia &bull; G03</p>
+                                                                    <p className="text-slate-500 font-mono text-[7.5px] truncate">UUID: 4E70B182-E7A9...</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="border border-slate-200 rounded-lg overflow-hidden bg-white text-[8.5px]">
+                                                                <div className="px-2.5 py-1 text-white text-[8px] font-bold uppercase flex justify-between" style={{ backgroundColor: colorSecundario }}>
+                                                                    <span>Partida Fiscal</span>
+                                                                    <span>Importe</span>
+                                                                </div>
+                                                                <div className="p-2 border-b border-slate-100 flex justify-between items-center">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">Servicios Facturación Electrónica CFDI 4.0</p>
+                                                                        <span className="text-[7.5px] text-slate-400 font-mono">1.00 E48 &bull; SAT 84111506</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                </div>
+                                                                <div className="p-2 flex justify-between items-center bg-slate-50/50">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">Licencia Timbrado Multi-Serie SAT</p>
+                                                                        <span className="text-[7.5px] text-slate-400 font-mono">2.00 H87 &bull; SAT 43231500</span>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v12':
+                                                    /* Layout v12: Compact Express (Multi-partidas y Micro Formato) */
+                                                    return (
+                                                        <div className="space-y-1.5 text-[8px] font-sans">
+                                                            <div className="p-1.5 bg-slate-100 rounded border border-slate-200 grid grid-cols-12 items-center gap-2">
+                                                                <div className="col-span-2 w-8 h-8 bg-white rounded p-0.5 flex items-center justify-center border border-slate-200">
+                                                                    {renderLogo("max-h-full max-w-full object-contain", "w-3.5 h-3.5 text-slate-700")}
+                                                                </div>
+                                                                <div className="col-span-4 leading-tight">
+                                                                    <p className="font-bold text-slate-900 uppercase truncate">{emisorName}</p>
+                                                                    <p className="font-mono text-slate-500 text-[7px]">RFC: {emisorRfc}</p>
+                                                                </div>
+                                                                <div className="col-span-3 leading-tight border-l border-slate-200 pl-2">
+                                                                    <p className="font-bold text-slate-800 truncate">CORP. EMPRESARIAL</p>
+                                                                    <p className="font-mono text-slate-500 text-[7px]">CES180420KM9</p>
+                                                                </div>
+                                                                <div className="col-span-3 text-right border-l border-slate-200 pl-2">
+                                                                    <p className="font-bold font-mono text-slate-700">A-1024</p>
+                                                                    <p className="font-bold text-[9px]" style={{ color: colorPrimario }}>$2,900.00</p>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="px-2 py-0.5 bg-slate-50 border border-slate-200 rounded flex justify-between text-[7px] font-mono text-slate-500">
+                                                                <span>UUID: 4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
+                                                                <span>PUE &bull; G03</span>
+                                                            </div>
+
+                                                            <div className="border border-slate-200 rounded overflow-hidden text-[7.5px] bg-white">
+                                                                <div className="px-2 py-0.5 text-white font-bold uppercase grid grid-cols-12" style={{ backgroundColor: colorPrimario }}>
+                                                                    <span className="col-span-1">CANT</span>
+                                                                    <span className="col-span-2">SAT</span>
+                                                                    <span className="col-span-6">DESCRIPCIÓN MULTI-PARTIDA</span>
+                                                                    <span className="col-span-3 text-right">IMPORTE</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 px-2 py-1 border-b border-slate-100 items-center">
+                                                                    <span className="col-span-1 font-mono">1.00</span>
+                                                                    <span className="col-span-2 font-mono text-slate-500">84111506</span>
+                                                                    <span className="col-span-6 truncate font-medium">Servicios Facturación CFDI 4.0</span>
+                                                                    <span className="col-span-3 text-right font-bold">$1,500.00</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 px-2 py-1 border-b border-slate-100 items-center bg-slate-50/50">
+                                                                    <span className="col-span-1 font-mono">2.00</span>
+                                                                    <span className="col-span-2 font-mono text-slate-500">43231500</span>
+                                                                    <span className="col-span-6 truncate font-medium">Licencia Timbrado Multi-Serie SAT</span>
+                                                                    <span className="col-span-3 text-right font-bold">$1,000.00</span>
+                                                                </div>
+                                                                <div className="grid grid-cols-12 px-2 py-1 items-center">
+                                                                    <span className="col-span-1 font-mono">1.00</span>
+                                                                    <span className="col-span-2 font-mono text-slate-500">81112000</span>
+                                                                    <span className="col-span-6 truncate font-medium">Soporte y Respaldo en la Nube SAT</span>
+                                                                    <span className="col-span-3 text-right font-bold">$400.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="flex justify-between items-center p-1.5 bg-slate-50 rounded border border-slate-200 text-[7.5px]">
+                                                                <span className="text-slate-500">SON: DOS MIL NOVECIENTOS PESOS 00/100 M.N.</span>
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-slate-600">Sub: $2,500.00</span>
+                                                                    <span className="text-slate-600">IVA: $400.00</span>
+                                                                    <span className="font-bold text-[8.5px]" style={{ color: colorPrimario }}>TOTAL: $2,900.00 MXN</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+
+                                                case 'v1':
+                                                default:
+                                                    /* Layout v1: Estándar Ejecutiva (Signature Corporativo) */
+                                                    return (
+                                                        <div className="space-y-2.5">
+                                                            {/* Header Mockup */}
+                                                            <div
+                                                                className="rounded-lg p-3 text-white flex items-center justify-between transition-colors shadow-2xs"
+                                                                style={{ backgroundColor: colorPrimario }}
+                                                            >
+                                                                <div className="space-y-0.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-bold uppercase">{emisorName}</span>
+                                                                        <span className="text-[9px] bg-white/20 px-1.5 py-0.2 rounded font-bold">CFDI 4.0</span>
+                                                                    </div>
+                                                                    <p className="text-[10px] opacity-90 font-mono">RFC: {emisorRfc} &bull; SERIE A &bull; FOLIO 1024</p>
+                                                                    <p className="text-[8.5px] opacity-75">Lugar de Expedición: C.P. {emisorCp} &bull; Régimen: 601</p>
+                                                                </div>
+                                                                <div className="w-12 h-11 bg-white rounded-md p-1 flex items-center justify-center shrink-0 shadow-xs">
+                                                                    {renderLogo()}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* UUID Bar */}
+                                                            <div className="bg-slate-50 border border-slate-200 rounded px-2.5 py-1 flex items-center justify-between text-[9px]">
+                                                                <span className="text-slate-500 font-bold uppercase text-[8px]">Folio Fiscal (UUID SAT):</span>
+                                                                <span className="font-mono font-bold text-slate-800">4E70B182-E7A9-4C35-8EF6-8FA485C1766C</span>
+                                                            </div>
+
+                                                            {/* Receptor Info Card */}
+                                                            <div className="bg-slate-50/60 p-2.5 rounded-lg border border-slate-200 text-[9px] grid grid-cols-2 gap-2">
+                                                                <div>
+                                                                    <span className="text-[8px] font-bold text-slate-400 uppercase block">Receptor:</span>
+                                                                    <p className="font-bold text-slate-800">CORPORATIVO EMPRESARIAL DEL SURESTE</p>
+                                                                    <p className="text-slate-500">RFC: CES180420KM9 &bull; C.P. 06600</p>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-[8px] font-bold text-slate-400 uppercase block">Condiciones Fiscales:</span>
+                                                                    <p className="text-slate-700">Forma: 03 Transferencia &bull; Método: PUE</p>
+                                                                    <p className="text-slate-500">Uso: G03 Gastos en general &bull; Moneda: MXN</p>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Concepts Table */}
+                                                            <div className="rounded-lg overflow-hidden border border-slate-200 bg-white text-[9.5px]">
+                                                                <div
+                                                                    className="px-3 py-1.5 font-bold uppercase text-white flex justify-between transition-colors text-[8.5px]"
+                                                                    style={{ backgroundColor: colorPrimario }}
+                                                                >
+                                                                    <span>Concepto / Partida & Desglose Fiscal SAT</span>
+                                                                    <span>Importe</span>
+                                                                </div>
+                                                                <div className="p-2 border-b border-slate-100 flex justify-between items-start">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">1.00 E48 - SERVICIOS FACTURACIÓN ELECTRÓNICA CFDI 4.0</p>
+                                                                        <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
+                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 84111506</span>
+                                                                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$240.00)</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,500.00</span>
+                                                                </div>
+                                                                <div className="p-2 flex justify-between items-start bg-slate-50/40">
+                                                                    <div>
+                                                                        <p className="font-semibold text-slate-800">2.00 H87 - LICENCIA DE TIMBRADO SAT MULTI-SERIE</p>
+                                                                        <div className="flex items-center gap-1.5 mt-0.5 text-[8px] text-slate-500">
+                                                                            <span className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">SAT 43231500</span>
+                                                                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-1.5 py-0.5 rounded">IVA 16% (+$160.00)</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Amount in words & Totals */}
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                                                                <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[8.5px]">
+                                                                    <span className="text-[7.5px] font-bold text-slate-400 uppercase block">Importe con Letra:</span>
+                                                                    <span className="font-bold text-slate-700">SON: DOS MIL NOVECIENTOS PESOS 00/100 M.N.</span>
+                                                                </div>
+
+                                                                <div className="flex justify-end">
+                                                                    <div
+                                                                        className="px-4 py-2 rounded-lg text-white text-right space-y-0.5 shadow-2xs transition-colors w-full sm:w-auto"
+                                                                        style={{ backgroundColor: colorSecundario }}
+                                                                    >
+                                                                        <div className="flex justify-between gap-4 text-[8.5px] opacity-85">
+                                                                            <span>Subtotal: $2,500.00</span>
+                                                                            <span>IVA (16%): $400.00</span>
+                                                                        </div>
+                                                                        <div className="text-sm font-bold flex justify-between gap-4 pt-0.5 border-t border-white/20">
+                                                                            <span>TOTAL NETO:</span>
+                                                                            <span>$2,900.00 MXN</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                            }
+                                        })()}
                                     </div>
                                 </div>
                             </div>
