@@ -611,15 +611,15 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
     if (!fs.existsSync(cerPath) || !fs.existsSync(keyPath)) {
         return {
             success: false,
-            mensaje: `No se encontraron los archivos CSD para el RFC ${emisor.rfc}. Por favor carga primero el Certificado (.cer) y la Llave Privada (.key) en la sección CSD.`
+            mensaje: `No se encontraron los archivos CSD físicos para el RFC ${emisor.rfc} en el servidor. Por favor carga el Certificado (.cer) y la Llave Privada (.key) en la pestaña "Certificados CSD" y presiona "Guardar Cambios" antes de registrar en el PAC.`
         };
     }
 
-    const passwordCsd = customPassword || emisor.password_csd;
+    const passwordCsd = (customPassword && customPassword.trim()) || (emisor.password_csd && emisor.password_csd.trim());
     if (!passwordCsd) {
         return {
             success: false,
-            mensaje: 'Se requiere la contraseña de la llave privada CSD para registrar al emisor en el PAC.'
+            mensaje: 'Se requiere la contraseña de la llave privada CSD para registrar al emisor en el PAC. Ingrésala en el campo de contraseña antes de confirmar.'
         };
     }
 
@@ -659,7 +659,8 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
             if (typeof emisor.update === 'function') {
                 await emisor.update({
                     registrado_pac: true,
-                    fecha_registro_pac: new Date()
+                    fecha_registro_pac: new Date(),
+                    password_csd: passwordCsd
                 }).catch(() => {});
             }
             return {

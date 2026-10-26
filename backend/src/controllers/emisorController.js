@@ -626,17 +626,22 @@ export const registrarEmisorEnPAC = async (req, res) => {
     const { password_csd } = req.body;
     try {
         const emisor = await Emisor.findByPk(id);
-        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+        if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
         const result = await registrarEmisorPAC(emisor, password_csd);
+        const responseData = {
+            ...result,
+            message: result.mensaje || result.message,
+            mensaje: result.mensaje || result.message
+        };
         if (result.success) {
-            return res.json(result);
+            return res.json(responseData);
         } else {
-            return res.status(400).json(result);
+            return res.status(400).json(responseData);
         }
     } catch (error) {
         console.error('Error al registrar emisor en PAC:', error);
-        res.status(500).json({ success: false, message: error.message || 'Error interno al registrar emisor en el PAC' });
+        res.status(500).json({ success: false, message: error.message || 'Error interno al registrar emisor en el PAC', mensaje: error.message || 'Error interno al registrar emisor en el PAC' });
     }
 };
 
@@ -645,17 +650,22 @@ export const asignarFoliosPAC = async (req, res) => {
     const { no_timbres } = req.body;
     try {
         const emisor = await Emisor.findByPk(id);
-        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+        if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
         const result = await asignarTimbresPAC(emisor, no_timbres);
+        const responseData = {
+            ...result,
+            message: result.mensaje || result.message,
+            mensaje: result.mensaje || result.message
+        };
         if (result.success) {
-            return res.json(result);
+            return res.json(responseData);
         } else {
-            return res.status(400).json(result);
+            return res.status(400).json(responseData);
         }
     } catch (error) {
         console.error('Error al asignar folios PAC:', error);
-        res.status(500).json({ success: false, message: error.message || 'Error al asignar folios en el PAC' });
+        res.status(500).json({ success: false, message: error.message || 'Error al asignar folios en el PAC', mensaje: error.message || 'Error al asignar folios en el PAC' });
     }
 };
 
@@ -663,13 +673,17 @@ export const testConexionPAC = async (req, res) => {
     const { id } = req.params;
     try {
         const emisor = await Emisor.findByPk(id);
-        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+        if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
         const result = await testConexionPACService(emisor);
-        res.json(result);
+        res.json({
+            ...result,
+            message: result.mensaje || result.message,
+            mensaje: result.mensaje || result.message
+        });
     } catch (error) {
         console.error('Error diagnosticando PAC:', error);
-        res.status(500).json({ success: false, message: error.message || 'Error al diagnosticar conexión con el PAC' });
+        res.status(500).json({ success: false, message: error.message || 'Error al diagnosticar conexión con el PAC', mensaje: error.message || 'Error al diagnosticar conexión con el PAC' });
     }
 };
 
@@ -678,13 +692,17 @@ export const consultarStatusSatPACController = async (req, res) => {
     const { uuid } = req.body;
     try {
         const emisor = await Emisor.findByPk(id);
-        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+        if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
         const result = await consultarStatusSatPAC(emisor, uuid);
-        res.json(result);
+        res.json({
+            ...result,
+            message: result.mensaje || result.message,
+            mensaje: result.mensaje || result.message
+        });
     } catch (error) {
         console.error('Error consultando status SAT PAC:', error);
-        res.status(500).json({ success: false, message: error.message || 'Error al consultar estatus SAT en el PAC' });
+        res.status(500).json({ success: false, message: error.message || 'Error al consultar estatus SAT en el PAC', mensaje: error.message || 'Error al consultar estatus SAT en el PAC' });
     }
 };
 
@@ -692,13 +710,17 @@ export const consultarPeticionesPendientesPACController = async (req, res) => {
     const { id } = req.params;
     try {
         const emisor = await Emisor.findByPk(id);
-        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+        if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
         const result = await consultarPeticionesPendientesPAC(emisor);
-        res.json(result);
+        res.json({
+            ...result,
+            message: result.mensaje || result.message,
+            mensaje: result.mensaje || result.message
+        });
     } catch (error) {
         console.error('Error consultando peticiones SAT PAC:', error);
-        res.status(500).json({ success: false, message: error.message || 'Error al consultar peticiones SAT en el PAC' });
+        res.status(500).json({ success: false, message: error.message || 'Error al consultar peticiones SAT en el PAC', mensaje: error.message || 'Error al consultar peticiones SAT en el PAC' });
     }
 };
 

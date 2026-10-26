@@ -527,7 +527,7 @@ export const DiseñadorFactura = () => {
         if (!activeEmisor) return;
         fetchEstilo();
         fetchCatalogs();
-    }, [activeEmisor]);
+    }, [activeEmisor?.id]);
 
     const fetchCatalogs = async () => {
         try {

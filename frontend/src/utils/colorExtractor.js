@@ -72,6 +72,8 @@ export function getLuminance(r, g, b) {
     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
 }
 
+const colorCache = new Map();
+
 /**
  * Analiza una imagen mediante un elemento Image en memoria y un Canvas
  * para extraer sus colores dominantes y generar opciones armónicas / contrastadas.
@@ -82,6 +84,11 @@ export function extractColorsFromImage(imageSrc) {
     return new Promise((resolve) => {
         if (!imageSrc) {
             resolve({ dominant: [], palettes: getDefaultPalettes() });
+            return;
+        }
+
+        if (colorCache.has(imageSrc)) {
+            resolve(colorCache.get(imageSrc));
             return;
         }
 
@@ -249,19 +256,24 @@ export function extractColorsFromImage(imageSrc) {
                     }
                 ];
 
-                resolve({
+                const result = {
                     dominant: dominantHexList,
                     palettes
-                });
+                };
+                colorCache.set(imageSrc, result);
+                resolve(result);
             } catch (err) {
                 console.error('Error al extraer colores del canvas:', err);
-                resolve({ dominant: [], palettes: getDefaultPalettes() });
+                const fallback = { dominant: [], palettes: getDefaultPalettes() };
+                colorCache.set(imageSrc, fallback);
+                resolve(fallback);
             }
         };
 
-        img.onerror = (e) => {
-            console.warn('No se pudo cargar la imagen para extracción de paleta:', e);
-            resolve({ dominant: [], palettes: getDefaultPalettes() });
+        img.onerror = () => {
+            const fallback = { dominant: [], palettes: getDefaultPalettes() };
+            colorCache.set(imageSrc, fallback);
+            resolve(fallback);
         };
 
         img.src = imageSrc;

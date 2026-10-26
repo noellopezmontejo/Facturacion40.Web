@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -93,6 +93,7 @@ export const Emisores = () => {
     const [logoUrl, setLogoUrl] = useState(null);
     const [logoFile, setLogoFile] = useState(null);
     const [logoPreview, setLogoPreview] = useState(null);
+    const lastAnalyzedLogoRef = useRef(null);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [removeLogo, setRemoveLogo] = useState(false);
     const [newEmisorLogoFile, setNewEmisorLogoFile] = useState(null);
@@ -207,7 +208,7 @@ export const Emisores = () => {
             fetchPacFolios(selectedEmisor.id);
             setPacData(prev => ({ ...prev, conexionResultado: null }));
         }
-    }, [selectedEmisor]);
+    }, [selectedEmisor?.id]);
 
     // SEPOMEX Autocomplete para formulario de configuración/edición
     useEffect(() => {
@@ -328,6 +329,13 @@ export const Emisores = () => {
             setDominantColors([]);
             return;
         }
+
+        // Si ya se analizó exactamente esta misma fuente, evitar re-procesamiento
+        if (lastAnalyzedLogoRef.current === src) {
+            return;
+        }
+        lastAnalyzedLogoRef.current = src;
+
         setIsExtractingColors(true);
         try {
             const result = await extractColorsFromImage(src);
@@ -343,7 +351,6 @@ export const Emisores = () => {
                 }
             }
         } catch (err) {
-            console.error('Error al analizar paleta del logo:', err);
             setSuggestedPalettes(getDefaultPalettes());
         } finally {
             setIsExtractingColors(false);
@@ -467,16 +474,37 @@ export const Emisores = () => {
         const hasKey = selectedEmisor.llave_privada_path || csdFiles.llave_privada;
 
         if (!hasCer || !hasKey) {
-            showToast('Para registrar el emisor en el PAC, debes cargar primero los archivos de Certificado (.cer) y Llave (.key)', 'error');
+            showToast('Para registrar el emisor en el PAC, debes cargar primero los archivos de Certificado (.cer) y Llave (.key) en la pestaña "Certificados CSD".', 'error');
+            return;
+        }
+
+        if (!formData.password_csd && !selectedEmisor.password_csd) {
+            showToast('Ingresa la contraseña de la llave CSD antes de confirmar el registro ante el PAC.', 'warning');
             return;
         }
 
         setPacData(prev => ({ ...prev, registrando: true }));
         try {
+            // Si el usuario seleccionó archivos CSD en el formulario pero no ha guardado, guardarlos primero en el servidor
+            if (csdFiles.certificado || csdFiles.llave_privada) {
+                const formDataFiles = new FormData();
+                if (csdFiles.certificado) formDataFiles.append('certificado', csdFiles.certificado);
+                if (csdFiles.llave_privada) formDataFiles.append('llave_privada', csdFiles.llave_privada);
+                if (formData.password_csd) formDataFiles.append('password_csd', formData.password_csd);
+
+                const resFiles = await api.put(`/emisores/${selectedEmisor.id}/csd`, formDataFiles, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                if (resFiles.data?.emisor) {
+                    setSelectedEmisor(prev => ({ ...prev, ...resFiles.data.emisor }));
+                }
+            }
+
             const res = await api.post(`/emisores/${selectedEmisor.id}/pac/registrar`, {
                 password_csd: formData.password_csd || undefined
             });
-            showToast(res.data?.message || '✅ Emisor registrado y sincronizado en el PAC SAT con éxito');
+            const msgOk = res.data?.mensaje || res.data?.message || '✅ Emisor registrado y sincronizado en el PAC SAT con éxito';
+            showToast(msgOk);
             setSelectedEmisor(prev => prev ? ({
                 ...prev,
                 registrado_pac: true,
@@ -487,7 +515,7 @@ export const Emisores = () => {
             fetchEmisores();
         } catch (error) {
             console.error('Error al registrar emisor en PAC:', error);
-            const msg = error.response?.data?.message || error.response?.data?.error || 'Error al comunicar con el PAC SAT';
+            const msg = error.response?.data?.mensaje || error.response?.data?.message || error.response?.data?.error || error.message || 'Error al comunicar con el PAC SAT';
             showToast(`❌ ${msg}`, 'error');
         } finally {
             setPacData(prev => ({ ...prev, registrando: false }));
@@ -505,13 +533,14 @@ export const Emisores = () => {
             const res = await api.post(`/emisores/${selectedEmisor.id}/pac/asignar-folios`, {
                 no_timbres: Number(foliosToAssign)
             });
-            showToast(res.data?.message || `✅ Se asignaron ${foliosToAssign} folios exitosamente`);
+            const msgOk = res.data?.mensaje || res.data?.message || `✅ Se asignaron ${foliosToAssign} folios exitosamente`;
+            showToast(msgOk);
             setShowAssignModal(false);
             fetchPacFolios(selectedEmisor.id);
             fetchEmisores();
         } catch (error) {
             console.error('Error al asignar folios PAC:', error);
-            const msg = error.response?.data?.message || 'Error al asignar folios en el PAC';
+            const msg = error.response?.data?.mensaje || error.response?.data?.message || error.response?.data?.error || 'Error al asignar folios en el PAC';
             showToast(`❌ ${msg}`, 'error');
         } finally {
             setPacData(prev => ({ ...prev, asignando: false }));
@@ -527,15 +556,15 @@ export const Emisores = () => {
             if (res.data?.success) {
                 showToast(`⚡ Conexión exitosa con el PAC (${res.data.latencia_ms} ms)`);
             } else {
-                showToast(`⚠️ ${res.data?.message || 'Fallo de conexión'}`, 'warning');
+                showToast(`⚠️ ${res.data?.mensaje || res.data?.message || 'Fallo de conexión'}`, 'warning');
             }
         } catch (error) {
             console.error('Error test conexion PAC:', error);
-            const msg = error.response?.data?.message || 'Error al contactar PAC';
+            const msg = error.response?.data?.mensaje || error.response?.data?.message || 'Error al contactar PAC';
             setPacData(prev => ({ 
                 ...prev, 
                 probandoConexion: false, 
-                conexionResultado: { success: false, message: msg } 
+                conexionResultado: { success: false, message: msg, mensaje: msg } 
             }));
             showToast(`❌ ${msg}`, 'error');
         }
@@ -558,7 +587,7 @@ export const Emisores = () => {
             console.error('Error al consultar estatus SAT:', error);
             setSatStatusResult({
                 success: false,
-                error: error.response?.data?.message || 'No fue posible consultar el UUID'
+                error: error.response?.data?.mensaje || error.response?.data?.message || 'No fue posible consultar el UUID'
             });
         } finally {
             setLoadingSatStatus(false);
@@ -577,7 +606,7 @@ export const Emisores = () => {
             console.error('Error al consultar peticiones SAT:', error);
             setPeticionesResult({
                 success: false,
-                error: error.response?.data?.message || 'Error al consultar peticiones pendientes'
+                error: error.response?.data?.mensaje || error.response?.data?.message || 'Error al consultar peticiones pendientes'
             });
         } finally {
             setLoadingPeticiones(false);
