@@ -1,4 +1,5 @@
 import { sequelize } from '../config/database.js';
+import { FolioHistorial } from '../models/FolioHistorial.js';
 
 export const ensurePacColumns = async () => {
     try {
@@ -17,6 +18,10 @@ export const ensurePacColumns = async () => {
             await sequelize.query("ALTER TABLE emisores ADD COLUMN ultimos_folios_pac INT DEFAULT 0");
             console.log("[DB] Columna ultimos_folios_pac agregada a emisores.");
         }
+
+        // Asegurar tabla folios_historial
+        await FolioHistorial.sync();
+        console.log("[DB] Tabla folios_historial verificada/sincronizada.");
     } catch (e) {
         console.error("[DB] Error asegurando columnas PAC:", e.message);
     }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight } from 'lucide-react';
+import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, ArrowRight, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight, History } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
@@ -117,10 +117,25 @@ export const Emisores = () => {
     const [satStatusResult, setSatStatusResult] = useState(null);
     const [loadingSatStatus, setLoadingSatStatus] = useState(false);
     const [showSatModal, setShowSatModal] = useState(false);
-    const [showPeticionesModal, setShowPeticionesModal] = useState(false);
-    const [peticionesResult, setPeticionesResult] = useState(null);
-    const [loadingPeticiones, setLoadingPeticiones] = useState(false);
     const [showConfirmPACRegModal, setShowConfirmPACRegModal] = useState(false);
+    const [showHistorialFoliosModal, setShowHistorialFoliosModal] = useState(false);
+    const [historialEmisor, setHistorialEmisor] = useState([]);
+    const [loadingHistorialEmisor, setLoadingHistorialEmisor] = useState(false);
+
+    const handleOpenHistorialEmisor = async () => {
+        if (!selectedEmisor) return;
+        setLoadingHistorialEmisor(true);
+        setShowHistorialFoliosModal(true);
+        try {
+            const res = await api.get(`/emisores/${selectedEmisor.id}/pac/historial-folios`);
+            setHistorialEmisor(res.data || []);
+        } catch (error) {
+            console.error('Error al cargar historial de folios del emisor:', error);
+            showToast('No se pudo cargar el historial de folios', 'error');
+        } finally {
+            setLoadingHistorialEmisor(false);
+        }
+    };
 
     // Fetch emisores list
     const fetchEmisores = async () => {
@@ -1025,262 +1040,103 @@ export const Emisores = () => {
                     </div>
                 )}
 
-                {/* Modal Asignar / Traspasar Timbres */}
-                {showAssignModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-                        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
-                            <div className="p-6">
-                                <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
-                                    <Plus className="w-6 h-6" />
-                                </div>
-                                <h3 className="text-lg font-bold text-slate-900 mb-1">
-                                    Asignar Timbres al Emisor
-                                </h3>
-                                <p className="text-sm text-slate-600 mb-4">
-                                    Transfiere un paquete de folios de timbrado desde la cuenta integradora al emisor <strong className="text-slate-800">{selectedEmisor?.rfc}</strong>.
-                                </p>
-
-                                <div className="space-y-3 mb-5">
-                                    <label className="block text-xs font-semibold text-slate-700">
-                                        Selecciona o escribe el número de timbres:
-                                    </label>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[50, 100, 250, 500].map(amt => (
-                                            <button
-                                                key={amt}
-                                                type="button"
-                                                onClick={() => setFoliosToAssign(amt)}
-                                                className={`py-1.5 rounded-lg text-xs font-bold transition border ${
-                                                    foliosToAssign === amt 
-                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
-                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-                                                }`}
-                                            >
-                                                +{amt}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    <div className="mt-2">
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={foliosToAssign}
-                                            onChange={e => setFoliosToAssign(parseInt(e.target.value) || 0)}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500"
-                                            placeholder="Cantidad personalizada..."
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-end gap-3 pt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAssignModal(false)}
-                                        disabled={pacData.asignando}
-                                        className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleAsignarFoliosPAC}
-                                        disabled={pacData.asignando}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm shadow-indigo-600/20 transition disabled:opacity-50"
-                                    >
-                                        {pacData.asignando ? (
-                                            <>
-                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                                <span>Asignando...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Check className="w-4 h-4" />
-                                                <span>Asignar {foliosToAssign} Folios</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Modal Consultar Estatus SAT por UUID */}
-                {showSatModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-                        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
-                            <div className="p-6">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                {/* Modal Bitácora Histórica de Folios para el Emisor */}
+                {showHistorialFoliosModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-6 space-y-4">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                     <div className="flex items-center gap-2.5">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                                            <Search className="w-5 h-5" />
+                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                                            <History className="w-5 h-5" />
                                         </div>
                                         <div>
-                                            <h3 className="text-base font-bold text-slate-900">
-                                                Verificar Estatus SAT (UUID)
+                                            <h3 className="font-bold text-slate-800 text-base">
+                                                Bitácora de Folios Agregados
                                             </h3>
-                                            <p className="text-xs text-slate-500">Consulta en vivo en los servidores del SAT a través del PAC</p>
+                                            <p className="text-xs text-slate-400 font-mono">
+                                                {selectedEmisor?.rfc} — {selectedEmisor?.razon_social}
+                                            </p>
                                         </div>
                                     </div>
-                                    <button 
-                                        onClick={() => {
-                                            setShowSatModal(false);
-                                            setSatStatusResult(null);
-                                        }}
-                                        className="text-slate-400 hover:text-slate-600 transition"
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowHistorialFoliosModal(false)}
+                                        className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
                                     >
                                         <X className="w-5 h-5" />
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleConsultarSatUUID} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                            Folio Fiscal (UUID SAT) a verificar:
-                                        </label>
-                                        <input
-                                            type="text"
-                                            required
-                                            placeholder="Ej. 4E70B182-E7A9-4C35-8EF6-8FA485C1766C"
-                                            value={satUuidQuery}
-                                            onChange={e => setSatUuidQuery(e.target.value.trim().toUpperCase())}
-                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-1 focus:ring-emerald-500"
-                                        />
+                                {loadingHistorialEmisor ? (
+                                    <div className="py-12 text-center text-slate-400">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-2"></div>
+                                        <span className="text-xs">Consultando bitácora de folios...</span>
                                     </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={loadingSatStatus}
-                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50"
-                                    >
-                                        {loadingSatStatus ? (
-                                            <>
-                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                                <span>Consultando SAT...</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Search className="w-4 h-4" />
-                                                <span>Consultar Estatus en el SAT</span>
-                                            </>
-                                        )}
-                                    </button>
-                                </form>
-
-                                {/* Resultado de Consulta SAT */}
-                                {satStatusResult && (
-                                    <div className="mt-5 p-4 rounded-xl border bg-slate-50 space-y-2.5 text-xs">
-                                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                                            <span className="font-bold text-slate-700">Estatus del CFDI:</span>
-                                            <span className={`font-bold px-2 py-0.5 rounded-full ${
-                                                satStatusResult.Estado === 'Vigente' 
-                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                                                    : (satStatusResult.Estado === 'Cancelado' 
-                                                        ? 'bg-red-100 text-red-800 border border-red-200' 
-                                                        : 'bg-amber-100 text-amber-800 border border-amber-200')
-                                            }`}>
-                                                {satStatusResult.Estado || (satStatusResult.error ? 'Error' : 'Desconocido')}
-                                            </span>
-                                        </div>
-
-                                        {satStatusResult.EsCancelable && (
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-500">Cancelabilidad:</span>
-                                                <span className="font-semibold text-slate-800">{satStatusResult.EsCancelable}</span>
-                                            </div>
-                                        )}
-
-                                        {satStatusResult.EstatusCancelacion && (
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-500">Estatus Cancelación:</span>
-                                                <span className="font-semibold text-slate-800">{satStatusResult.EstatusCancelacion}</span>
-                                            </div>
-                                        )}
-
-                                        {satStatusResult.CodigoEstatus && (
-                                            <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-500">
-                                                <span className="font-bold">Respuesta SAT: </span>
-                                                {satStatusResult.CodigoEstatus}
-                                            </div>
-                                        )}
-
-                                        {satStatusResult.error && (
-                                            <div className="text-red-600 font-medium pt-1">
-                                                {satStatusResult.error}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Modal Peticiones de Cancelación SAT */}
-                {showPeticionesModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
-                        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
-                            <div className="p-6">
-                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                                    <div className="flex items-center gap-2.5">
-                                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
-                                            <AlertCircle className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-base font-bold text-slate-900">
-                                                Peticiones de Cancelación SAT
-                                            </h3>
-                                            <p className="text-xs text-slate-500">Solicitudes entrantes de clientes receptores</p>
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={() => setShowPeticionesModal(false)}
-                                        className="text-slate-400 hover:text-slate-600 transition"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-
-                                {loadingPeticiones ? (
-                                    <div className="py-8 text-center text-slate-500 space-y-2">
-                                        <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                                        <p className="text-xs">Consultando peticiones pendientes con el PAC SAT...</p>
-                                    </div>
-                                ) : peticionesResult?.error ? (
-                                    <div className="p-4 bg-red-50 text-red-700 rounded-xl text-xs border border-red-200">
-                                        {peticionesResult.error}
+                                ) : historialEmisor.length > 0 ? (
+                                    <div className="overflow-x-auto max-h-96">
+                                        <table className="w-full text-left text-xs">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                                    <th className="pb-2.5">Fecha y Hora</th>
+                                                    <th className="pb-2.5 text-center">Folios Agregados</th>
+                                                    <th className="pb-2.5">Saldo Anterior ➔ Nuevo</th>
+                                                    <th className="pb-2.5">Asignado Por</th>
+                                                    <th className="pb-2.5">Motivo / Notas</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {historialEmisor.map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/70 transition">
+                                                        <td className="py-3 font-mono text-slate-600">
+                                                            <span className="font-bold text-slate-800 block">
+                                                                {new Date(item.createdAt).toLocaleDateString()}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-400">
+                                                                {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 text-center">
+                                                            <span className="inline-flex items-center font-mono font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-xs">
+                                                                +{Number(item.cantidad).toLocaleString()}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 font-mono text-slate-600">
+                                                            <span className="text-slate-400">{Number(item.saldo_anterior).toLocaleString()}</span>
+                                                            <span className="text-slate-300 mx-1">➔</span>
+                                                            <span className="font-bold text-indigo-700">{Number(item.saldo_nuevo).toLocaleString()}</span>
+                                                        </td>
+                                                        <td className="py-3 text-slate-700 font-medium">
+                                                            {item.Usuario?.nombre || 'Administrador'}
+                                                        </td>
+                                                        <td className="py-3 text-slate-500 max-w-xs truncate" title={item.notas}>
+                                                            {item.notas || 'Asignación de timbres'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 ) : (
-                                    <div className="space-y-3">
-                                        {Array.isArray(peticionesResult?.peticiones) && peticionesResult.peticiones.length > 0 ? (
-                                            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                                                {peticionesResult.peticiones.map((pet, idx) => (
-                                                    <div key={idx} className="p-3 bg-white hover:bg-slate-50 text-xs">
-                                                        <p className="font-mono font-bold text-slate-800">{pet.uuid || pet}</p>
-                                                        {pet.rfc_solicitante && (
-                                                            <p className="text-[10px] text-slate-500 mt-0.5">Solicitado por: {pet.rfc_solicitante}</p>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                                                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
-                                                <p className="text-xs font-bold text-slate-700">Sin peticiones pendientes</p>
-                                                <p className="text-[11px] text-slate-500 mt-0.5">
-                                                    No tienes solicitudes de cancelación de clientes en espera de respuesta.
-                                                </p>
-                                            </div>
-                                        )}
+                                    <div className="py-10 text-center text-slate-400">
+                                        <History className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                                        <p className="text-sm font-semibold">Sin registros de asignación aún</p>
+                                        <p className="text-xs mt-0.5">Puedes asignar folios a este emisor desde Configuración Global &gt; Servicios y Folios PAC.</p>
                                     </div>
                                 )}
 
-                                <div className="flex justify-end pt-4 mt-2">
+                                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                                    <a
+                                        href="/configuracion?tab=pac"
+                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                    >
+                                        <span>Asignar más folios en Configuración Global</span>
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                    </a>
                                     <button
                                         type="button"
-                                        onClick={() => setShowPeticionesModal(false)}
-                                        className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                                        onClick={() => setShowHistorialFoliosModal(false)}
+                                        className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
                                     >
                                         Cerrar
                                     </button>
@@ -3240,72 +3096,32 @@ export const Emisores = () => {
                                 </div>
                             </div>
 
-                            {/* Acciones Rápidas del PAC */}
+                            {/* Control y Gestión de Folios PAC */}
                             <div className="space-y-2">
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                    Herramientas y Consultas PAC
+                                    Control de Folios del Emisor
                                 </label>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => setShowAssignModal(true)}
+                                        onClick={handleOpenHistorialEmisor}
                                         className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-700 transition"
                                     >
-                                        <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                                        <span>Asignar Timbres</span>
+                                        <History className="w-3.5 h-3.5 text-indigo-600" />
+                                        <span>Ver Bitácora de Folios</span>
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={handleTestConexionPAC}
-                                        disabled={pacData.probandoConexion}
-                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition disabled:opacity-50"
+                                    <a
+                                        href="/configuracion?tab=pac"
+                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-600 transition"
                                     >
-                                        <Activity className={`w-3.5 h-3.5 text-blue-600 ${pacData.probandoConexion ? 'animate-spin' : ''}`} />
-                                        <span>{pacData.probandoConexion ? 'Probando...' : 'Diagnóstico (Ping)'}</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowSatModal(true)}
-                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-emerald-700 transition"
-                                    >
-                                        <Search className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Estatus SAT (UUID)</span>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        onClick={handleConsultarPeticionesSAT}
-                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-amber-700 transition"
-                                    >
-                                        <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                                        <span>Peticiones SAT</span>
-                                    </button>
+                                        <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Herramientas PAC (Global)</span>
+                                    </a>
                                 </div>
-
-                                {/* Resultado de Diagnóstico PAC si se ejecutó */}
-                                {pacData.conexionResultado && (
-                                    <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
-                                        pacData.conexionResultado.success 
-                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                                            : 'bg-red-50 border-red-200 text-red-800'
-                                    }`}>
-                                        <div className="flex items-center gap-2">
-                                            {pacData.conexionResultado.success ? (
-                                                <Zap className="w-4 h-4 text-emerald-600 shrink-0" />
-                                            ) : (
-                                                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                                            )}
-                                            <span className="font-medium">{pacData.conexionResultado.message}</span>
-                                        </div>
-                                        {pacData.conexionResultado.latencia_ms ? (
-                                            <span className="font-mono font-bold text-[10px] bg-white/70 px-2 py-0.5 rounded border border-emerald-200">
-                                                {pacData.conexionResultado.latencia_ms} ms
-                                            </span>
-                                        ) : null}
-                                    </div>
-                                )}
+                                <p className="text-[11px] text-slate-400">
+                                    La asignación de timbres y diagnósticos SAT se administran centralizadamente en <a href="/configuracion?tab=pac" className="text-indigo-600 font-medium underline">Configuración Global &gt; Servicios PAC</a>.
+                                </p>
                             </div>
                         </div>
                     </div>

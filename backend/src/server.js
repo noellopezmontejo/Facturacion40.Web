@@ -39,6 +39,7 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import documentoRecibidoRoutes from './routes/documentoRecibidoRoutes.js';
 import cotizacionRoutes from './routes/cotizacionRoutes.js';
 import ordenServicioRoutes from './routes/ordenServicioRoutes.js';
+import pacRoutes from './routes/pacRoutes.js';
 
 
 
@@ -70,6 +71,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/documentos-recibidos', documentoRecibidoRoutes);
 app.use('/api/cotizaciones', cotizacionRoutes);
 app.use('/api/ordenes-servicio', ordenServicioRoutes);
+app.use('/api/pac', pacRoutes);
 
 
 

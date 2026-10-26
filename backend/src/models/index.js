@@ -32,6 +32,7 @@ import { Proveedor } from './Proveedor.js';
 import { DocumentoRecibido } from './DocumentoRecibido.js';
 import { PagoRecibido } from './PagoRecibido.js';
 import { PagoDocumentoRecibido } from './PagoDocumentoRecibido.js';
+import { FolioHistorial } from './FolioHistorial.js';
 
 
 // Junction models
@@ -194,6 +195,16 @@ CartaPorteAutotransporte.belongsTo(CartaPorte, { foreignKey: 'carta_porte_id' })
 CartaPorte.hasMany(CartaPorteFigura, { foreignKey: 'carta_porte_id', as: 'figuras' });
 CartaPorteFigura.belongsTo(CartaPorte, { foreignKey: 'carta_porte_id' });
 
+// FolioHistorial associations
+Emisor.hasMany(FolioHistorial, { foreignKey: 'emisor_id', as: 'historialFolios' });
+FolioHistorial.belongsTo(Emisor, { foreignKey: 'emisor_id' });
+
+Empresa.hasMany(FolioHistorial, { foreignKey: 'empresa_id' });
+FolioHistorial.belongsTo(Empresa, { foreignKey: 'empresa_id' });
+
+Usuario.hasMany(FolioHistorial, { foreignKey: 'usuario_id' });
+FolioHistorial.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+
 export {
     Empresa,
     Usuario,
@@ -229,6 +240,7 @@ export {
     DetalleCotizacion,
     OrdenServicio,
     DetalleOrdenServicio,
+    FolioHistorial,
     sequelize
 };
 

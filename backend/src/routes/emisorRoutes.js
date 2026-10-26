@@ -15,6 +15,7 @@ import {
     getEmisorTotalAnual,
     registrarEmisorEnPAC,
     asignarFoliosPAC,
+    getHistorialFoliosPAC,
     testConexionPAC,
     consultarStatusSatPACController,
     consultarPeticionesPendientesPACController
@@ -45,6 +46,7 @@ router.get('/:id/total-anual', getEmisorTotalAnual);
 
 // Rutas de Operaciones y Servicios PAC SAT
 router.get('/:id/pac/folios', getCreditos);
+router.get('/:id/pac/historial-folios', getHistorialFoliosPAC);
 router.post('/:id/pac/registrar', registrarEmisorEnPAC);
 router.post('/:id/pac/asignar-folios', asignarFoliosPAC);
 router.get('/:id/pac/test-conexion', testConexionPAC);

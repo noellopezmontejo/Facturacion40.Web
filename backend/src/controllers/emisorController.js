@@ -27,6 +27,7 @@ import {
     CartaPorteFigura,
     ConfiguracionEstilo,
     UsuarioEmisor,
+    FolioHistorial,
     sequelize
 } from '../models/index.js';
 import { generarPDF } from '../services/pdfService.js';
@@ -647,25 +648,70 @@ export const registrarEmisorEnPAC = async (req, res) => {
 
 export const asignarFoliosPAC = async (req, res) => {
     const { id } = req.params;
-    const { no_timbres } = req.body;
+    const { no_timbres, notas } = req.body;
     try {
         const emisor = await Emisor.findByPk(id);
         if (!emisor) return res.status(404).json({ success: false, message: 'Emisor no encontrado', mensaje: 'Emisor no encontrado' });
 
-        const result = await asignarTimbresPAC(emisor, no_timbres);
+        const cantidad = Number(no_timbres);
+        if (!cantidad || cantidad <= 0) {
+            return res.status(400).json({ success: false, message: 'La cantidad de timbres debe ser mayor a 0', mensaje: 'La cantidad de timbres debe ser mayor a 0' });
+        }
+
+        const saldoAnterior = emisor.ultimos_folios_pac || 0;
+        const result = await asignarTimbresPAC(emisor, cantidad);
         const responseData = {
             ...result,
             message: result.mensaje || result.message,
             mensaje: result.mensaje || result.message
         };
+
         if (result.success) {
-            return res.json(responseData);
+            const saldoNuevo = saldoAnterior + cantidad;
+            await emisor.update({ ultimos_folios_pac: saldoNuevo });
+
+            // Registrar en FolioHistorial
+            await FolioHistorial.create({
+                emisor_id: emisor.id,
+                empresa_id: emisor.empresa_id || null,
+                usuario_id: req.usuario?.id || null,
+                cantidad: cantidad,
+                saldo_anterior: saldoAnterior,
+                saldo_nuevo: saldoNuevo,
+                tipo_movimiento: 'ASIGNACION_PAC',
+                notas: notas || `Asignación de ${cantidad} folios a ${emisor.rfc}`,
+                resultado_pac: result.mensaje || 'Asignación exitosa'
+            });
+
+            return res.json({
+                ...responseData,
+                saldo_anterior: saldoAnterior,
+                saldo_nuevo: saldoNuevo
+            });
         } else {
             return res.status(400).json(responseData);
         }
     } catch (error) {
         console.error('Error al asignar folios PAC:', error);
         res.status(500).json({ success: false, message: error.message || 'Error al asignar folios en el PAC', mensaje: error.message || 'Error al asignar folios en el PAC' });
+    }
+};
+
+export const getHistorialFoliosPAC = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const historial = await FolioHistorial.findAll({
+            where: { emisor_id: id },
+            include: [
+                { model: Usuario, attributes: ['id', 'nombre', 'email'] },
+                { model: Emisor, attributes: ['id', 'rfc', 'razon_social'] }
+            ],
+            order: [['createdAt', 'DESC']]
+        });
+        res.json(historial);
+    } catch (error) {
+        console.error('Error al consultar historial de folios del emisor:', error);
+        res.status(500).json({ success: false, message: 'Error al consultar historial de folios', mensaje: 'Error al consultar historial de folios' });
     }
 };
 
