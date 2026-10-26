@@ -443,10 +443,39 @@ export const firmarXML = async (xmlString, emisorId) => {
     return finalXml;
 };
 
+/**
+ * Determina el endpoint SOAP y el ambiente (Producción o Sandbox) del PAC Profact.
+ * Si PAC_ENV en .env es 'production' o 'produccion', se conecta al servidor oficial de timbrado fiscal.
+ * Si PAC_ENV en .env es 'sandbox' o 'pruebas', se conecta al servidor de pruebas.
+ * De lo contrario, respeta el campo modo_prueba del emisor.
+ */
+export const getPacEndpoint = (emisor = {}) => {
+    const envSetting = (process.env.PAC_ENV || '').toLowerCase().trim();
+    if (envSetting === 'production' || envSetting === 'produccion') {
+        return {
+            isSandbox: false,
+            pacUrl: 'https://timbracfdi33.mx:1443/Timbrado.asmx',
+            modo: 'Producción'
+        };
+    }
+    if (envSetting === 'sandbox' || envSetting === 'pruebas') {
+        return {
+            isSandbox: true,
+            pacUrl: 'https://pruebas.timbracfdi33.mx/Timbrado.asmx',
+            modo: 'Sandbox'
+        };
+    }
+    const isSandbox = Boolean(emisor?.modo_prueba);
+    return {
+        isSandbox,
+        pacUrl: isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx',
+        modo: isSandbox ? 'Sandbox' : 'Producción'
+    };
+};
+
 export const timbrarPAC = async (xmlFirmado, emisor) => {
     console.log(`[CFDI Service] Iniciando timbrado SOAP con PAC Profact...`);
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
     
     // Limpieza estricta: asegurar que no haya el prólogo XML antes de Base64
@@ -515,8 +544,7 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
  * Consulta de folios / timbres disponibles del PAC Profact (SOAP ObtieneTimbresDisponibles)
  */
 export const getCreditosDisponibles = async (emisor) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
     
     if (!pacToken) {
@@ -594,8 +622,7 @@ export const getCreditosDisponibles = async (emisor) => {
  * Registra o actualiza al emisor y su CSD en el PAC Profact (SOAP RegistraEmisor)
  */
 export const registrarEmisorPAC = async (emisor, customPassword = null) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
 
     if (!pacToken) {
@@ -691,8 +718,7 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
  * Asigna una cantidad de timbres al emisor en el PAC (SOAP AsignaTimbresEmisor)
  */
 export const asignarTimbresPAC = async (emisor, noTimbres) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
 
     const cant = parseInt(noTimbres, 10);
@@ -738,8 +764,7 @@ export const asignarTimbresPAC = async (emisor, noTimbres) => {
  * Consulta el estatus ante el SAT directamente mediante el PAC (SOAP ConsultaEstatusSat)
  */
 export const consultarStatusSatPAC = async (emisor, folioUUID) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
 
     if (!folioUUID) {
@@ -784,8 +809,7 @@ export const consultarStatusSatPAC = async (emisor, folioUUID) => {
  * Consulta peticiones pendientes de cancelación en el SAT (SOAP ConsultaPeticionesPendientesCFDI)
  */
 export const consultarPeticionesPendientesPAC = async (emisor) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
 
     const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ConsultaPeticionesPendientesCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcReceptor>${emisor.rfc}</rfcReceptor></ConsultaPeticionesPendientesCFDI></s:Body></s:Envelope>`;
@@ -825,8 +849,7 @@ export const consultarPeticionesPendientesPAC = async (emisor) => {
  * Diagnóstico y prueba de conectividad con el PAC (Ping & Latencia)
  */
 export const testConexionPACService = async (emisor) => {
-    const isSandbox = emisor.modo_prueba;
-    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
     const pacToken = process.env.PAC_PROFACT_USER || '';
 
     const startTime = Date.now();

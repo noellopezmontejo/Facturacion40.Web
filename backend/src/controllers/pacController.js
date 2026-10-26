@@ -18,13 +18,29 @@ import { Op } from 'sequelize';
  */
 export const getResumenCuentaIntegrador = async (req, res) => {
     try {
-        // Buscar un emisor de referencia (cualquiera activo) para consultar el saldo maestro
-        let emisorRef = await Emisor.findOne({ order: [['id', 'ASC']] });
+        const rfcIntegrador = process.env.PAC_RFC_INTEGRADOR || 'LOMC791127F35';
+        
+        // Priorizar el emisor del RFC integrador configurado, el id en query o el primer emisor en producción
+        let emisorRef = null;
+        if (req.query.emisor_id) {
+            emisorRef = await Emisor.findByPk(req.query.emisor_id);
+        }
         if (!emisorRef) {
-            emisorRef = { rfc: 'AAA010101AAA', modo_prueba: false };
+            emisorRef = await Emisor.findOne({ where: { rfc: rfcIntegrador } });
+        }
+        if (!emisorRef) {
+            emisorRef = await Emisor.findOne({ where: { modo_prueba: false } });
+        }
+        if (!emisorRef) {
+            emisorRef = await Emisor.findOne({ order: [['id', 'ASC']] });
         }
 
-        const pacResult = await getCreditosDisponibles(emisorRef);
+        const emisorParaConsulta = {
+            rfc: emisorRef?.rfc || rfcIntegrador,
+            modo_prueba: emisorRef ? Boolean(emisorRef.modo_prueba) : false
+        };
+
+        const pacResult = await getCreditosDisponibles(emisorParaConsulta);
         
         // Total de emisores y folios asignados localmente
         const totalEmisores = await Emisor.count();
@@ -185,15 +201,19 @@ export const asignarFoliosAEmisor = async (req, res) => {
 export const testConexionGlobal = async (req, res) => {
     try {
         const { emisor_id } = req.query;
+        const rfcIntegrador = process.env.PAC_RFC_INTEGRADOR || 'LOMC791127F35';
         let emisor = null;
         if (emisor_id) {
             emisor = await Emisor.findByPk(emisor_id);
         }
         if (!emisor) {
-            emisor = await Emisor.findOne();
+            emisor = await Emisor.findOne({ where: { rfc: rfcIntegrador } });
         }
         if (!emisor) {
-            emisor = { rfc: 'AAA010101AAA', modo_prueba: false };
+            emisor = await Emisor.findOne({ where: { modo_prueba: false } });
+        }
+        if (!emisor) {
+            emisor = { rfc: rfcIntegrador, modo_prueba: false };
         }
 
         const result = await testConexionPACService(emisor);

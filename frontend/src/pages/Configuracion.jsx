@@ -632,11 +632,16 @@ export const Configuracion = () => {
 
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
                             <div>
-                                <div className="flex items-center gap-2 mb-2">
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
                                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 flex items-center gap-1 shadow-xs">
                                         <Zap className="w-3 h-3 fill-current" /> Cuenta Integradora PAC
                                     </span>
                                     <span className="text-xs text-indigo-200/80 font-mono">PROFACT SAT No. 58073</span>
+                                    {pacResumen?.rfc_cuenta && (
+                                        <span className="text-[11px] font-mono font-bold bg-white/10 px-2 py-0.5 rounded border border-white/10 text-amber-200">
+                                            RFC: {pacResumen.rfc_cuenta}
+                                        </span>
+                                    )}
                                 </div>
                                 <h2 className="text-2xl font-black tracking-tight">
                                     Bolsa Maestra de Timbres Fiscales SAT
