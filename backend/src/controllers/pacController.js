@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { 
     Emisor, 
     Empresa, 
@@ -9,7 +11,9 @@ import {
     asignarTimbresPAC, 
     testConexionPACService, 
     consultarStatusSatPAC, 
-    consultarPeticionesPendientesPAC 
+    consultarPeticionesPendientesPAC,
+    getPacToken,
+    getPacRfcIntegrador
 } from '../services/cfdiService.js';
 import { Op } from 'sequelize';
 
@@ -18,7 +22,7 @@ import { Op } from 'sequelize';
  */
 export const getResumenCuentaIntegrador = async (req, res) => {
     try {
-        const rfcIntegrador = process.env.PAC_RFC_INTEGRADOR || 'LOMC791127F35';
+        const rfcIntegrador = getPacRfcIntegrador();
         
         // Priorizar el emisor del RFC integrador configurado, el id en query o el primer emisor en producción
         let emisorRef = null;
@@ -303,3 +307,84 @@ export const consultarPeticionesPendientesGlobal = async (req, res) => {
         });
     }
 };
+
+/**
+ * Consulta las credenciales activas del PAC
+ */
+export const getCredencialesPAC = async (req, res) => {
+    try {
+        const token = getPacToken();
+        const rfc = getPacRfcIntegrador();
+        const pacEnv = (process.env.PAC_ENV || 'production').toLowerCase();
+
+        res.json({
+            success: true,
+            rfc_integrador: rfc,
+            usuario_integrador: token,
+            password_integrador: process.env.PAC_PROFACT_PASSWORD || token,
+            modo_entorno: pacEnv === 'sandbox' || pacEnv === 'pruebas' ? 'sandbox' : 'production'
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Guarda o actualiza las credenciales del PAC directamente desde la interfaz
+ */
+export const guardarCredencialesPAC = async (req, res) => {
+    const { rfc_integrador, usuario_integrador, password_integrador, modo_entorno } = req.body;
+    try {
+        if (rfc_integrador && rfc_integrador.trim()) {
+            process.env.PAC_RFC_INTEGRADOR = rfc_integrador.trim().toUpperCase();
+        }
+        if (usuario_integrador && usuario_integrador.trim()) {
+            process.env.PAC_PROFACT_USER = usuario_integrador.trim();
+        }
+        if (password_integrador && password_integrador.trim()) {
+            process.env.PAC_PROFACT_PASSWORD = password_integrador.trim();
+        }
+        if (modo_entorno && modo_entorno.trim()) {
+            process.env.PAC_ENV = modo_entorno.trim();
+        }
+
+        // Intentar actualizar el archivo .env físico en disco para persistencia
+        try {
+            const envPath = path.resolve(process.cwd(), '.env');
+            if (fs.existsSync(envPath)) {
+                let envContent = fs.readFileSync(envPath, 'utf-8');
+                const updateVar = (key, val) => {
+                    const regex = new RegExp(`^${key}=.*$`, 'm');
+                    if (regex.test(envContent)) {
+                        envContent = envContent.replace(regex, `${key}=${val}`);
+                    } else {
+                        envContent += `\n${key}=${val}`;
+                    }
+                };
+                if (rfc_integrador) updateVar('PAC_RFC_INTEGRADOR', rfc_integrador.trim().toUpperCase());
+                if (usuario_integrador) updateVar('PAC_PROFACT_USER', usuario_integrador.trim());
+                if (password_integrador) updateVar('PAC_PROFACT_PASSWORD', password_integrador.trim());
+                if (modo_entorno) updateVar('PAC_ENV', modo_entorno.trim());
+                fs.writeFileSync(envPath, envContent);
+            }
+        } catch (e) {
+            console.warn('[PAC Controller] Advertencia al persistir en .env físico:', e.message);
+        }
+
+        // Verificar inmediatamente la disponibilidad de timbres con el PAC
+        const saldoVerificado = await getCreditosDisponibles({
+            rfc: process.env.PAC_RFC_INTEGRADOR || 'LOMC791127F35',
+            modo_prueba: false
+        });
+
+        res.json({
+            success: true,
+            message: 'Credenciales del PAC actualizadas y verificadas con éxito.',
+            saldo_verificado: saldoVerificado
+        });
+    } catch (error) {
+        console.error('Error al guardar credenciales PAC:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+

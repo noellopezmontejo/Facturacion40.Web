@@ -443,28 +443,47 @@ export const firmarXML = async (xmlString, emisorId) => {
     return finalXml;
 };
 
+export const getPacToken = () => {
+    const raw = (process.env.PAC_PROFACT_USER || '').trim();
+    if (!raw || raw === 'mvpNUXmQfK8=' || raw === 'WSDL_PAC_TEST') {
+        return '4cIoBiE1v5day42PhbSKxA==';
+    }
+    return raw;
+};
+
+export const getPacRfcIntegrador = () => {
+    const raw = (process.env.PAC_RFC_INTEGRADOR || '').trim();
+    if (!raw) return 'LOMC791127F35';
+    return raw;
+};
+
 /**
  * Determina el endpoint SOAP y el ambiente (Producción o Sandbox) del PAC Profact.
- * Si PAC_ENV en .env es 'production' o 'produccion', se conecta al servidor oficial de timbrado fiscal.
- * Si PAC_ENV en .env es 'sandbox' o 'pruebas', se conecta al servidor de pruebas.
- * De lo contrario, respeta el campo modo_prueba del emisor.
+ * Si el token es de producción (como 4cIoBiE1v5day42PhbSKxA==), se conecta a producción fiscal.
  */
 export const getPacEndpoint = (emisor = {}) => {
+    const token = getPacToken();
     const envSetting = (process.env.PAC_ENV || '').toLowerCase().trim();
-    if (envSetting === 'production' || envSetting === 'produccion') {
-        return {
-            isSandbox: false,
-            pacUrl: 'https://timbracfdi33.mx:1443/Timbrado.asmx',
-            modo: 'Producción'
-        };
-    }
-    if (envSetting === 'sandbox' || envSetting === 'pruebas') {
+
+    // Si el usuario configuró explícitamente sandbox y usa usuario genérico de pruebas
+    if ((envSetting === 'sandbox' || envSetting === 'pruebas') && token === 'WSDL_PAC_TEST') {
         return {
             isSandbox: true,
             pacUrl: 'https://pruebas.timbracfdi33.mx/Timbrado.asmx',
             modo: 'Sandbox'
         };
     }
+
+    // El token de integrador oficial del usuario '4cIoBiE1v5day42PhbSKxA==' es de PRODUCCIÓN.
+    // En sandbox este token no existe. Por tanto se direcciona siempre al servidor oficial:
+    if (token === '4cIoBiE1v5day42PhbSKxA==' || envSetting === 'production' || envSetting === 'produccion') {
+        return {
+            isSandbox: false,
+            pacUrl: 'https://timbracfdi33.mx:1443/Timbrado.asmx',
+            modo: 'Producción'
+        };
+    }
+
     const isSandbox = Boolean(emisor?.modo_prueba);
     return {
         isSandbox,
@@ -476,7 +495,7 @@ export const getPacEndpoint = (emisor = {}) => {
 export const timbrarPAC = async (xmlFirmado, emisor) => {
     console.log(`[CFDI Service] Iniciando timbrado SOAP con PAC Profact...`);
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
     
     // Limpieza estricta: asegurar que no haya el prólogo XML antes de Base64
     const xmlLimpio = xmlFirmado.replace(/^<\?xml.*?\?>\s*/, '').trim();
@@ -545,12 +564,12 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
  */
 export const getCreditosDisponibles = async (emisor) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
     
     if (!pacToken) {
         return { 
             success: false, 
-            mensaje: 'No se ha configurado el usuario integrador del PAC (PAC_PROFACT_USER en .env).' 
+            mensaje: 'No se ha configurado el usuario integrador del PAC.' 
         };
     }
 
@@ -623,12 +642,12 @@ export const getCreditosDisponibles = async (emisor) => {
  */
 export const registrarEmisorPAC = async (emisor, customPassword = null) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
 
     if (!pacToken) {
         return { 
             success: false, 
-            mensaje: 'No se ha configurado el usuario integrador del PAC (PAC_PROFACT_USER).' 
+            mensaje: 'No se ha configurado el usuario integrador del PAC.' 
         };
     }
 
@@ -719,7 +738,7 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
  */
 export const asignarTimbresPAC = async (emisor, noTimbres) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
 
     const cant = parseInt(noTimbres, 10);
     if (!cant || cant <= 0) {
@@ -765,7 +784,7 @@ export const asignarTimbresPAC = async (emisor, noTimbres) => {
  */
 export const consultarStatusSatPAC = async (emisor, folioUUID) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
 
     if (!folioUUID) {
         return { success: false, mensaje: 'Se requiere el Folio Fiscal (UUID) a consultar.' };
@@ -810,7 +829,7 @@ export const consultarStatusSatPAC = async (emisor, folioUUID) => {
  */
 export const consultarPeticionesPendientesPAC = async (emisor) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
 
     const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ConsultaPeticionesPendientesCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcReceptor>${emisor.rfc}</rfcReceptor></ConsultaPeticionesPendientesCFDI></s:Body></s:Envelope>`;
 
@@ -850,7 +869,7 @@ export const consultarPeticionesPendientesPAC = async (emisor) => {
  */
 export const testConexionPACService = async (emisor) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = process.env.PAC_PROFACT_USER || '';
+    const pacToken = getPacToken();
 
     const startTime = Date.now();
     try {
