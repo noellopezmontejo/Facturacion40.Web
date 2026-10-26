@@ -1,5 +1,24 @@
 import { Router } from 'express';
-import { getEmisores, createEmisor, updateEmisor, deleteEmisor, uploadCSD, uploadLogoEmisor, upload, getSeries, getPreviewPDF, upsertSerie, deleteSerie, getCreditos, getEmisorTotalAnual } from '../controllers/emisorController.js';
+import { 
+    getEmisores, 
+    createEmisor, 
+    updateEmisor, 
+    deleteEmisor, 
+    uploadCSD, 
+    uploadLogoEmisor, 
+    upload, 
+    getSeries, 
+    getPreviewPDF, 
+    upsertSerie, 
+    deleteSerie, 
+    getCreditos, 
+    getEmisorTotalAnual,
+    registrarEmisorEnPAC,
+    asignarFoliosPAC,
+    testConexionPAC,
+    consultarStatusSatPACController,
+    consultarPeticionesPendientesPACController
+} from '../controllers/emisorController.js';
 import { verifyToken, checkEmisorPermission } from '../middleware/auth.js';
 
 const router = Router();
@@ -24,4 +43,13 @@ router.post('/:id/preview-pdf', getPreviewPDF);
 router.get('/:id/creditos', getCreditos);
 router.get('/:id/total-anual', getEmisorTotalAnual);
 
+// Rutas de Operaciones y Servicios PAC SAT
+router.get('/:id/pac/folios', getCreditos);
+router.post('/:id/pac/registrar', registrarEmisorEnPAC);
+router.post('/:id/pac/asignar-folios', asignarFoliosPAC);
+router.get('/:id/pac/test-conexion', testConexionPAC);
+router.post('/:id/pac/consulta-sat', consultarStatusSatPACController);
+router.get('/:id/pac/peticiones-pendientes', consultarPeticionesPendientesPACController);
+
 export default router;
+

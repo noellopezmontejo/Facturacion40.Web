@@ -511,20 +511,349 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
     }
 };
 
+/**
+ * Consulta de folios / timbres disponibles del PAC Profact (SOAP ObtieneTimbresDisponibles)
+ */
 export const getCreditosDisponibles = async (emisor) => {
     const isSandbox = emisor.modo_prueba;
     const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
     const pacToken = process.env.PAC_PROFACT_USER || '';
+    
+    if (!pacToken) {
+        return { 
+            success: false, 
+            mensaje: 'No se ha configurado el usuario integrador del PAC (PAC_PROFACT_USER en .env).' 
+        };
+    }
+
     const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ObtieneTimbresDisponibles xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor></ObtieneTimbresDisponibles></s:Body></s:Envelope>`;
+    
     try {
-        const response = await axios.post(pacUrl, soapEnvelope, { headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': 'http://tempuri.org/ObtieneTimbresDisponibles' } });
-        const resultJson = await parseStringPromise(response.data, { explicitArray: false, tagNameProcessors: [name => name.replace(/.*:/, '')] });
+        const startTime = Date.now();
+        const response = await axios.post(pacUrl, soapEnvelope, { 
+            headers: { 
+                'Content-Type': 'text/xml;charset=UTF-8', 
+                'SOAPAction': 'http://tempuri.org/ObtieneTimbresDisponibles' 
+            },
+            timeout: 15000
+        });
+        const latencyMs = Date.now() - startTime;
+
+        const resultJson = await parseStringPromise(response.data, { 
+            explicitArray: false, 
+            tagNameProcessors: [name => name.replace(/.*:/, '')] 
+        });
         const resNode = resultJson.Envelope?.Body?.ObtieneTimbresDisponiblesResponse?.ObtieneTimbresDisponiblesResult?.anyType;
-        if (!resNode) return { success: false, mensaje: 'Sin respuesta del PAC' };
-        const vals = resNode.map(v => (typeof v === 'object' ? v._ : v) || '');
-        return { success: vals[0].toUpperCase() === 'OK', creditos: parseInt(vals.find(v => !isNaN(v) && v > 0) || 0) };
-    } catch (error) { return { success: false, mensaje: error.message }; }
+        
+        if (!resNode) return { success: false, mensaje: 'Sin respuesta estructurada del PAC' };
+        
+        const vals = (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '');
+        const tipoCuenta = (vals[0] || '').trim();
+        const codigo = (vals[1] || '').trim();
+        const mensaje = (vals[2] || '').trim();
+
+        const timbresTotales = parseInt(vals[3], 10) || 0;
+        const timbresUsados = parseInt(vals[4], 10) || 0;
+        const timbresDisponibles = parseInt(vals[5], 10) || parseInt(vals[3], 10) || 0;
+        const timbresEmisor = parseInt(vals[6], 10) || 0;
+
+        const isSuccess = codigo === '0' || tipoCuenta.toUpperCase() === 'OK' || tipoCuenta.toUpperCase() === 'INTEGRADORES';
+
+        if (isSuccess && typeof emisor.update === 'function') {
+            await emisor.update({ ultimos_folios_pac: timbresDisponibles }).catch(() => {});
+        }
+
+        return {
+            success: isSuccess,
+            creditos: timbresDisponibles,
+            disponibles: timbresDisponibles,
+            utilizados: timbresUsados,
+            totales: timbresTotales,
+            timbres_emisor: timbresEmisor,
+            codigo,
+            mensaje,
+            tipo_cuenta: tipoCuenta || 'Integrador',
+            modo_prueba: isSandbox,
+            pac_nombre: 'PROFACT (PAC SAT Autorizado No. 58073)',
+            pac_url: pacUrl,
+            latencia_ms: latencyMs,
+            emisor_rfc: emisor.rfc
+        };
+    } catch (error) {
+        console.error('[CFDI Service] Error en getCreditosDisponibles:', error.message);
+        return { 
+            success: false, 
+            mensaje: `Error al contactar con el PAC: ${error.message}`,
+            pac_url: pacUrl,
+            modo_prueba: isSandbox
+        };
+    }
 };
+
+/**
+ * Registra o actualiza al emisor y su CSD en el PAC Profact (SOAP RegistraEmisor)
+ */
+export const registrarEmisorPAC = async (emisor, customPassword = null) => {
+    const isSandbox = emisor.modo_prueba;
+    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const pacToken = process.env.PAC_PROFACT_USER || '';
+
+    if (!pacToken) {
+        return { 
+            success: false, 
+            mensaje: 'No se ha configurado el usuario integrador del PAC (PAC_PROFACT_USER).' 
+        };
+    }
+
+    const cerPath = getCerPath(emisor.rfc);
+    const keyPath = getKeyPath(emisor.rfc);
+
+    if (!fs.existsSync(cerPath) || !fs.existsSync(keyPath)) {
+        return {
+            success: false,
+            mensaje: `No se encontraron los archivos CSD para el RFC ${emisor.rfc}. Por favor carga primero el Certificado (.cer) y la Llave Privada (.key) en la sección CSD.`
+        };
+    }
+
+    const passwordCsd = customPassword || emisor.password_csd;
+    if (!passwordCsd) {
+        return {
+            success: false,
+            mensaje: 'Se requiere la contraseña de la llave privada CSD para registrar al emisor en el PAC.'
+        };
+    }
+
+    const cerBase64 = fs.readFileSync(cerPath).toString('base64');
+    const keyBase64 = fs.readFileSync(keyPath).toString('base64');
+
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><RegistraEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor><base64Cer>${cerBase64}</base64Cer><base64Key>${keyBase64}</base64Key><contrasena>${passwordCsd}</contrasena></RegistraEmisor></s:Body></s:Envelope>`;
+
+    try {
+        console.log(`[CFDI Service] Registrando emisor ${emisor.rfc} en el PAC (${isSandbox ? 'Sandbox' : 'Producción'})...`);
+        const response = await axios.post(pacUrl, soapEnvelope, {
+            headers: {
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'SOAPAction': 'http://tempuri.org/RegistraEmisor'
+            },
+            timeout: 30000
+        });
+
+        const resultJson = await parseStringPromise(response.data, {
+            explicitArray: false,
+            tagNameProcessors: [name => name.replace(/.*:/, '')]
+        });
+
+        const resNode = resultJson.Envelope?.Body?.RegistraEmisorResponse?.RegistraEmisorResult?.anyType;
+        if (!resNode) {
+            return { success: false, mensaje: 'Respuesta vacía del PAC al registrar emisor.' };
+        }
+
+        const vals = (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '');
+        const tipo = (vals[0] || '').trim();
+        const codigo = (vals[1] || '').trim();
+        const mensaje = (vals[2] || 'Emisor registrado satisfactoriamente en el PAC.').trim();
+
+        const isSuccess = codigo === '0' || tipo.toUpperCase() === 'OK' || tipo.toUpperCase() === 'INTEGRADORES';
+
+        if (isSuccess) {
+            if (typeof emisor.update === 'function') {
+                await emisor.update({
+                    registrado_pac: true,
+                    fecha_registro_pac: new Date()
+                }).catch(() => {});
+            }
+            return {
+                success: true,
+                mensaje: `El emisor ${emisor.rfc} fue registrado exitosamente en el PAC. Ya está facultado para emitir y timbrar facturas CFDI 4.0.`,
+                codigo,
+                tipo,
+                fecha_registro: new Date()
+            };
+        } else {
+            return {
+                success: false,
+                mensaje: `PAC Error [${codigo}]: ${mensaje}`,
+                codigo,
+                tipo
+            };
+        }
+    } catch (error) {
+        console.error('[CFDI Service] Error en registrarEmisorPAC:', error.message);
+        return {
+            success: false,
+            mensaje: `Error de conexión con el PAC: ${error.message}`
+        };
+    }
+};
+
+/**
+ * Asigna una cantidad de timbres al emisor en el PAC (SOAP AsignaTimbresEmisor)
+ */
+export const asignarTimbresPAC = async (emisor, noTimbres) => {
+    const isSandbox = emisor.modo_prueba;
+    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const pacToken = process.env.PAC_PROFACT_USER || '';
+
+    const cant = parseInt(noTimbres, 10);
+    if (!cant || cant <= 0) {
+        return { success: false, mensaje: 'La cantidad de timbres a asignar debe ser un número entero mayor a 0.' };
+    }
+
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><AsignaTimbresEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor><noTimbres>${cant}</noTimbres></AsignaTimbresEmisor></s:Body></s:Envelope>`;
+
+    try {
+        const response = await axios.post(pacUrl, soapEnvelope, {
+            headers: {
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'SOAPAction': 'http://tempuri.org/AsignaTimbresEmisor'
+            },
+            timeout: 20000
+        });
+
+        const resultJson = await parseStringPromise(response.data, {
+            explicitArray: false,
+            tagNameProcessors: [name => name.replace(/.*:/, '')]
+        });
+
+        const resNode = resultJson.Envelope?.Body?.AsignaTimbresEmisorResponse?.AsignaTimbresEmisorResult?.anyType;
+        if (!resNode) return { success: false, mensaje: 'Sin respuesta del PAC al asignar timbres.' };
+
+        const vals = (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '');
+        const codigo = (vals[1] || '').trim();
+        const mensaje = (vals[2] || '').trim();
+        const isSuccess = codigo === '0' || (vals[0] || '').toUpperCase() === 'OK';
+
+        return {
+            success: isSuccess,
+            mensaje: isSuccess ? `Se asignaron correctamente ${cant} timbres al emisor ${emisor.rfc} en el PAC.` : `Error PAC [${codigo}]: ${mensaje}`,
+            codigo
+        };
+    } catch (error) {
+        return { success: false, mensaje: `Error al asignar timbres en PAC: ${error.message}` };
+    }
+};
+
+/**
+ * Consulta el estatus ante el SAT directamente mediante el PAC (SOAP ConsultaEstatusSat)
+ */
+export const consultarStatusSatPAC = async (emisor, folioUUID) => {
+    const isSandbox = emisor.modo_prueba;
+    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const pacToken = process.env.PAC_PROFACT_USER || '';
+
+    if (!folioUUID) {
+        return { success: false, mensaje: 'Se requiere el Folio Fiscal (UUID) a consultar.' };
+    }
+
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ConsultaEstatusSat xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><folioUUID>${folioUUID.trim()}</folioUUID></ConsultaEstatusSat></s:Body></s:Envelope>`;
+
+    try {
+        const response = await axios.post(pacUrl, soapEnvelope, {
+            headers: {
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'SOAPAction': 'http://tempuri.org/ConsultaEstatusSat'
+            },
+            timeout: 20000
+        });
+
+        const resultJson = await parseStringPromise(response.data, {
+            explicitArray: false,
+            tagNameProcessors: [name => name.replace(/.*:/, '')]
+        });
+
+        const resNode = resultJson.Envelope?.Body?.ConsultaEstatusSatResponse?.ConsultaEstatusSatResult?.anyType;
+        if (!resNode) return { success: false, mensaje: 'Sin respuesta del PAC.' };
+
+        const vals = (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '');
+        return {
+            success: true,
+            uuid: folioUUID,
+            estado_sat: vals[0] || 'Vigente',
+            codigo_estatus: vals[1] || '',
+            es_cancelable: vals[2] || '',
+            estatus_cancelacion: vals[3] || '',
+            detalles: vals
+        };
+    } catch (error) {
+        return { success: false, mensaje: `Error consultando estatus SAT en el PAC: ${error.message}` };
+    }
+};
+
+/**
+ * Consulta peticiones pendientes de cancelación en el SAT (SOAP ConsultaPeticionesPendientesCFDI)
+ */
+export const consultarPeticionesPendientesPAC = async (emisor) => {
+    const isSandbox = emisor.modo_prueba;
+    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const pacToken = process.env.PAC_PROFACT_USER || '';
+
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ConsultaPeticionesPendientesCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcReceptor>${emisor.rfc}</rfcReceptor></ConsultaPeticionesPendientesCFDI></s:Body></s:Envelope>`;
+
+    try {
+        const response = await axios.post(pacUrl, soapEnvelope, {
+            headers: {
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'SOAPAction': 'http://tempuri.org/ConsultaPeticionesPendientesCFDI'
+            },
+            timeout: 20000
+        });
+
+        const resultJson = await parseStringPromise(response.data, {
+            explicitArray: false,
+            tagNameProcessors: [name => name.replace(/.*:/, '')]
+        });
+
+        const resNode = resultJson.Envelope?.Body?.ConsultaPeticionesPendientesCFDIResponse?.ConsultaPeticionesPendientesCFDIResult?.anyType;
+        const vals = resNode ? (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '') : [];
+
+        const peticiones = vals.filter(v => v && typeof v === 'string' && v.length > 10 && v.includes('-'));
+
+        return {
+            success: true,
+            emisor_rfc: emisor.rfc,
+            peticiones,
+            total_pendientes: peticiones.length,
+            raw: vals
+        };
+    } catch (error) {
+        return { success: false, mensaje: `Error consultando peticiones: ${error.message}`, peticiones: [] };
+    }
+};
+
+/**
+ * Diagnóstico y prueba de conectividad con el PAC (Ping & Latencia)
+ */
+export const testConexionPACService = async (emisor) => {
+    const isSandbox = emisor.modo_prueba;
+    const pacUrl = isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx';
+    const pacToken = process.env.PAC_PROFACT_USER || '';
+
+    const startTime = Date.now();
+    try {
+        const response = await axios.get(`${pacUrl}?WSDL`, { timeout: 8000 });
+        const latencyMs = Date.now() - startTime;
+
+        return {
+            success: response.status === 200,
+            pac_nombre: 'PROFACT (PAC SAT Autorizado No. 58073)',
+            pac_url: pacUrl,
+            modo: isSandbox ? 'Pruebas / Sandbox' : 'Producción',
+            latencia_ms: latencyMs,
+            token_configurado: !!pacToken,
+            token_length: pacToken ? pacToken.length : 0,
+            servicios_activos: ['Timbrado CFDI 4.0', 'Obtiene Timbres', 'Registro de Emisores', 'Cancelación SAT']
+        };
+    } catch (error) {
+        return {
+            success: false,
+            pac_nombre: 'PROFACT',
+            pac_url: pacUrl,
+            error: error.message,
+            latencia_ms: Date.now() - startTime
+        };
+    }
+};
+
 
 export const generarXMLPago = async (pago, emisor, receptor, doctosRelacionados) => {
     console.log(`[CFDI Service] Generando XML Pago 2.0 (Deep Fix V3.1) para Pago ID: ${pago.id}`);

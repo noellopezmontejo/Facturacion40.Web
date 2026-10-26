@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { sequelize } from './config/database.js';
 import * as models from './models/index.js';
+import { ensurePacColumns } from './utils/initPacColumns.js';
 
 dotenv.config();
 
@@ -143,6 +144,7 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     // Auto-create missing tables
     await sequelize.sync({ alter: false });
+    await ensurePacColumns();
     console.log('Database tables verified / synchronized.');
 
     // Auto-seed initial roles and admin user if fresh database

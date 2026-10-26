@@ -20,6 +20,9 @@ export const Emisor = sequelize.define('Emisor', {
     password_csd: { type: DataTypes.STRING },
     modo_prueba: { type: DataTypes.BOOLEAN, defaultValue: true },
     es_agapes: { type: DataTypes.BOOLEAN, defaultValue: false },
+    registrado_pac: { type: DataTypes.BOOLEAN, defaultValue: false },
+    fecha_registro_pac: { type: DataTypes.DATE, allowNull: true },
+    ultimos_folios_pac: { type: DataTypes.INTEGER, defaultValue: 0 },
 }, {
     tableName: 'emisores',
     timestamps: true

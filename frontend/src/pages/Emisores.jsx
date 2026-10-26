@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw } from 'lucide-react';
+import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
+
 import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
 
 const PLANTILLAS_PDF = [
@@ -100,6 +101,26 @@ export const Emisores = () => {
     const [tiposDocOpt, setTiposDocOpt] = useState([]);
     const [newSerie, setNewSerie] = useState({ serie: '', ultimo_folio: 0, tipo_documento_id: '' });
 
+    // Estados para Operaciones y Servicios PAC SAT (Profact)
+    const [pacData, setPacData] = useState({
+        timbres: null,
+        loadingTimbres: false,
+        registrando: false,
+        asignando: false,
+        probandoConexion: false,
+        conexionResultado: null
+    });
+    const [foliosToAssign, setFoliosToAssign] = useState(100);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [satUuidQuery, setSatUuidQuery] = useState('');
+    const [satStatusResult, setSatStatusResult] = useState(null);
+    const [loadingSatStatus, setLoadingSatStatus] = useState(false);
+    const [showSatModal, setShowSatModal] = useState(false);
+    const [showPeticionesModal, setShowPeticionesModal] = useState(false);
+    const [peticionesResult, setPeticionesResult] = useState(null);
+    const [loadingPeticiones, setLoadingPeticiones] = useState(false);
+    const [showConfirmPACRegModal, setShowConfirmPACRegModal] = useState(false);
+
     // Fetch emisores list
     const fetchEmisores = async () => {
         setLoadingList(true);
@@ -183,6 +204,8 @@ export const Emisores = () => {
             setRemoveLogo(false);
             fetchEstilo(selectedEmisor.id);
             fetchSeries(selectedEmisor.id);
+            fetchPacFolios(selectedEmisor.id);
+            setPacData(prev => ({ ...prev, conexionResultado: null }));
         }
     }, [selectedEmisor]);
 
@@ -412,6 +435,155 @@ export const Emisores = () => {
             console.error("Error fetching series", error);
         }
     };
+
+    // Funciones de Operaciones PAC SAT (Profact)
+    const fetchPacFolios = async (emisorId) => {
+        if (!emisorId) return;
+        setPacData(prev => ({ ...prev, loadingTimbres: true }));
+        try {
+            const res = await api.get(`/emisores/${emisorId}/pac/folios`);
+            if (res.data) {
+                setPacData(prev => ({
+                    ...prev,
+                    timbres: res.data,
+                    loadingTimbres: false
+                }));
+                setSelectedEmisor(prev => prev ? ({
+                    ...prev,
+                    ultimos_folios_pac: res.data.disponibles ?? prev.ultimos_folios_pac
+                }) : prev);
+            }
+        } catch (error) {
+            console.error('Error al consultar folios PAC:', error);
+            setPacData(prev => ({ ...prev, loadingTimbres: false }));
+        }
+    };
+
+    const handleRegistrarPAC = async () => {
+        if (!selectedEmisor) return;
+
+        // Validar CSD
+        const hasCer = selectedEmisor.certificado_path || csdFiles.certificado;
+        const hasKey = selectedEmisor.llave_privada_path || csdFiles.llave_privada;
+
+        if (!hasCer || !hasKey) {
+            showToast('Para registrar el emisor en el PAC, debes cargar primero los archivos de Certificado (.cer) y Llave (.key)', 'error');
+            return;
+        }
+
+        setPacData(prev => ({ ...prev, registrando: true }));
+        try {
+            const res = await api.post(`/emisores/${selectedEmisor.id}/pac/registrar`, {
+                password_csd: formData.password_csd || undefined
+            });
+            showToast(res.data?.message || '✅ Emisor registrado y sincronizado en el PAC SAT con éxito');
+            setSelectedEmisor(prev => prev ? ({
+                ...prev,
+                registrado_pac: true,
+                fecha_registro_pac: new Date().toISOString()
+            }) : prev);
+            setShowConfirmPACRegModal(false);
+            fetchPacFolios(selectedEmisor.id);
+            fetchEmisores();
+        } catch (error) {
+            console.error('Error al registrar emisor en PAC:', error);
+            const msg = error.response?.data?.message || error.response?.data?.error || 'Error al comunicar con el PAC SAT';
+            showToast(`❌ ${msg}`, 'error');
+        } finally {
+            setPacData(prev => ({ ...prev, registrando: false }));
+        }
+    };
+
+    const handleAsignarFoliosPAC = async (e) => {
+        if (e) e.preventDefault();
+        if (!selectedEmisor || !foliosToAssign || foliosToAssign <= 0) {
+            showToast('Indica una cantidad de folios mayor a 0', 'warning');
+            return;
+        }
+        setPacData(prev => ({ ...prev, asignando: true }));
+        try {
+            const res = await api.post(`/emisores/${selectedEmisor.id}/pac/asignar-folios`, {
+                no_timbres: Number(foliosToAssign)
+            });
+            showToast(res.data?.message || `✅ Se asignaron ${foliosToAssign} folios exitosamente`);
+            setShowAssignModal(false);
+            fetchPacFolios(selectedEmisor.id);
+            fetchEmisores();
+        } catch (error) {
+            console.error('Error al asignar folios PAC:', error);
+            const msg = error.response?.data?.message || 'Error al asignar folios en el PAC';
+            showToast(`❌ ${msg}`, 'error');
+        } finally {
+            setPacData(prev => ({ ...prev, asignando: false }));
+        }
+    };
+
+    const handleTestConexionPAC = async () => {
+        if (!selectedEmisor) return;
+        setPacData(prev => ({ ...prev, probandoConexion: true, conexionResultado: null }));
+        try {
+            const res = await api.get(`/emisores/${selectedEmisor.id}/pac/test-conexion`);
+            setPacData(prev => ({ ...prev, conexionResultado: res.data, probandoConexion: false }));
+            if (res.data?.success) {
+                showToast(`⚡ Conexión exitosa con el PAC (${res.data.latencia_ms} ms)`);
+            } else {
+                showToast(`⚠️ ${res.data?.message || 'Fallo de conexión'}`, 'warning');
+            }
+        } catch (error) {
+            console.error('Error test conexion PAC:', error);
+            const msg = error.response?.data?.message || 'Error al contactar PAC';
+            setPacData(prev => ({ 
+                ...prev, 
+                probandoConexion: false, 
+                conexionResultado: { success: false, message: msg } 
+            }));
+            showToast(`❌ ${msg}`, 'error');
+        }
+    };
+
+    const handleConsultarSatUUID = async (e) => {
+        if (e) e.preventDefault();
+        if (!satUuidQuery || satUuidQuery.trim().length < 10) {
+            showToast('Ingresa un UUID fiscal SAT válido (36 caracteres)', 'warning');
+            return;
+        }
+        setLoadingSatStatus(true);
+        setSatStatusResult(null);
+        try {
+            const res = await api.post(`/emisores/${selectedEmisor.id}/pac/consulta-sat`, {
+                uuid: satUuidQuery.trim()
+            });
+            setSatStatusResult(res.data);
+        } catch (error) {
+            console.error('Error al consultar estatus SAT:', error);
+            setSatStatusResult({
+                success: false,
+                error: error.response?.data?.message || 'No fue posible consultar el UUID'
+            });
+        } finally {
+            setLoadingSatStatus(false);
+        }
+    };
+
+    const handleConsultarPeticionesSAT = async () => {
+        if (!selectedEmisor) return;
+        setLoadingPeticiones(true);
+        setPeticionesResult(null);
+        setShowPeticionesModal(true);
+        try {
+            const res = await api.get(`/emisores/${selectedEmisor.id}/pac/peticiones-pendientes`);
+            setPeticionesResult(res.data);
+        } catch (error) {
+            console.error('Error al consultar peticiones SAT:', error);
+            setPeticionesResult({
+                success: false,
+                error: error.response?.data?.message || 'Error al consultar peticiones pendientes'
+            });
+        } finally {
+            setLoadingPeticiones(false);
+        }
+    };
+
 
     const handlePreviewPdf = async () => {
         if (!selectedEmisor) return;
@@ -731,6 +903,368 @@ export const Emisores = () => {
         );
     };
 
+    const renderPACModals = () => {
+        return (
+            <>
+                {/* Modal Confirmación Registro PAC */}
+                {showConfirmPACRegModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-6">
+                                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4">
+                                    <ShieldCheck className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-1">
+                                    {selectedEmisor?.registrado_pac ? 'Re-sincronizar CSD con PAC SAT' : 'Registrar Emisor en PAC SAT'}
+                                </h3>
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Esta operación transmitirá los sellos digitales (CSD) de <strong className="text-slate-800">{selectedEmisor?.razon_social}</strong> (<span className="font-mono text-xs font-bold text-slate-700">{selectedEmisor?.rfc}</span>) al PAC autorizado para habilitar el timbrado oficial CFDI 4.0.
+                                </p>
+
+                                <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs mb-4">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">RFC a certificar:</span>
+                                        <span className="font-mono font-bold text-slate-800">{selectedEmisor?.rfc}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Certificado CSD (.cer):</span>
+                                        <span className="font-semibold text-emerald-700">
+                                            {selectedEmisor?.certificado_path || csdFiles.certificado ? '✔ Disponible' : '❌ Falta archivo .cer'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Llave Privada (.key):</span>
+                                        <span className="font-semibold text-emerald-700">
+                                            {selectedEmisor?.llave_privada_path || csdFiles.llave_privada ? '✔ Disponible' : '❌ Falta archivo .key'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">Ambiente PAC:</span>
+                                        <span className={`font-bold px-2 py-0.5 rounded ${formData.modo_prueba ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                            {formData.modo_prueba ? 'Sandbox / Pruebas' : 'Producción Fiscal'}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                        Contraseña de la Llave CSD
+                                    </label>
+                                    <input 
+                                        type="password"
+                                        placeholder="Ingresa la contraseña del CSD"
+                                        value={formData.password_csd}
+                                        onChange={handleChange}
+                                        name="password_csd"
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 bg-white"
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        Requerida para abrir el certificado en el PAC. Si ya la guardaste anteriormente, se usará la registrada.
+                                    </p>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPACRegModal(false)}
+                                        disabled={pacData.registrando}
+                                        className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleRegistrarPAC}
+                                        disabled={pacData.registrando}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm shadow-emerald-600/20 transition disabled:opacity-50"
+                                    >
+                                        {pacData.registrando ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                <span>Registrando en PAC...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ShieldCheck className="w-4 h-4" />
+                                                <span>Confirmar y Enviar al PAC</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal Asignar / Traspasar Timbres */}
+                {showAssignModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-6">
+                                <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mb-4">
+                                    <Plus className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-900 mb-1">
+                                    Asignar Timbres al Emisor
+                                </h3>
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Transfiere un paquete de folios de timbrado desde la cuenta integradora al emisor <strong className="text-slate-800">{selectedEmisor?.rfc}</strong>.
+                                </p>
+
+                                <div className="space-y-3 mb-5">
+                                    <label className="block text-xs font-semibold text-slate-700">
+                                        Selecciona o escribe el número de timbres:
+                                    </label>
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {[50, 100, 250, 500].map(amt => (
+                                            <button
+                                                key={amt}
+                                                type="button"
+                                                onClick={() => setFoliosToAssign(amt)}
+                                                className={`py-1.5 rounded-lg text-xs font-bold transition border ${
+                                                    foliosToAssign === amt 
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs' 
+                                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                                }`}
+                                            >
+                                                +{amt}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-2">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={foliosToAssign}
+                                            onChange={e => setFoliosToAssign(parseInt(e.target.value) || 0)}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="Cantidad personalizada..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAssignModal(false)}
+                                        disabled={pacData.asignando}
+                                        className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleAsignarFoliosPAC}
+                                        disabled={pacData.asignando}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm shadow-indigo-600/20 transition disabled:opacity-50"
+                                    >
+                                        {pacData.asignando ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                <span>Asignando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check className="w-4 h-4" />
+                                                <span>Asignar {foliosToAssign} Folios</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal Consultar Estatus SAT por UUID */}
+                {showSatModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                            <Search className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900">
+                                                Verificar Estatus SAT (UUID)
+                                            </h3>
+                                            <p className="text-xs text-slate-500">Consulta en vivo en los servidores del SAT a través del PAC</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => {
+                                            setShowSatModal(false);
+                                            setSatStatusResult(null);
+                                        }}
+                                        className="text-slate-400 hover:text-slate-600 transition"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleConsultarSatUUID} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                            Folio Fiscal (UUID SAT) a verificar:
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder="Ej. 4E70B182-E7A9-4C35-8EF6-8FA485C1766C"
+                                            value={satUuidQuery}
+                                            onChange={e => setSatUuidQuery(e.target.value.trim().toUpperCase())}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-1 focus:ring-emerald-500"
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={loadingSatStatus}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50"
+                                    >
+                                        {loadingSatStatus ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                                <span>Consultando SAT...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Search className="w-4 h-4" />
+                                                <span>Consultar Estatus en el SAT</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </form>
+
+                                {/* Resultado de Consulta SAT */}
+                                {satStatusResult && (
+                                    <div className="mt-5 p-4 rounded-xl border bg-slate-50 space-y-2.5 text-xs">
+                                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                                            <span className="font-bold text-slate-700">Estatus del CFDI:</span>
+                                            <span className={`font-bold px-2 py-0.5 rounded-full ${
+                                                satStatusResult.Estado === 'Vigente' 
+                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                                                    : (satStatusResult.Estado === 'Cancelado' 
+                                                        ? 'bg-red-100 text-red-800 border border-red-200' 
+                                                        : 'bg-amber-100 text-amber-800 border border-amber-200')
+                                            }`}>
+                                                {satStatusResult.Estado || (satStatusResult.error ? 'Error' : 'Desconocido')}
+                                            </span>
+                                        </div>
+
+                                        {satStatusResult.EsCancelable && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Cancelabilidad:</span>
+                                                <span className="font-semibold text-slate-800">{satStatusResult.EsCancelable}</span>
+                                            </div>
+                                        )}
+
+                                        {satStatusResult.EstatusCancelacion && (
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Estatus Cancelación:</span>
+                                                <span className="font-semibold text-slate-800">{satStatusResult.EstatusCancelacion}</span>
+                                            </div>
+                                        )}
+
+                                        {satStatusResult.CodigoEstatus && (
+                                            <div className="pt-2 border-t border-slate-200 text-[10px] text-slate-500">
+                                                <span className="font-bold">Respuesta SAT: </span>
+                                                {satStatusResult.CodigoEstatus}
+                                            </div>
+                                        )}
+
+                                        {satStatusResult.error && (
+                                            <div className="text-red-600 font-medium pt-1">
+                                                {satStatusResult.error}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal Peticiones de Cancelación SAT */}
+                {showPeticionesModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                                            <AlertCircle className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-slate-900">
+                                                Peticiones de Cancelación SAT
+                                            </h3>
+                                            <p className="text-xs text-slate-500">Solicitudes entrantes de clientes receptores</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowPeticionesModal(false)}
+                                        className="text-slate-400 hover:text-slate-600 transition"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {loadingPeticiones ? (
+                                    <div className="py-8 text-center text-slate-500 space-y-2">
+                                        <div className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                        <p className="text-xs">Consultando peticiones pendientes con el PAC SAT...</p>
+                                    </div>
+                                ) : peticionesResult?.error ? (
+                                    <div className="p-4 bg-red-50 text-red-700 rounded-xl text-xs border border-red-200">
+                                        {peticionesResult.error}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {Array.isArray(peticionesResult?.peticiones) && peticionesResult.peticiones.length > 0 ? (
+                                            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                                                {peticionesResult.peticiones.map((pet, idx) => (
+                                                    <div key={idx} className="p-3 bg-white hover:bg-slate-50 text-xs">
+                                                        <p className="font-mono font-bold text-slate-800">{pet.uuid || pet}</p>
+                                                        {pet.rfc_solicitante && (
+                                                            <p className="text-[10px] text-slate-500 mt-0.5">Solicitado por: {pet.rfc_solicitante}</p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                                                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                                <p className="text-xs font-bold text-slate-700">Sin peticiones pendientes</p>
+                                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                                    No tienes solicitudes de cancelación de clientes en espera de respuesta.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end pt-4 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPeticionesModal(false)}
+                                        className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                                    >
+                                        Cerrar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    };
+
+
     if (view === 'list') {
         const emisoresDeEmpresaActivaCount = emisores.filter(e => e.empresa_id === activeEmpresa?.id).length;
 
@@ -841,7 +1375,24 @@ export const Emisores = () => {
                                             <span className={`w-2 h-2 rounded-full ${em.modo_prueba ? 'bg-amber-500' : 'bg-green-500'}`}></span>
                                             <span className="font-semibold text-slate-500">Modo:</span> {em.modo_prueba ? 'Pruebas / Sandbox' : 'Producción'}
                                         </p>
+                                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                            {em.registrado_pac ? (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full" title="Emisor registrado y certificado en el PAC SAT">
+                                                    <ShieldCheck className="w-3 h-3 text-emerald-600" /> PAC Activo
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full" title="Falta sincronizar CSD con el PAC SAT">
+                                                    <AlertCircle className="w-3 h-3 text-amber-500" /> PAC Pendiente
+                                                </span>
+                                            )}
+                                            {em.ultimos_folios_pac !== null && em.ultimos_folios_pac !== undefined && em.ultimos_folios_pac > 0 && (
+                                                <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full" title="Folios vigentes consultados">
+                                                    {Number(em.ultimos_folios_pac).toLocaleString()} folios
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
+
                                 </div>
 
                                 <div className="flex items-center gap-2 mt-6 pt-4 border-t border-slate-100">
@@ -1082,6 +1633,7 @@ export const Emisores = () => {
                     </div>
                 )}
                 {renderDeleteModal()}
+                {renderPACModals()}
             </div>
         );
     }
@@ -2523,8 +3075,215 @@ export const Emisores = () => {
                         </div>
                     </div>
 
+                    {/* Panel de Operaciones y Servicios PAC (Timbrado SAT) */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+                        <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-xs">
+                                    <ShieldCheck className="w-5 h-5 text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-sm text-white flex items-center gap-1.5">
+                                        Operaciones PAC SAT
+                                        <span className="text-[10px] font-semibold bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full border border-indigo-400/20">
+                                            Profact CFDI 4.0
+                                        </span>
+                                    </h2>
+                                    <p className="text-[11px] text-slate-300">Proveedor Autorizado de Certificación SAT</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => fetchPacFolios(selectedEmisor.id)}
+                                disabled={pacData.loadingTimbres}
+                                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition disabled:opacity-50"
+                                title="Refrescar folios disponibles en vivo"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${pacData.loadingTimbres ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-5">
+                            {/* Folios Vigentes Counter Banner */}
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-indigo-50/80 via-slate-50 to-blue-50/70 border border-indigo-100 p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider block">
+                                            Timbres / Folios Vigentes
+                                        </span>
+                                        <div className="flex items-baseline gap-2 mt-1">
+                                            <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
+                                                {pacData.loadingTimbres ? (
+                                                    <span className="inline-block w-24 h-8 bg-slate-200 animate-pulse rounded"></span>
+                                                ) : (
+                                                    (pacData.timbres?.disponibles !== undefined 
+                                                        ? pacData.timbres.disponibles.toLocaleString() 
+                                                        : (selectedEmisor.ultimos_folios_pac !== undefined && selectedEmisor.ultimos_folios_pac !== null
+                                                            ? Number(selectedEmisor.ultimos_folios_pac).toLocaleString() 
+                                                            : '—'))
+                                                )}
+                                            </span>
+                                            <span className="text-xs font-semibold text-slate-500">disponibles</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                            formData.modo_prueba 
+                                                ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${formData.modo_prueba ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                                            {formData.modo_prueba ? 'Modo Sandbox' : 'Modo Producción'}
+                                        </span>
+                                        {pacData.timbres?.latencia_ms ? (
+                                            <p className="text-[10px] font-mono text-slate-400 mt-1 flex items-center justify-end gap-1">
+                                                <Zap className="w-3 h-3 text-amber-500" /> {pacData.timbres.latencia_ms} ms
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                </div>
+
+                                {pacData.timbres && (
+                                    <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-indigo-100/70 text-xs">
+                                        <div className="bg-white/80 rounded-lg p-2 border border-slate-100 shadow-2xs">
+                                            <span className="text-[10px] text-slate-500 block">Timbres Utilizados:</span>
+                                            <span className="font-mono font-bold text-slate-700">
+                                                {(pacData.timbres.utilizados || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white/80 rounded-lg p-2 border border-slate-100 shadow-2xs">
+                                            <span className="text-[10px] text-slate-500 block">Total en Cuenta:</span>
+                                            <span className="font-mono font-bold text-slate-700">
+                                                {(pacData.timbres.totales || 0).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Estado de Registro en el PAC */}
+                            <div className={`p-4 rounded-xl border ${
+                                selectedEmisor.registrado_pac 
+                                    ? 'bg-emerald-50/50 border-emerald-200' 
+                                    : 'bg-amber-50/50 border-amber-200'
+                            }`}>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-2.5">
+                                        {selectedEmisor.registrado_pac ? (
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                                        ) : (
+                                            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                                        )}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-slate-800">
+                                                {selectedEmisor.registrado_pac 
+                                                    ? 'Emisor Registrado y Autorizado en PAC' 
+                                                    : 'Emisor Pendiente de Alta en PAC SAT'}
+                                            </h4>
+                                            <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                                                {selectedEmisor.registrado_pac 
+                                                    ? `El CSD está cargado y registrado en el PAC para timbrado oficial CFDI 4.0.${selectedEmisor.fecha_registro_pac ? ` (Alta: ${new Date(selectedEmisor.fecha_registro_pac).toLocaleDateString()})` : ''}`
+                                                    : 'Para certificar facturas ante el SAT, registra este emisor con sus archivos CSD (.cer y .key) en el PAC.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPACRegModal(true)}
+                                        disabled={pacData.registrando}
+                                        className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold shadow-xs transition active:scale-95 disabled:opacity-50 ${
+                                            selectedEmisor.registrado_pac 
+                                                ? 'bg-white hover:bg-slate-50 border border-slate-200 text-slate-700' 
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                        }`}
+                                    >
+                                        <ShieldCheck className="w-4 h-4" />
+                                        <span>
+                                            {pacData.registrando 
+                                                ? 'Registrando en PAC...' 
+                                                : (selectedEmisor.registrado_pac ? 'Re-sincronizar CSD con PAC' : 'Registrar Emisor en PAC SAT')}
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Acciones Rápidas del PAC */}
+                            <div className="space-y-2">
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    Herramientas y Consultas PAC
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAssignModal(true)}
+                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-700 transition"
+                                    >
+                                        <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                                        <span>Asignar Timbres</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleTestConexionPAC}
+                                        disabled={pacData.probandoConexion}
+                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition disabled:opacity-50"
+                                    >
+                                        <Activity className={`w-3.5 h-3.5 text-blue-600 ${pacData.probandoConexion ? 'animate-spin' : ''}`} />
+                                        <span>{pacData.probandoConexion ? 'Probando...' : 'Diagnóstico (Ping)'}</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSatModal(true)}
+                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-emerald-700 transition"
+                                    >
+                                        <Search className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Estatus SAT (UUID)</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleConsultarPeticionesSAT}
+                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-amber-700 transition"
+                                    >
+                                        <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                        <span>Peticiones SAT</span>
+                                    </button>
+                                </div>
+
+                                {/* Resultado de Diagnóstico PAC si se ejecutó */}
+                                {pacData.conexionResultado && (
+                                    <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
+                                        pacData.conexionResultado.success 
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                                            : 'bg-red-50 border-red-200 text-red-800'
+                                    }`}>
+                                        <div className="flex items-center gap-2">
+                                            {pacData.conexionResultado.success ? (
+                                                <Zap className="w-4 h-4 text-emerald-600 shrink-0" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                            )}
+                                            <span className="font-medium">{pacData.conexionResultado.message}</span>
+                                        </div>
+                                        {pacData.conexionResultado.latencia_ms ? (
+                                            <span className="font-mono font-bold text-[10px] bg-white/70 px-2 py-0.5 rounded border border-emerald-200">
+                                                {pacData.conexionResultado.latencia_ms} ms
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Foliadores por Tipo de Documento */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+
                         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center gap-2">
                             <Hash className="w-5 h-5 text-slate-400" />
                             <h2 className="font-semibold text-slate-800">Foliadores por Tipo</h2>
@@ -2605,6 +3364,7 @@ export const Emisores = () => {
                 </div>
             </div>
             {renderDeleteModal()}
+            {renderPACModals()}
         </div>
     );
 };
