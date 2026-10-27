@@ -20,7 +20,7 @@ import {
     consultarStatusSatPACController,
     consultarPeticionesPendientesPACController
 } from '../controllers/emisorController.js';
-import { verifyToken, checkEmisorPermission } from '../middleware/auth.js';
+import { verifyToken, checkEmisorPermission, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -48,7 +48,7 @@ router.get('/:id/total-anual', getEmisorTotalAnual);
 router.get('/:id/pac/folios', getCreditos);
 router.get('/:id/pac/historial-folios', getHistorialFoliosPAC);
 router.post('/:id/pac/registrar', registrarEmisorEnPAC);
-router.post('/:id/pac/asignar-folios', asignarFoliosPAC);
+router.post('/:id/pac/asignar-folios', requireRole(['Administrador']), asignarFoliosPAC);
 router.get('/:id/pac/test-conexion', testConexionPAC);
 router.post('/:id/pac/consulta-sat', consultarStatusSatPACController);
 router.get('/:id/pac/peticiones-pendientes', consultarPeticionesPendientesPACController);

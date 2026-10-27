@@ -1121,18 +1121,26 @@ export const Emisores = () => {
                                     <div className="py-10 text-center text-slate-400">
                                         <History className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                                         <p className="text-sm font-semibold">Sin registros de asignación aún</p>
-                                        <p className="text-xs mt-0.5">Puedes asignar folios a este emisor desde Configuración Global &gt; Servicios y Folios PAC.</p>
+                                        <p className="text-xs mt-0.5">
+                                            {currentUser?.rol === 'Administrador' 
+                                                ? 'Puedes asignar folios a este emisor desde Configuración Global > Servicios y Folios PAC.' 
+                                                : 'La asignación de folios de timbrado la realiza el Administrador del software.'}
+                                        </p>
                                     </div>
                                 )}
 
                                 <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                                    <a
-                                        href="/configuracion?tab=pac"
-                                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                                    >
-                                        <span>Asignar más folios en Configuración Global</span>
-                                        <ArrowRight className="w-3.5 h-3.5" />
-                                    </a>
+                                    {currentUser?.rol === 'Administrador' ? (
+                                        <a
+                                            href="/configuracion?tab=pac"
+                                            className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                                        >
+                                            <span>Asignar más folios en Configuración Global</span>
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                        </a>
+                                    ) : (
+                                        <span className="text-xs text-slate-400">Folios administrados centralizadamente</span>
+                                    )}
                                     <button
                                         type="button"
                                         onClick={() => setShowHistorialFoliosModal(false)}
@@ -3101,7 +3109,7 @@ export const Emisores = () => {
                                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                     Control de Folios del Emisor
                                 </label>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className={`grid ${currentUser?.rol === 'Administrador' ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
                                     <button
                                         type="button"
                                         onClick={handleOpenHistorialEmisor}
@@ -3111,17 +3119,25 @@ export const Emisores = () => {
                                         <span>Ver Bitácora de Folios</span>
                                     </button>
 
-                                    <a
-                                        href="/configuracion?tab=pac"
-                                        className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-600 transition"
-                                    >
-                                        <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
-                                        <span>Herramientas PAC (Global)</span>
-                                    </a>
+                                    {currentUser?.rol === 'Administrador' && (
+                                        <a
+                                            href="/configuracion?tab=pac"
+                                            className="flex items-center justify-center gap-1.5 p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 hover:text-indigo-600 transition"
+                                        >
+                                            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                                            <span>Herramientas PAC (Global)</span>
+                                        </a>
+                                    )}
                                 </div>
-                                <p className="text-[11px] text-slate-400">
-                                    La asignación de timbres y diagnósticos SAT se administran centralizadamente en <a href="/configuracion?tab=pac" className="text-indigo-600 font-medium underline">Configuración Global &gt; Servicios PAC</a>.
-                                </p>
+                                {currentUser?.rol === 'Administrador' ? (
+                                    <p className="text-[11px] text-slate-400">
+                                        La asignación de timbres y diagnósticos SAT se administran centralizadamente en <a href="/configuracion?tab=pac" className="text-indigo-600 font-medium underline">Configuración Global &gt; Servicios PAC</a>.
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] text-slate-400">
+                                        Los timbres y folios fiscales son suministrados centralmente por el Administrador del software.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

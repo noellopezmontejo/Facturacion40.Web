@@ -11,10 +11,6 @@ import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
 
 export const Configuracion = () => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const initialTab = searchParams.get('tab') === 'pac' ? 'pac' : 'espacios';
-    const [activeTab, setActiveTab] = useState(initialTab);
-
     const { 
         user, 
         activeEmisor, 
@@ -23,6 +19,12 @@ export const Configuracion = () => {
         changeActiveEmpresa,
         refreshActiveEmpresa 
     } = useAuth();
+
+    const isAdmin = user?.rol === 'Administrador';
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialTab = (searchParams.get('tab') === 'pac' && isAdmin) ? 'pac' : 'espacios';
+    const [activeTab, setActiveTab] = useState(initialTab);
     
     const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
@@ -74,8 +76,17 @@ export const Configuracion = () => {
     });
     const [guardandoCredenciales, setGuardandoCredenciales] = useState(false);
 
-    // Actualizar URL cuando cambia la pestaña
+    // Forzar fallback a 'espacios' si el usuario no es Administrador y tiene seleccionada la pestaña 'pac'
+    useEffect(() => {
+        if (!isAdmin && activeTab === 'pac') {
+            setActiveTab('espacios');
+            setSearchParams({});
+        }
+    }, [isAdmin, activeTab]);
+
+    // Actualizar URL cuando cambia la pestaña (solo permite 'pac' a administradores)
     const handleTabChange = (tabId) => {
+        if (tabId === 'pac' && !isAdmin) return;
         setActiveTab(tabId);
         setSearchParams(tabId === 'pac' ? { tab: 'pac' } : {});
     };
@@ -153,13 +164,13 @@ export const Configuracion = () => {
 
     useEffect(() => {
         fetchEmpresa();
-        if (user?.rol === 'Administrador') {
+        if (isAdmin) {
             fetchAllEmpresas();
+            fetchPacResumen();
+            fetchHistorial();
         }
         fetchEmisores();
-        fetchPacResumen();
-        fetchHistorial();
-    }, [activeEmpresa?.id, activeEmisor?.id]);
+    }, [activeEmpresa?.id, activeEmisor?.id, isAdmin]);
 
     const handleCrearEmpresa = async (e) => {
         e.preventDefault();
@@ -402,42 +413,51 @@ export const Configuracion = () => {
                         <Settings className="w-6 h-6 text-indigo-600" /> Configuración Global del Sistema
                     </h1>
                     <p className="text-slate-500 text-sm mt-0.5">
-                        Administra espacios empresariales (tenants), asigna folios del PAC y supervisa las herramientas SAT.
+                        {isAdmin 
+                            ? 'Administra espacios empresariales (tenants), asigna folios del PAC y supervisa las herramientas SAT.'
+                            : 'Administra la información y denominación de tu espacio de trabajo empresarial.'}
                     </p>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
-                    <button
-                        type="button"
-                        onClick={() => handleTabChange('espacios')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === 'espacios'
-                                ? 'bg-white text-indigo-700 shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
+                {isAdmin ? (
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('espacios')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === 'espacios'
+                                    ? 'bg-white text-indigo-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <Layers className="w-4 h-4" />
+                            <span>Espacios de Trabajo</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('pac')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === 'pac'
+                                    ? 'bg-white text-indigo-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <Zap className="w-4 h-4 text-amber-500" />
+                            <span>Servicios y Folios PAC SAT</span>
+                            {pacResumen?.creditos_disponibles !== undefined && (
+                                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                                    {Number(pacResumen.creditos_disponibles).toLocaleString()}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold text-indigo-700 self-start sm:self-auto">
                         <Layers className="w-4 h-4" />
-                        <span>Espacios de Trabajo</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleTabChange('pac')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === 'pac'
-                                ? 'bg-white text-indigo-700 shadow-xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`}
-                    >
-                        <Zap className="w-4 h-4 text-amber-500" />
-                        <span>Servicios y Folios PAC SAT</span>
-                        {pacResumen?.creditos_disponibles !== undefined && (
-                            <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
-                                {Number(pacResumen.creditos_disponibles).toLocaleString()}
-                            </span>
-                        )}
-                    </button>
-                </div>
+                        <span>Espacio de Trabajo</span>
+                    </div>
+                )}
             </div>
 
             {/* PESTAÑA 1: GESTIÓN DE ESPACIOS EMPRESARIALES (TENANTS) */}
@@ -669,8 +689,8 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* PESTAÑA 2: SERVICIOS Y FOLIOS PAC SAT (PROFACT) */}
-            {activeTab === 'pac' && (
+            {/* PESTAÑA 2: SERVICIOS Y FOLIOS PAC SAT (PROFACT) - EXCLUSIVO SUPERUSUARIO / ADMINISTRADOR */}
+            {isAdmin && activeTab === 'pac' && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                     {/* Tarjeta Resumen de Cuenta Integradora */}
                     <div className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-indigo-700/40 relative overflow-hidden">
@@ -1095,8 +1115,8 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* MODAL 1: ASIGNAR TIMBRES A EMISOR */}
-            {showAssignModal && (
+            {/* MODAL 1: ASIGNAR TIMBRES A EMISOR (SOLO ADMIN) */}
+            {isAdmin && showAssignModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
                         <form onSubmit={handleConfirmarAsignacion} className="p-6 space-y-4">
@@ -1232,8 +1252,8 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* MODAL 2: ESTATUS SAT (UUID) */}
-            {showSatModal && (
+            {/* MODAL 2: ESTATUS SAT (UUID) (SOLO ADMIN) */}
+            {isAdmin && showSatModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
                         <div className="p-6 space-y-4">
@@ -1313,8 +1333,8 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* MODAL 3: PETICIONES SAT PENDIENTES */}
-            {showPeticionesModal && (
+            {/* MODAL 3: PETICIONES SAT PENDIENTES (SOLO ADMIN) */}
+            {isAdmin && showPeticionesModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
                         <div className="p-6 space-y-4">
@@ -1387,8 +1407,8 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* MODAL CONFIGURACIÓN CREDENCIALES PAC */}
-            {showCredencialesModal && (
+            {/* MODAL CONFIGURACIÓN CREDENCIALES PAC (SOLO ADMIN) */}
+            {isAdmin && showCredencialesModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
                         <form onSubmit={handleGuardarCredenciales} className="p-6 space-y-4">
