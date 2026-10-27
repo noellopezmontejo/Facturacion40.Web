@@ -1,8 +1,25 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  # 1. Si el archivo o carpeta existe, servirlo directamente
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # 2. Si es una petición a /assets/ o archivo de script/estilo que no existe, responder 404 (evita MIME text/html)
+  RewriteRule ^assets/ - [R=404,L]
+  RewriteRule \.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ - [R=404,L]
+
+  # 3. Para todas las demás rutas de la SPA, servir index.html
   RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
+
+<FilesMatch "^index\.html$">
+  <IfModule mod_headers.c>
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </IfModule>
+</FilesMatch>

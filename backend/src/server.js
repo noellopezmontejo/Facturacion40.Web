@@ -120,11 +120,31 @@ app.get('/api/db-init', async (req, res) => {
 // Serve frontend static files if present in public/
 const publicDir = path.join(__dirname, '..', 'public');
 if (fs.existsSync(publicDir)) {
-  app.use(express.static(publicDir));
+  // Evitar almacenamiento en caché prolongado de index.html
+  app.use(express.static(publicDir, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
+
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/storage')) {
       return next();
     }
+
+    // Si la petición es para un asset estático (assets, js, css, etc.) que no existe, retornar 404 en vez de index.html
+    if (req.path.startsWith('/assets/') || /\.(js|css|json|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(req.path)) {
+      return res.status(404).type('text/plain').send('Asset no encontrado o versión obsoleta.');
+    }
+
+    // Para rutas SPA, servir index.html con encabezados sin caché
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.join(publicDir, 'index.html'));
   });
 } else {
