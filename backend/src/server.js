@@ -15,6 +15,14 @@ if (fs.existsSync(path.resolve('backend/.env'))) {
   dotenv.config({ path: path.resolve('backend/.env'), override: true });
 }
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught Exception:', err);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

@@ -92,15 +92,15 @@ export const getHistorialFolios = async (req, res) => {
         const historial = await FolioHistorial.findAll({
             where: whereClause,
             include: [
-                { model: Emisor, attributes: ['id', 'rfc', 'razon_social', 'empresa_id'] },
-                { model: Empresa, attributes: ['id', 'nombre'] },
-                { model: Usuario, attributes: ['id', 'nombre', 'email'] }
+                { model: Emisor, attributes: ['id', 'rfc', 'razon_social', 'empresa_id'], required: false },
+                { model: Empresa, attributes: ['id', 'nombre'], required: false },
+                { model: Usuario, attributes: ['id', 'nombre', 'email'], required: false }
             ],
             order: [['createdAt', 'DESC']],
             limit: Math.min(Number(limit) || 50, 200)
         });
 
-        res.json(historial);
+        res.json(historial || []);
     } catch (error) {
         console.error('Error consultando historial de folios:', error);
         res.status(500).json({ 
