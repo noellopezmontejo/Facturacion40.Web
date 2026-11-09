@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     FileText, Search, CreditCard, AlertCircle, RefreshCw, 
     Upload, Calendar, CheckCircle2, ChevronRight, DollarSign, 
-    Clock, Landmark, FileCheck2, ArrowUpRight, HelpCircle
+    Clock, Landmark, FileCheck2, ArrowUpRight, HelpCircle,
+    Download, History, Check, ExternalLink, Inbox, AlertTriangle, Building2, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
@@ -32,10 +33,22 @@ export const CuentasPorPagar = () => {
     
     // SAT Download Dialog States
     const [showSatModal, setShowSatModal] = useState(false);
+    const [satModalTab, setSatModalTab] = useState('nueva'); // 'nueva' | 'historial'
     const [satDateStart, setSatDateStart] = useState('');
     const [satDateEnd, setSatDateEnd] = useState('');
     const [satLoading, setSatLoading] = useState(false);
     const [satResult, setSatResult] = useState(null);
+    const [solicitudesSat, setSolicitudesSat] = useState([]);
+    const [loadingSolicitudes, setLoadingSolicitudes] = useState(false);
+    const [verificandoId, setVerificandoId] = useState(null);
+    const [descargandoId, setDescargandoId] = useState(null);
+
+    // e.firma (FIEL) fields for SAT mass download
+    const [fielCerFile, setFielCerFile] = useState(null);
+    const [fielKeyFile, setFielKeyFile] = useState(null);
+    const [fielPass, setFielPass] = useState('');
+    const [guardarFiel, setGuardarFiel] = useState(true);
+    const [showFielUploader, setShowFielUploader] = useState(false);
 
     // Invoice Detail Modal States
     const [selectedDoc, setSelectedDoc] = useState(null);
@@ -138,6 +151,19 @@ export const CuentasPorPagar = () => {
         }
     };
 
+    const fetchSolicitudesSat = async () => {
+        if (!activeEmisor) return;
+        setLoadingSolicitudes(true);
+        try {
+            const res = await api.get(`/documentos-recibidos/solicitudes?emisor_id=${activeEmisor.id}`);
+            setSolicitudesSat(res.data);
+        } catch (error) {
+            console.error("Error al obtener solicitudes SAT:", error);
+        } finally {
+            setLoadingSolicitudes(false);
+        }
+    };
+
     const handleSatDownload = async (e) => {
         e.preventDefault();
         if (!satDateStart || !satDateEnd) {
@@ -148,19 +174,76 @@ export const CuentasPorPagar = () => {
         setSatLoading(true);
         setSatResult(null);
         try {
-            const res = await api.post('/documentos-recibidos/solicitar-descarga', {
-                emisor_id: activeEmisor.id,
-                fecha_inicio: satDateStart,
-                fecha_fin: satDateEnd
-            });
+            let res;
+            if (fielCerFile && fielKeyFile) {
+                const formData = new FormData();
+                formData.append('emisor_id', activeEmisor.id);
+                formData.append('fecha_inicio', satDateStart);
+                formData.append('fecha_fin', satDateEnd);
+                formData.append('fiel_cer', fielCerFile);
+                formData.append('fiel_key', fielKeyFile);
+                formData.append('password_fiel', fielPass);
+                formData.append('guardar_fiel', guardarFiel);
+                res = await api.post('/documentos-recibidos/solicitar-descarga', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+            } else {
+                res = await api.post('/documentos-recibidos/solicitar-descarga', {
+                    emisor_id: activeEmisor.id,
+                    fecha_inicio: satDateStart,
+                    fecha_fin: satDateEnd
+                });
+            }
             setSatResult(res.data);
-            showToast("Petición de descarga masiva enviada al SAT");
+            showToast(res.data.mensaje || "Petición de descarga masiva enviada al SAT");
+            fetchSolicitudesSat();
             fetchDatos();
         } catch (error) {
             console.error("Error en descarga SAT", error);
-            showToast("Error al solicitar la descarga masiva", "error");
+            showToast(error.response?.data?.message || "Error al solicitar la descarga masiva", "error");
         } finally {
             setSatLoading(false);
+        }
+    };
+
+    const handleVerificarSolicitud = async (id) => {
+        setVerificandoId(id);
+        try {
+            const res = await api.post(`/documentos-recibidos/verificar-solicitud/${id}`);
+            const msg = res.data.estatus?.mensaje || `Estatus SAT: ${res.data.solicitud?.estado_sat}`;
+            showToast(msg);
+            fetchSolicitudesSat();
+        } catch (error) {
+            console.error("Error al verificar solicitud SAT:", error);
+            showToast(error.response?.data?.message || "Error al verificar con el SAT", "error");
+        } finally {
+            setVerificandoId(null);
+        }
+    };
+
+    const handleDescargarPaquetes = async (id) => {
+        setDescargandoId(id);
+        try {
+            const res = await api.post(`/documentos-recibidos/descargar-paquetes/${id}`);
+            showToast(res.data.message || "Comprobantes descargados e importados exitosamente");
+            fetchSolicitudesSat();
+            fetchDatos();
+        } catch (error) {
+            console.error("Error descargando paquetes SAT:", error);
+            showToast(error.response?.data?.message || "Error al descargar e importar paquetes", "error");
+        } finally {
+            setDescargandoId(null);
+        }
+    };
+
+    const handleSimularPaquetes = async (id) => {
+        try {
+            const res = await api.post(`/documentos-recibidos/simular-paquetes/${id}`);
+            showToast(res.data.message || "Paquete de prueba generado");
+            fetchSolicitudesSat();
+        } catch (error) {
+            console.error("Error simulando paquete de prueba:", error);
+            showToast(error.response?.data?.message || "Error al generar paquete de prueba", "error");
         }
     };
 
@@ -202,7 +285,7 @@ export const CuentasPorPagar = () => {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <button
-                        onClick={() => setShowSatModal(true)}
+                        onClick={() => { setShowSatModal(true); fetchSolicitudesSat(); }}
                         className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md"
                     >
                         <Landmark className="w-4 h-4" />
@@ -468,72 +551,368 @@ export const CuentasPorPagar = () => {
 
             {/* SAT Download Modal */}
             {showSatModal && (
-                <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl border border-slate-100 max-w-md w-full shadow-2xl p-6 relative animate-in zoom-in-95 duration-200">
-                        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                            <Landmark className="w-5 h-5 text-primary-500" />
-                            Sincronización Masiva del SAT
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-1">
-                            Consulta y descarga comprobantes recibidos directamente de los servidores de Hacienda.
-                        </p>
-
-                        <form onSubmit={handleSatDownload} className="space-y-4 mt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Fecha Inicial</label>
-                                    <input
-                                        type="date"
-                                        value={satDateStart}
-                                        onChange={(e) => setSatDateStart(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-primary-500"
-                                    />
+                <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl border border-slate-200 max-w-2xl w-full shadow-2xl p-6 relative animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+                        
+                        {/* Header */}
+                        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                                    <Landmark className="w-5 h-5" />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Fecha Final</label>
-                                    <input
-                                        type="date"
-                                        value={satDateEnd}
-                                        onChange={(e) => setSatDateEnd(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs focus:outline-none focus:border-primary-500"
-                                    />
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-900">Sincronización Masiva del SAT</h2>
+                                    <p className="text-xs text-slate-500">
+                                        Web Service Oficial de Descarga de CFDI Recibidos (e.firma / CSD)
+                                    </p>
                                 </div>
                             </div>
-
                             <button
-                                type="submit"
-                                disabled={satLoading}
-                                className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-primary-100 disabled:opacity-50"
+                                onClick={() => { setShowSatModal(false); setSatResult(null); }}
+                                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
                             >
-                                {satLoading ? (
-                                    <>
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                        <span>Solicitando al SAT...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <RefreshCw className="w-4 h-4" />
-                                        <span>Solicitar Descarga</span>
-                                    </>
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Tabs del Modal */}
+                        <div className="flex items-center gap-2 mt-4 p-1 bg-slate-100 rounded-xl border border-slate-200/60 self-start text-xs font-bold">
+                            <button
+                                onClick={() => setSatModalTab('nueva')}
+                                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                                    satModalTab === 'nueva'
+                                        ? 'bg-white text-indigo-700 shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>Nueva Solicitud SAT</span>
+                            </button>
+                            <button
+                                onClick={() => { setSatModalTab('historial'); fetchSolicitudesSat(); }}
+                                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                                    satModalTab === 'historial'
+                                        ? 'bg-white text-indigo-700 shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                <History className="w-3.5 h-3.5" />
+                                <span>Historial de Solicitudes</span>
+                                {solicitudesSat.length > 0 && (
+                                    <span className="bg-indigo-100 text-indigo-800 text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                                        {solicitudesSat.length}
+                                    </span>
                                 )}
                             </button>
-                        </form>
+                        </div>
 
-                        {satResult && (
-                            <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-bold text-slate-800">Folio Solicitud:</span>
-                                    <span className="font-mono text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-100">{satResult.solicitudId}</span>
+                        {/* Contenido TAB 1: Nueva Solicitud */}
+                        {satModalTab === 'nueva' && (
+                            <div className="overflow-y-auto space-y-4 mt-4 py-1 custom-scrollbar">
+                                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5 text-slate-600">
+                                    <div className="flex items-center gap-2 font-semibold text-slate-800">
+                                        <Building2 className="w-4 h-4 text-primary-600" />
+                                        <span>Emisor Activo: {activeEmisor?.razon_social}</span>
+                                        <span className="font-mono text-[11px] bg-white px-2 py-0.5 rounded border border-slate-200">{activeEmisor?.rfc}</span>
+                                    </div>
+                                    <p className="text-[11px] leading-relaxed text-slate-500">
+                                        La solicitud se firmará con los sellos y llaves registrados del emisor. El SAT procesa solicitudes de forma asíncrona; una vez aceptada, el paquete estará listo para descarga e importación automática.
+                                    </p>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span className="font-bold text-slate-800">Estatus:</span>
-                                    <span className="text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{satResult.estado}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">{satResult.mensaje}</p>
+
+                                <form onSubmit={handleSatDownload} className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha Inicial</label>
+                                            <input
+                                                type="date"
+                                                value={satDateStart}
+                                                onChange={(e) => setSatDateStart(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:outline-none focus:border-primary-500"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha Final</label>
+                                            <input
+                                                type="date"
+                                                value={satDateEnd}
+                                                onChange={(e) => setSatDateEnd(e.target.value)}
+                                                className="w-full bg-slate-50 border border-slate-200 px-3.5 py-2.5 rounded-xl text-xs focus:outline-none focus:border-primary-500"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Explicación y Carga opcional de e.firma (FIEL) */}
+                                    <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs space-y-2.5 text-amber-900">
+                                        <div className="flex items-start gap-2.5">
+                                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            <div>
+                                                <span className="font-bold text-amber-950">Requisito Oficial del SAT: e.firma (FIEL)</span>
+                                                <p className="text-[11px] text-amber-800 leading-relaxed mt-0.5">
+                                                    El Web Service de Descarga Masiva del SAT exige los archivos de la <strong>e.firma (Firma Electrónica Avanzada)</strong>. Los sellos <strong>CSD</strong> son de uso exclusivo para emisión y timbrado de facturas, por lo que el SAT rechaza las descargas masivas firmadas con CSD (Error 305).
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {activeEmisor?.fiel_info?.tieneCertificado && (
+                                            <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-800 p-2.5 rounded-lg text-xs">
+                                                <span className="flex items-center gap-1.5 font-semibold">
+                                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                                    e.firma guardada en sistema (Serie: {activeEmisor.fiel_info.noCertificado})
+                                                </span>
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                                                    Vigente ({activeEmisor.fiel_info.diasRestantes} días)
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <div className="pt-1 border-t border-amber-200/60 flex items-center justify-between">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowFielUploader(!showFielUploader)}
+                                                className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline flex items-center gap-1 cursor-pointer"
+                                            >
+                                                <span>{showFielUploader ? '▲ Ocultar adjuntar e.firma' : (activeEmisor?.fiel_info?.tieneCertificado ? '▼ Cambiar o subir otra e.firma temporalmente' : '▼ Adjuntar archivos de e.firma (.cer y .key) para esta descarga')}</span>
+                                            </button>
+                                            {fielCerFile && fielKeyFile && (
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                                    <Check className="w-3 h-3" /> e.firma cargada
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {showFielUploader && (
+                                            <div className="p-3 bg-white rounded-lg border border-amber-200 space-y-2.5 mt-2 animate-in fade-in">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase block">Certificado e.firma (.cer)</label>
+                                                        <input 
+                                                            type="file" 
+                                                            accept=".cer"
+                                                            onChange={(e) => setFielCerFile(e.target.files[0])}
+                                                            className="w-full text-[11px] text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase block">Llave Privada e.firma (.key)</label>
+                                                        <input 
+                                                            type="file" 
+                                                            accept=".key"
+                                                            onChange={(e) => setFielKeyFile(e.target.files[0])}
+                                                            className="w-full text-[11px] text-slate-600 mt-1 file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[10px] file:font-semibold file:bg-amber-100 file:text-amber-800 hover:file:bg-amber-200 cursor-pointer"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3 items-center pt-1">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase block">Contraseña de la e.firma</label>
+                                                        <input 
+                                                            type="password"
+                                                            placeholder="Contraseña de la FIEL"
+                                                            value={fielPass}
+                                                            onChange={(e) => setFielPass(e.target.value)}
+                                                            className="w-full bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg text-xs mt-1 focus:outline-none focus:border-amber-400"
+                                                        />
+                                                    </div>
+                                                    <div className="flex items-center gap-2 pt-4">
+                                                        <input 
+                                                            type="checkbox"
+                                                            id="guardarFielChk"
+                                                            checked={guardarFiel}
+                                                            onChange={(e) => setGuardarFiel(e.target.checked)}
+                                                            className="rounded text-amber-600 focus:ring-amber-500 h-3.5 w-3.5"
+                                                        />
+                                                        <label htmlFor="guardarFielChk" className="text-[11px] text-slate-600 select-none cursor-pointer">
+                                                            Guardar en el emisor para futuras descargas
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={satLoading}
+                                        className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-primary-100 disabled:opacity-50"
+                                    >
+                                        {satLoading ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                                <span>Conectando y Firmando con el SAT...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Landmark className="w-4 h-4" />
+                                                <span>Enviar Solicitud al Web Service del SAT</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </form>
+
+                                {satResult && (
+                                    <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-200/80 space-y-2 text-xs animate-in fade-in">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-slate-800">Folio Solicitud SAT:</span>
+                                            <span className="font-mono text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-100 font-semibold">{satResult.solicitudId}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-slate-800">Estatus:</span>
+                                            <span className="text-emerald-700 font-bold bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-200">{satResult.estado || 'Aceptada'}</span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">{satResult.mensaje}</p>
+                                        <div className="pt-2 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setSatModalTab('historial'); fetchSolicitudesSat(); }}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                                            >
+                                                <span>Ver en Historial de Solicitudes</span>
+                                                <ChevronRight className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        <div className="mt-6 flex justify-end">
+                        {/* Contenido TAB 2: Historial de Solicitudes */}
+                        {satModalTab === 'historial' && (
+                            <div className="overflow-y-auto space-y-3 mt-4 py-1 custom-scrollbar flex-1">
+                                <div className="flex justify-between items-center pb-2">
+                                    <span className="text-xs font-semibold text-slate-500">Solicitudes registradas para {activeEmisor?.rfc}</span>
+                                    <button
+                                        type="button"
+                                        onClick={fetchSolicitudesSat}
+                                        disabled={loadingSolicitudes}
+                                        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-bold"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${loadingSolicitudes ? 'animate-spin' : ''}`} />
+                                        <span>Actualizar Lista</span>
+                                    </button>
+                                </div>
+
+                                {loadingSolicitudes ? (
+                                    <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                                        <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" />
+                                        <span>Consultando solicitudes...</span>
+                                    </div>
+                                ) : solicitudesSat.length === 0 ? (
+                                    <div className="py-8 text-center text-xs text-slate-400 space-y-2 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                                        <Inbox className="w-8 h-8 text-slate-300 mx-auto" />
+                                        <p>No hay solicitudes de descarga registradas para este emisor.</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSatModalTab('nueva')}
+                                            className="px-3 py-1.5 bg-indigo-600 text-white font-bold rounded-lg text-xs"
+                                        >
+                                            Generar Primera Solicitud
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                                        {solicitudesSat.map(s => {
+                                            const isTerminada = s.estado_sat === 'Terminada' || (s.paquetes_ids && s.paquetes_ids.length > 0 && s.estado_sat !== 'Descargada');
+                                            const isDescargada = s.estado_sat === 'Descargada';
+                                            const isVerificando = verificandoId === s.id;
+                                            const isDescargando = descargandoId === s.id;
+
+                                            return (
+                                                <div key={s.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2 hover:border-slate-300 transition-colors">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-[11px] font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                                {s.id_solicitud_sat}
+                                                            </span>
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                                isDescargada
+                                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                                    : isTerminada
+                                                                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                                                        : s.estado_sat === 'Error' || s.estado_sat === 'Rechazada'
+                                                                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                                                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                                            }`}>
+                                                                {s.estado_sat}
+                                                                {s.numero_cfdis > 0 && ` (${s.numero_cfdis} CFDIs)`}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400">
+                                                            {new Date(s.createdAt).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                                        <span>Periodo: <strong className="text-slate-700">{s.fecha_inicio}</strong> al <strong className="text-slate-700">{s.fecha_fin}</strong></span>
+                                                        {s.paquetes_ids && Array.isArray(s.paquetes_ids) && (
+                                                            <span className="font-mono text-[10px] text-slate-400">
+                                                                {s.paquetes_ids.length} paquete(s) SAT
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    {s.mensaje_sat && (
+                                                        <p className="text-[10px] text-slate-500 bg-white/70 p-2 rounded border border-slate-100 leading-relaxed">
+                                                            {s.mensaje_sat}
+                                                        </p>
+                                                    )}
+
+                                                    {/* Botones de acción */}
+                                                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                                                        {!isDescargada && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleVerificarSolicitud(s.id)}
+                                                                disabled={isVerificando || isDescargando}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                                                            >
+                                                                <RefreshCw className={`w-3 h-3 ${isVerificando ? 'animate-spin text-indigo-600' : ''}`} />
+                                                                <span>{isVerificando ? 'Consultando SAT...' : 'Verificar Estatus SAT'}</span>
+                                                            </button>
+                                                        )}
+
+                                                        {!isTerminada && !isDescargada && (activeEmisor?.modo_prueba || s.codigo_estado === '305') && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSimularPaquetes(s.id)}
+                                                                disabled={isVerificando || isDescargando}
+                                                                className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+                                                                title="Simular generación de paquetes en ambiente de prueba para ensayar la descarga e importación automática"
+                                                            >
+                                                                <Sparkles className="w-3 h-3 text-amber-600" />
+                                                                <span>Simular Paquete de Prueba</span>
+                                                            </button>
+                                                        )}
+
+                                                        {isTerminada && !isDescargada && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDescargarPaquetes(s.id)}
+                                                                disabled={isDescargando || isVerificando}
+                                                                className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+                                                            >
+                                                                <Download className={`w-3.5 h-3.5 ${isDescargando ? 'animate-bounce' : ''}`} />
+                                                                <span>{isDescargando ? 'Importando Facturas...' : 'Descargar e Importar a Cuentas por Pagar'}</span>
+                                                            </button>
+                                                        )}
+
+                                                        {isDescargada && (
+                                                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                                                                <Check className="w-3.5 h-3.5" />
+                                                                <span>Comprobantes importados</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex justify-end">
                             <button
                                 onClick={() => { setShowSatModal(false); setSatResult(null); }}
                                 className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-600"

@@ -29,7 +29,7 @@ export const Documento = sequelize.define('Documento', {
     saldo_insoluto: { type: DataTypes.DECIMAL(18, 6) },
     fecha_vencimiento: { type: DataTypes.DATE },
     uuid: { type: DataTypes.STRING(36) }, // Folio Fiscal SAT
-    estado_sat: { type: DataTypes.STRING }, // Timbrado, Cancelado, No Timbrado
+    estado_sat: { type: DataTypes.STRING }, // Timbrado, Cancelado, No Timbrado, En Proceso Cancelacion
     xml_url: { type: DataTypes.STRING },
     pdf_url: { type: DataTypes.STRING },
 
@@ -51,7 +51,13 @@ export const Documento = sequelize.define('Documento', {
     sello_sat: { type: DataTypes.TEXT },
     cadena_original_tfd: { type: DataTypes.TEXT },
     impuestos_locales: { type: DataTypes.JSON, allowNull: true },
-    ajuste_manual: { type: DataTypes.BOOLEAN, defaultValue: false }
+    ajuste_manual: { type: DataTypes.BOOLEAN, defaultValue: false },
+
+    // --- Cancelación CFDI 4.0 (SAT) ---
+    motivo_cancelacion: { type: DataTypes.STRING(2), allowNull: true },
+    uuid_sustitucion: { type: DataTypes.STRING(36), allowNull: true },
+    fecha_cancelacion: { type: DataTypes.DATE, allowNull: true },
+    acuse_cancelacion: { type: DataTypes.TEXT, allowNull: true }
 }, {
     tableName: 'documentos',
     timestamps: true

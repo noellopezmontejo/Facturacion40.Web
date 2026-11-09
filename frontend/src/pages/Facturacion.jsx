@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Save, User, FileText, Search, X, Calculator, Trash2, UserPlus, PackagePlus, History, Eye, Tag } from 'lucide-react';
+import { Plus, Save, User, FileText, Search, X, Calculator, Trash2, UserPlus, PackagePlus, History, Eye, Tag, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
+import { openPdfViewer } from '../utils/pdfViewer';
 import { ReceptorModal } from '../components/ReceptorModal';
 import { ConceptoModal } from '../components/ConceptoModal';
 
@@ -29,6 +30,8 @@ export const NuevaFactura = () => {
 
     // Selected / Form State
     const [selectedReceptorId, setSelectedReceptorId] = useState('');
+    const [enviarCorreoAuto, setEnviarCorreoAuto] = useState(true);
+    const [correoDestinoAuto, setCorreoDestinoAuto] = useState('');
     const [series, setSeries] = useState([]);
     const [facturaData, setFacturaData] = useState({
         tipo_documento_id: 1,
@@ -76,6 +79,11 @@ export const NuevaFactura = () => {
         total: '0.00'
     });
 
+    const [documentosIngreso, setDocumentosIngreso] = useState([]);
+    const [showDocsRelacionadosModal, setShowDocsRelacionadosModal] = useState(false);
+    const [searchDocRelacionado, setSearchDocRelacionado] = useState('');
+    const [soloClienteActual, setSoloClienteActual] = useState(false);
+
     const fetchData = async () => {
         if (!activeEmisor) return;
         try {
@@ -87,7 +95,8 @@ export const NuevaFactura = () => {
                 resMetodos,
                 resTipos,
                 resSeries,
-                resImpuestosLocales
+                resImpuestosLocales,
+                resDocsIngreso
             ] = await Promise.all([
                 api.get(`/receptores/emisor/${activeEmisor.id}`),
                 api.get(`/conceptos/emisor/${activeEmisor.id}`),
@@ -96,7 +105,8 @@ export const NuevaFactura = () => {
                 api.get('/catalogos/metodos-pago'),
                 api.get('/catalogos/tipos-documento'),
                 api.get(`/emisores/${activeEmisor.id}/series`),
-                api.get('/impuestos-locales')
+                api.get('/impuestos-locales'),
+                api.get(`/documentos?emisorId=${activeEmisor.id}&tipoComprobante=I`)
             ]);
 
             setReceptores(resReceptores.data);
@@ -107,6 +117,7 @@ export const NuevaFactura = () => {
             setTiposDocOpt(resTipos.data);
             setSeries(resSeries.data);
             setCatImpuestosLocales(resImpuestosLocales.data);
+            setDocumentosIngreso((resDocsIngreso.data || []).filter(d => d.tipo_comprobante === 'I' && d.uuid));
             
             // Consultar créditos por separado (puede tardar más por SOAP)
             setCreditosDisponibles(prev => ({ ...prev, loading: true }));
@@ -137,14 +148,19 @@ export const NuevaFactura = () => {
         fetchData();
     }, [activeEmisor]);
 
-    // Handle Receptor selection (auto fill uso_cfdi)
+    // Handle Receptor selection (auto fill uso_cfdi y correo)
     useEffect(() => {
         if (selectedReceptorId) {
             const rec = receptores.find(r => r.id === parseInt(selectedReceptorId));
-            if (rec && rec.uso_cfdi) {
-                setFacturaData(prev => ({ ...prev, uso_cfdi: rec.uso_cfdi }));
+            if (rec) {
+                if (rec.uso_cfdi) {
+                    setFacturaData(prev => ({ ...prev, uso_cfdi: rec.uso_cfdi }));
+                }
+                setCorreoDestinoAuto(rec.correo || '');
             }
             setEmittedDocument(null); // Reset when receptor changes
+        } else {
+            setCorreoDestinoAuto('');
         }
     }, [selectedReceptorId, receptores]);
 
@@ -201,7 +217,7 @@ export const NuevaFactura = () => {
                                     unidad: det.unidad || concepto?.unidad || 'Pieza',
                                     descripcion: det.descripcion || concepto?.descripcion || '',
                                     cantidad: parseFloat(det.cantidad) || 1,
-                                    valor_unitario: parseFloat(det.valor_unitario) || 0,
+                                    valor_unitario: parseFloat(det.valor_unitario) > 0 ? det.valor_unitario : '',
                                     descuento: parseFloat(det.descuento) || 0,
                                     es_objeto_imp: det.objeto_imp || '02',
                                     cuenta_predial: '',
@@ -269,7 +285,7 @@ export const NuevaFactura = () => {
                                     unidad: concepto?.unidad || 'Servicio',
                                     descripcion: `${det.descripcion}${equipoInfo}`,
                                     cantidad: parseFloat(det.cantidad) || 1,
-                                    valor_unitario: parseFloat(det.valor_unitario) || 0,
+                                    valor_unitario: parseFloat(det.valor_unitario) > 0 ? det.valor_unitario : '',
                                     descuento: parseFloat(det.descuento) || 0,
                                     es_objeto_imp: '02',
                                     cuenta_predial: '',
@@ -341,45 +357,53 @@ export const NuevaFactura = () => {
                 taxRate = 0.16;
             }
 
-            const netPrice = preciosIncluyenIva ? (price / (1 + taxRate)) : price;
-            const netDesc = preciosIncluyenIva ? (desc / (1 + taxRate)) : desc;
-            const baseAmount = (qty * netPrice) - netDesc;
+            const round2 = (n) => Math.round((parseFloat(n) || 0) * 100) / 100;
+            const netPriceExact = preciosIncluyenIva ? (price / (1 + taxRate)) : price;
+            const netDescExact = preciosIncluyenIva ? (desc / (1 + taxRate)) : desc;
+            const exactBase = (qty * netPriceExact) - netDescExact;
 
-            subtotal += (qty * netPrice);
-            descuento += netDesc;
+            const importePartida = round2(qty * netPriceExact);
+            const netDesc = round2(netDescExact);
 
-            if (p.Impuestos && Array.isArray(p.Impuestos)) {
+            subtotal = round2(subtotal + importePartida);
+            descuento = round2(descuento + netDesc);
+
+            if (p.Impuestos && Array.isArray(p.Impuestos) && p.Impuestos.length > 0) {
                 p.Impuestos.forEach(imp => {
                     const rate = parseFloat(imp.tasa_cuota);
-                    const calcImp = Math.round(baseAmount * rate * 100) / 100;
+                    const calcImp = round2(exactBase * rate);
                     const mapKey = `${imp.descripcion}`;
                     if (imp.tipo === 'traslado') {
-                        totalImpuestosTraslados += calcImp;
-                        desgloseTraslados[mapKey] = (desgloseTraslados[mapKey] || 0) + calcImp;
+                        totalImpuestosTraslados = round2(totalImpuestosTraslados + calcImp);
+                        desgloseTraslados[mapKey] = round2((desgloseTraslados[mapKey] || 0) + calcImp);
                     } else if (imp.tipo === 'retencion') {
-                        totalImpuestosRetenidos += calcImp;
-                        desgloseRetenciones[mapKey] = (desgloseRetenciones[mapKey] || 0) + calcImp;
+                        totalImpuestosRetenidos = round2(totalImpuestosRetenidos + calcImp);
+                        desgloseRetenciones[mapKey] = round2((desgloseRetenciones[mapKey] || 0) + calcImp);
                     }
                 });
+            } else if ((p.es_objeto_imp || '02') === '02') {
+                const calcImp = round2(exactBase * 0.16);
+                totalImpuestosTraslados = round2(totalImpuestosTraslados + calcImp);
+                desgloseTraslados['IVA 16%'] = round2((desgloseTraslados['IVA 16%'] || 0) + calcImp);
             }
 
 
             // Retenciones manuales o automáticas (RESICO)
             if (resicoApplies && (p.es_objeto_imp || '02') === '02') {
-                const amt = Math.round(baseAmount * 0.0125 * 100) / 100;
-                totalImpuestosRetenidos += amt;
-                desgloseRetenciones['ISR RESICO (1.25%)'] = (desgloseRetenciones['ISR RESICO (1.25%)'] || 0) + amt;
+                const amt = round2(exactBase * 0.0125);
+                totalImpuestosRetenidos = round2(totalImpuestosRetenidos + amt);
+                desgloseRetenciones['ISR RESICO (1.25%)'] = round2((desgloseRetenciones['ISR RESICO (1.25%)'] || 0) + amt);
             } else if (p.retencion_isr) {
                 const tasa = parseFloat(p.retencion_isr_tasa || 0.10);
-                const amt = Math.round(baseAmount * tasa * 100) / 100;
-                totalImpuestosRetenidos += amt;
-                desgloseRetenciones['ISR Retenido'] = (desgloseRetenciones['ISR Retenido'] || 0) + amt;
+                const amt = round2(exactBase * tasa);
+                totalImpuestosRetenidos = round2(totalImpuestosRetenidos + amt);
+                desgloseRetenciones['ISR Retenido'] = round2((desgloseRetenciones['ISR Retenido'] || 0) + amt);
             }
 
             if (p.retencion_iva) {
-                const amt = Math.round(baseAmount * 0.106667 * 100) / 100;
-                totalImpuestosRetenidos += amt;
-                desgloseRetenciones['IVA Retenido'] = (desgloseRetenciones['IVA Retenido'] || 0) + amt;
+                const amt = round2(exactBase * 0.106667);
+                totalImpuestosRetenidos = round2(totalImpuestosRetenidos + amt);
+                desgloseRetenciones['IVA Retenido'] = round2((desgloseRetenciones['IVA Retenido'] || 0) + amt);
             }
 
         });
@@ -401,7 +425,7 @@ export const NuevaFactura = () => {
             totalRetencionesLocales,
             desgloseTraslados,
             desgloseRetenciones,
-            total: subtotal - descuento + totalImpuestosTraslados - totalImpuestosRetenidos + totalTrasladosLocales - totalRetencionesLocales
+            total: Math.round((subtotal - descuento + totalImpuestosTraslados - totalImpuestosRetenidos + totalTrasladosLocales - totalRetencionesLocales) * 100) / 100
         };
     }, [partidas, impuestosLocales, resicoApplies, preciosIncluyenIva]);
 
@@ -452,8 +476,12 @@ export const NuevaFactura = () => {
 
     const handleAddConcepto = (concepto) => {
         const isHonorarios = parseInt(facturaData.tipo_documento_id) === 2;
+        const rawVal = concepto.valor_unitario;
+        const initialVal = (rawVal === undefined || rawVal === null || parseFloat(rawVal) === 0) ? '' : rawVal;
+
         setPartidas([...partidas, {
             ...concepto,
+            valor_unitario: initialVal,
             cantidad: 1,
             descuento: 0,
             cuenta_predial: '',
@@ -498,6 +526,127 @@ export const NuevaFactura = () => {
         const newLocal = { ...impuestosLocales };
         newLocal[type] = newLocal[type].filter((_, i) => i !== index);
         setImpuestosLocales(newLocal);
+    };
+
+    const linkedUuidsList = useMemo(() => {
+        if (!facturaData.uuids_relacionados) return [];
+        return String(facturaData.uuids_relacionados)
+            .split(/[\n,;]+/)
+            .map(u => u.trim())
+            .filter(Boolean);
+    }, [facturaData.uuids_relacionados]);
+
+    const handleSeleccionarDocIngreso = (doc, modo = 'vincular') => {
+        if (!doc || !doc.uuid) return;
+
+        // 1. Agregar UUID a la lista sin duplicar
+        const currentUuids = linkedUuidsList;
+        const updatedUuids = currentUuids.includes(doc.uuid)
+            ? currentUuids
+            : [...currentUuids, doc.uuid];
+
+        // 2. Seleccionar receptor del documento si aún no hay uno seleccionado o si carga partidas
+        if ((!selectedReceptorId || modo === 'nota_credito' || modo === 'devolucion') && doc.receptor_id) {
+            setSelectedReceptorId(doc.receptor_id.toString());
+        }
+
+        // 3. Configurar tipo de relación y datos del comprobante según el modo elegido
+        const nuevaRelacion = modo === 'devolucion'
+            ? '03'
+            : modo === 'nota_credito'
+                ? '01'
+                : (facturaData.tipo_relacion || '01');
+
+        if (modo === 'nota_credito' || modo === 'devolucion') {
+            setFacturaData(prev => ({
+                ...prev,
+                tipo_documento_id: 4, // 4 = NOTAS DE CREDITO (Tipo E - Egreso)
+                tipo_comprobante: 'E',
+                uso_cfdi: 'G02', // G02 = Devoluciones, descuentos o bonificaciones
+                metodo_pago: 'PUE',
+                forma_pago: doc.forma_pago === '99' ? '03' : (doc.forma_pago || prev.forma_pago || '01'),
+                moneda: doc.moneda || prev.moneda || 'MXN',
+                tipo_cambio: doc.tipo_cambio || prev.tipo_cambio || '1',
+                tipo_relacion: nuevaRelacion,
+                uuids_relacionados: updatedUuids.join('\n')
+            }));
+
+            // Cargar conceptos/partidas de la factura de ingreso seleccionada
+            if (doc.detalles && doc.detalles.length > 0) {
+                const saldoPendiente = parseFloat(doc.saldo_insoluto);
+                const totalDoc = parseFloat(doc.total || 0);
+                const usarSaldoInsoluto = !isNaN(saldoPendiente) && saldoPendiente > 0 && saldoPendiente < totalDoc && doc.detalles.length === 1;
+
+                const loadedPartidas = doc.detalles.map(det => {
+                    const concepto = det.Concepto || conceptosCat.find(c => c.id === det.concepto_id);
+                    const hasImpuestos = concepto?.Impuestos && concepto.Impuestos.length > 0;
+                    const impuestosArray = hasImpuestos
+                        ? concepto.Impuestos
+                        : (det.es_objeto_imp === '01' ? [] : [{
+                            id: 'default_iva',
+                            tipo: 'traslado',
+                            tasa_cuota: 0.16,
+                            descripcion: 'IVA 16%'
+                        }]);
+
+                    let tasaTraslado = 0;
+                    impuestosArray.forEach(imp => {
+                        if (imp.tipo === 'traslado') tasaTraslado += parseFloat(imp.tasa_cuota || 0);
+                    });
+                    if (tasaTraslado === 0 && (det.es_objeto_imp || '02') === '02') tasaTraslado = 0.16;
+
+                    const qty = usarSaldoInsoluto ? 1 : (parseFloat(det.cantidad) || 1);
+                    const netUnit = parseFloat(det.valor_unitario) || 0;
+                    const grossUnit = Math.round(netUnit * (1 + tasaTraslado) * 100) / 100;
+                    const precioInicial = usarSaldoInsoluto
+                        ? saldoPendiente
+                        : (doc.detalles.length === 1 && qty === 1 && totalDoc > 0 ? totalDoc : grossUnit);
+
+                    return {
+                        id: det.concepto_id || concepto?.id || det.id,
+                        concepto_id: det.concepto_id || concepto?.id,
+                        clave_prod_serv: concepto?.clave_prod_serv || '01010101',
+                        clave_unidad: concepto?.clave_unidad || 'E48',
+                        unidad: concepto?.unidad || 'Servicio',
+                        descripcion: concepto?.descripcion || `Concepto de Factura ${doc.serie || ''}-${doc.folio || doc.id}`,
+                        cantidad: qty,
+                        valor_unitario: precioInicial,
+                        descuento: usarSaldoInsoluto ? 0 : (parseFloat(det.descuento) || 0),
+                        es_objeto_imp: det.es_objeto_imp || '02',
+                        cuenta_predial: det.cuenta_predial || '',
+                        retencion_isr: Boolean(det.retencion_isr),
+                        retencion_iva: Boolean(det.retencion_iva),
+                        retencion_isr_tasa: parseFloat(det.retencion_isr_tasa || 0.10),
+                        Impuestos: impuestosArray,
+                        permitir_editar_descripcion: true
+                    };
+                });
+                setPartidas(loadedPartidas);
+                setPreciosIncluyenIva(true);
+            }
+
+            showToast(
+                modo === 'devolucion'
+                    ? `↩️ Factura ${doc.serie || ''}-${doc.folio} cargada para Devolución (Relación 03)`
+                    : `📄 Factura ${doc.serie || ''}-${doc.folio} cargada para Nota de Crédito (Relación 01)`
+            );
+            setShowDocsRelacionadosModal(false);
+        } else {
+            setFacturaData(prev => ({
+                ...prev,
+                tipo_relacion: nuevaRelacion,
+                uuids_relacionados: updatedUuids.join('\n')
+            }));
+            showToast(`🔗 Folio ${doc.serie || ''}-${doc.folio} (${doc.uuid.substring(0, 8)}...) vinculado`);
+        }
+    };
+
+    const handleQuitarUuidRelacionado = (uuidToRemove) => {
+        const filtered = linkedUuidsList.filter(u => u !== uuidToRemove);
+        setFacturaData(prev => ({
+            ...prev,
+            uuids_relacionados: filtered.join('\n')
+        }));
     };
 
     const handlePreview = async () => {
@@ -554,19 +703,8 @@ export const NuevaFactura = () => {
 
             const response = await api.post('/documentos/preview', payload);
             if (response.data.success) {
-                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
-                const pdfUrl = `${baseUrl}${response.data.pdfUrl}`;
-                
-                // Intentar abrir, si falla por bloqueador, mostrar enlace
-                const win = window.open(pdfUrl, '_blank');
-                if (!win || win.closed || typeof win.closed === 'undefined') {
-                    showToast('⚠️ Pop-up bloqueado. Haz clic aquí para ver PDF', 'info', { 
-                        onClick: () => window.open(pdfUrl, '_blank'),
-                        duration: 10000 
-                    });
-                } else {
-                    showToast('✅ Vista previa generada');
-                }
+                await openPdfViewer(response.data.pdfUrl, 'Vista Previa CFDI');
+                showToast('✅ Vista previa generada');
             }
         } catch (error) {
             console.error("Error al generar vista previa", error);
@@ -629,11 +767,29 @@ export const NuevaFactura = () => {
                         retencion_isr_tasa: resicoApplies ? 0.0125 : p.retencion_isr_tasa
                     };
                 }),
-                impuestosLocales
+                impuestosLocales,
+                enviar_correo: enviarCorreoAuto,
+                correo_destinatario: correoDestinoAuto.trim()
             };
 
             const response = await api.post('/documentos/emitir', payload);
-            showToast(soloGuardar ? '✅ Guardado.' : `✅ Timbrado Correctamente`);
+            
+            if (soloGuardar) {
+                showToast('✅ Guardado como borrador.', 'success');
+            } else {
+                const correoResp = response.data?.correo;
+                if (enviarCorreoAuto && correoDestinoAuto.trim()) {
+                    if (correoResp?.success) {
+                        showToast(`✅ Timbrado exitoso y enviado a ${correoDestinoAuto.trim()}`, 'success');
+                    } else if (correoResp && !correoResp.success) {
+                        showToast(`✅ Timbrado exitoso. (Aviso correo: ${correoResp.message})`, 'warning');
+                    } else {
+                        showToast('✅ Factura generada y timbrada exitosamente.', 'success');
+                    }
+                } else {
+                    showToast('✅ Factura generada y timbrada exitosamente.', 'success');
+                }
+            }
             
             setPartidas([]);
             setFacturaData({
@@ -723,10 +879,9 @@ export const NuevaFactura = () => {
                         )}
                     </button>
                     <button
-                        onClick={() => {
+                        onClick={async () => {
                             if (emittedDocument) {
-                                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
-                                window.open(`${baseUrl}${emittedDocument.pdf_url}`, '_blank');
+                                await openPdfViewer(emittedDocument.pdf_url, 'CFDI Timbrado');
                             } else {
                                 handleSubirFactura(false);
                             }
@@ -854,6 +1009,18 @@ export const NuevaFactura = () => {
                                                     forma_pago: '03', // Transferencia común en honorarios
                                                     es_global: false // Reset global
                                                 }));
+                                            } else if (val === 4) {
+                                                // 4 = NOTAS DE CREDITO (Tipo E - Egreso)
+                                                setShowAdvanced(true);
+                                                setFacturaData(prev => ({
+                                                    ...prev,
+                                                    tipo_documento_id: val,
+                                                    tipo_comprobante: 'E',
+                                                    uso_cfdi: 'G02',
+                                                    metodo_pago: 'PUE',
+                                                    tipo_relacion: prev.tipo_relacion || '01',
+                                                    es_global: false
+                                                }));
                                             } else {
                                                 setFacturaData({
                                                     ...facturaData,
@@ -926,6 +1093,34 @@ export const NuevaFactura = () => {
                                     >
                                         <Plus className="w-4 h-4" />
                                     </button>
+                                </div>
+
+                                {/* Opción de Envío Automático de Correo al Timbrar */}
+                                <div className="mt-3 p-3 bg-slate-50/90 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center gap-3">
+                                    <label className="flex items-center gap-2.5 cursor-pointer select-none shrink-0">
+                                        <input
+                                            type="checkbox"
+                                            checked={enviarCorreoAuto}
+                                            onChange={e => setEnviarCorreoAuto(e.target.checked)}
+                                            className="w-4 h-4 text-primary-600 rounded border-slate-300 focus:ring-primary-500 cursor-pointer"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                                            <Mail className="w-3.5 h-3.5 text-primary-600" />
+                                            Enviar CFDI (PDF + XML) al timbrar
+                                        </span>
+                                    </label>
+                                    {enviarCorreoAuto && (
+                                        <div className="flex-1 w-full">
+                                            <input
+                                                type="text"
+                                                value={correoDestinoAuto}
+                                                onChange={e => setCorreoDestinoAuto(e.target.value)}
+                                                placeholder="Correos destino (ej: cliente@correo.com, contabilidad@correo.com)"
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all"
+                                                title="Puedes ingresar varios correos separados por coma (,)"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1080,14 +1275,27 @@ export const NuevaFactura = () => {
 
                             {/* CFDI Relacionados */}
                             <div className="space-y-4">
-                                <div className="flex items-center gap-3 p-1">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${facturaData.tipo_relacion ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-400'}`}>
-                                        <History className="w-5 h-5" />
+                                <div className="flex flex-wrap items-center justify-between gap-3 p-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${facturaData.tipo_relacion ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-400'}`}>
+                                            <History className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-bold text-slate-700 block">Documentos Relacionados</label>
+                                            <p className="text-[10px] text-slate-400 font-medium">Vincular con folios previos (Notas de Crédito, Devolución, Sustitución)</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-sm font-bold text-slate-700 block">Documentos Relacionados</label>
-                                        <p className="text-[10px] text-slate-400 font-medium">Vincular con folios previos (Notas de Crédito, Sustitución)</p>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSoloClienteActual(Boolean(selectedReceptorId));
+                                            setShowDocsRelacionadosModal(true);
+                                        }}
+                                        className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                                    >
+                                        <Search className="w-3.5 h-3.5" />
+                                        <span>Traer Factura de Ingreso</span>
+                                    </button>
                                 </div>
 
                                 <div className="space-y-3 pt-2">
@@ -1101,17 +1309,74 @@ export const NuevaFactura = () => {
                                             <option value="">-- Ninguna / No aplica --</option>
                                             <option value="01">01 - Nota de crédito de los documentos relacionados</option>
                                             <option value="02">02 - Nota de débito de los documentos relacionados</option>
-                                            <option value="03">03 - Devolución de mercancía sobre facturas previos</option>
+                                            <option value="03">03 - Devolución de mercancía sobre facturas previas</option>
                                             <option value="04">04 - Sustitución de los CFDI previos</option>
                                         </select>
                                     </div>
+
+                                    {/* Tarjetas de Documentos de Ingreso vinculados */}
+                                    {linkedUuidsList.length > 0 && (
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-bold text-slate-500 uppercase block">
+                                                Documentos de Ingreso Vinculados ({linkedUuidsList.length})
+                                            </label>
+                                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                                {linkedUuidsList.map(uuid => {
+                                                    const docMatch = documentosIngreso.find(d => d.uuid?.toLowerCase() === uuid.toLowerCase());
+                                                    return (
+                                                        <div key={uuid} className="flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-xl px-3 py-2 text-xs shadow-sm">
+                                                            <div className="min-w-0 flex-1">
+                                                                {docMatch ? (
+                                                                    <div className="flex flex-wrap items-center gap-2">
+                                                                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-black text-[11px]">
+                                                                            {docMatch.serie ? `${docMatch.serie}-` : ''}{docMatch.folio}
+                                                                        </span>
+                                                                        <span className="font-bold text-slate-700 truncate">
+                                                                            {docMatch.Receptor?.razon_social}
+                                                                        </span>
+                                                                        <span className="font-black text-emerald-700">
+                                                                            ${parseFloat(docMatch.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {docMatch.moneda}
+                                                                        </span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="font-semibold text-slate-600 text-[11px]">Folio Fiscal Externo</span>
+                                                                )}
+                                                                <div className="text-[10px] font-mono text-slate-400 truncate mt-0.5">{uuid}</div>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                                {docMatch && docMatch.detalles?.length > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSeleccionarDocIngreso(docMatch, facturaData.tipo_relacion === '03' ? 'devolucion' : 'nota_credito')}
+                                                                        className="px-2 py-1 text-[10px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
+                                                                        title="Cargar conceptos de esta factura para Nota de Crédito o Devolución"
+                                                                    >
+                                                                        Cargar Partidas
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleQuitarUuidRelacionado(uuid)}
+                                                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title="Quitar relación"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">UUIDs (Un folio por línea o separados por coma)</label>
                                         <textarea
                                             value={facturaData.uuids_relacionados}
                                             onChange={e => setFacturaData({ ...facturaData, uuids_relacionados: e.target.value })}
                                             rows="2"
-                                            placeholder="Ej: C80A5886-..."
+                                            placeholder="Seleccione una factura con el botón 'Traer Factura de Ingreso' o pegue el UUID aquí..."
                                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-[10px] font-mono bg-white focus:border-primary-400 outline-none shadow-sm resize-none"
                                         />
                                     </div>
@@ -1280,8 +1545,14 @@ export const NuevaFactura = () => {
                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">$</span>
                                                     <input
                                                         type="number" min="0" step="0.01"
-                                                        value={p.valor_unitario}
+                                                        placeholder="0.00"
+                                                        value={p.valor_unitario === '0.000000' || p.valor_unitario === 0 ? '' : (p.valor_unitario ?? '')}
                                                         onChange={e => handlePartidaChange(idx, 'valor_unitario', e.target.value)}
+                                                        onFocus={e => {
+                                                            if (e.target.value === '0.000000' || parseFloat(e.target.value) === 0) {
+                                                                handlePartidaChange(idx, 'valor_unitario', '');
+                                                            }
+                                                        }}
                                                         className="w-full pl-7 pr-3 py-2 text-right border-0 bg-transparent text-sm font-extrabold text-slate-800 focus:outline-none outline-none font-mono tracking-tight"
                                                     />
                                                 </div>
@@ -1677,6 +1948,185 @@ export const NuevaFactura = () => {
                                     <Save className="w-4 h-4" /> Guardar Descripción
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal para Seleccionar Facturas de Ingreso (Nota de Crédito / Devolución / Sustitución) */}
+            {showDocsRelacionadosModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
+                                    <History className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black tracking-tight">
+                                        Seleccionar Factura de Ingreso Relacionada
+                                    </h3>
+                                    <p className="text-xs text-slate-400">
+                                        Elige una factura de ingreso para aplicarle Nota de Crédito (01), Devolución (03) o vincular su folio fiscal.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowDocsRelacionadosModal(false)}
+                                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+                            <div className="relative flex-1 min-w-[240px]">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={searchDocRelacionado}
+                                    onChange={(e) => setSearchDocRelacionado(e.target.value)}
+                                    placeholder="Buscar por serie/folio (ej. F-11), cliente, RFC o UUID..."
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:border-amber-500 outline-none shadow-sm"
+                                />
+                            </div>
+                            {selectedReceptorId && (
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none bg-white px-3 py-2 rounded-xl border border-slate-200">
+                                    <input
+                                        type="checkbox"
+                                        checked={soloClienteActual}
+                                        onChange={(e) => setSoloClienteActual(e.target.checked)}
+                                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500"
+                                    />
+                                    <span>Solo del cliente seleccionado</span>
+                                </label>
+                            )}
+                        </div>
+
+                        <div className="p-4 overflow-y-auto flex-1 space-y-2.5">
+                            {(() => {
+                                const term = searchDocRelacionado.trim().toLowerCase();
+                                const filteredDocs = documentosIngreso.filter(d => {
+                                    if (soloClienteActual && selectedReceptorId && String(d.receptor_id) !== String(selectedReceptorId)) {
+                                        return false;
+                                    }
+                                    if (!term) return true;
+                                    const folioStr = `${d.serie || ''}-${d.folio || ''}`.toLowerCase();
+                                    const folioCompact = `${d.serie || ''}${d.folio || ''}`.toLowerCase();
+                                    return (
+                                        folioStr.includes(term) ||
+                                        folioCompact.includes(term) ||
+                                        (d.uuid || '').toLowerCase().includes(term) ||
+                                        (d.Receptor?.razon_social || '').toLowerCase().includes(term) ||
+                                        (d.Receptor?.rfc || '').toLowerCase().includes(term)
+                                    );
+                                });
+
+                                if (filteredDocs.length === 0) {
+                                    return (
+                                        <div className="text-center py-12 text-slate-400 text-xs font-medium">
+                                            No se encontraron facturas de ingreso timbradas con ese criterio.
+                                        </div>
+                                    );
+                                }
+
+                                return filteredDocs.map(doc => {
+                                    const isLinked = linkedUuidsList.some(u => u.toLowerCase() === (doc.uuid || '').toLowerCase());
+                                    const resumenConceptos = doc.detalles && doc.detalles.length > 0
+                                        ? doc.detalles.map(det => det.Concepto?.descripcion || 'Concepto').join(', ')
+                                        : 'Sin detalle de partidas';
+
+                                    return (
+                                        <div
+                                            key={doc.id}
+                                            className={`p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                                isLinked
+                                                    ? 'bg-amber-50/60 border-amber-300 shadow-sm'
+                                                    : 'bg-white hover:bg-slate-50 border-slate-200'
+                                            }`}
+                                        >
+                                            <div className="space-y-1 min-w-0 flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-xs font-black">
+                                                        {doc.serie ? `${doc.serie}-` : ''}{doc.folio}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-800 truncate">
+                                                        {doc.Receptor?.razon_social}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-400">
+                                                        ({doc.Receptor?.rfc})
+                                                    </span>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-bold">
+                                                        {doc.metodo_pago || 'PUE'}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400">
+                                                        {doc.fecha ? new Date(doc.fecha).toLocaleDateString('es-MX') : ''}
+                                                    </span>
+                                                </div>
+                                                <div className="text-[11px] text-slate-600 truncate" title={resumenConceptos}>
+                                                    <span className="font-semibold text-slate-500">Conceptos:</span> {resumenConceptos}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
+                                                    <span>UUID: {doc.uuid}</span>
+                                                    <span className="font-sans font-black text-slate-800 text-xs">
+                                                        Total: ${parseFloat(doc.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {doc.moneda || 'MXN'}
+                                                    </span>
+                                                    {doc.metodo_pago === 'PPD' && (
+                                                        <span className="font-sans font-bold text-indigo-600 text-[11px]">
+                                                            Insoluto: ${parseFloat(doc.saldo_insoluto ?? doc.total ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSeleccionarDocIngreso(doc, 'nota_credito')}
+                                                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-lg shadow-sm transition-colors"
+                                                    title="Configurar como Nota de Crédito (01) y cargar sus conceptos"
+                                                >
+                                                    + Nota de Crédito (01)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSeleccionarDocIngreso(doc, 'devolucion')}
+                                                    className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-bold rounded-lg shadow-sm transition-colors"
+                                                    title="Configurar como Devolución de Mercancía (03) y cargar sus conceptos"
+                                                >
+                                                    + Devolución (03)
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSeleccionarDocIngreso(doc, 'vincular')}
+                                                    className={`px-2.5 py-1.5 text-[11px] font-bold rounded-lg border transition-colors ${
+                                                        isLinked
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                                                    }`}
+                                                    title="Solo agregar el UUID al campo de folios relacionados"
+                                                >
+                                                    {isLinked ? '✓ Vinculado' : 'Solo Folio'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                });
+                            })()}
+                        </div>
+
+                        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                            <span className="text-xs text-slate-500">
+                                {linkedUuidsList.length} documento(s) vinculado(s) actualmente
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setShowDocsRelacionadosModal(false)}
+                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-colors"
+                            >
+                                Listo / Cerrar
+                            </button>
                         </div>
                     </div>
                 </div>

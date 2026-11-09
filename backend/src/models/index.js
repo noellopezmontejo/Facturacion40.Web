@@ -33,6 +33,10 @@ import { DocumentoRecibido } from './DocumentoRecibido.js';
 import { PagoRecibido } from './PagoRecibido.js';
 import { PagoDocumentoRecibido } from './PagoDocumentoRecibido.js';
 import { FolioHistorial } from './FolioHistorial.js';
+import { SolicitudDescargaSat } from './SolicitudDescargaSat.js';
+import { FacturacionRecurrente } from './FacturacionRecurrente.js';
+import { DetalleFacturacionRecurrente } from './DetalleFacturacionRecurrente.js';
+import { HistorialFacturacionRecurrente } from './HistorialFacturacionRecurrente.js';
 
 
 // Junction models
@@ -202,8 +206,26 @@ FolioHistorial.belongsTo(Emisor, { foreignKey: 'emisor_id' });
 Empresa.hasMany(FolioHistorial, { foreignKey: 'empresa_id' });
 FolioHistorial.belongsTo(Empresa, { foreignKey: 'empresa_id' });
 
+// SolicitudDescargaSat associations
+Emisor.hasMany(SolicitudDescargaSat, { foreignKey: 'emisor_id', as: 'solicitudesDescargaSat' });
+SolicitudDescargaSat.belongsTo(Emisor, { foreignKey: 'emisor_id' });
+
 Usuario.hasMany(FolioHistorial, { foreignKey: 'usuario_id' });
 FolioHistorial.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+
+// FacturacionRecurrente associations
+Emisor.hasMany(FacturacionRecurrente, { foreignKey: 'emisor_id' });
+FacturacionRecurrente.belongsTo(Emisor, { foreignKey: 'emisor_id' });
+Receptor.hasMany(FacturacionRecurrente, { foreignKey: 'receptor_id' });
+FacturacionRecurrente.belongsTo(Receptor, { foreignKey: 'receptor_id' });
+Usuario.hasMany(FacturacionRecurrente, { foreignKey: 'usuario_id' });
+FacturacionRecurrente.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+FacturacionRecurrente.hasMany(DetalleFacturacionRecurrente, { foreignKey: 'facturacion_recurrente_id', as: 'detalles' });
+DetalleFacturacionRecurrente.belongsTo(FacturacionRecurrente, { foreignKey: 'facturacion_recurrente_id' });
+DetalleFacturacionRecurrente.belongsTo(Concepto, { foreignKey: 'concepto_id' });
+FacturacionRecurrente.hasMany(HistorialFacturacionRecurrente, { foreignKey: 'facturacion_recurrente_id', as: 'historial' });
+HistorialFacturacionRecurrente.belongsTo(FacturacionRecurrente, { foreignKey: 'facturacion_recurrente_id' });
+HistorialFacturacionRecurrente.belongsTo(Documento, { foreignKey: 'documento_id', as: 'documento' });
 
 export {
     Empresa,
@@ -241,6 +263,10 @@ export {
     OrdenServicio,
     DetalleOrdenServicio,
     FolioHistorial,
+    SolicitudDescargaSat,
+    FacturacionRecurrente,
+    DetalleFacturacionRecurrente,
+    HistorialFacturacionRecurrente,
     sequelize
 };
 

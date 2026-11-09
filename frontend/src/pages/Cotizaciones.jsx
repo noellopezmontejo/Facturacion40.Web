@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FileText, RefreshCw, Eye, X, Filter, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Plus, Search, FileText, RefreshCw, Eye, X, Filter, CheckCircle2, Clock, AlertCircle, Printer, Loader2 } from 'lucide-react';
 import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { openPdfViewer } from '../utils/pdfViewer';
 
 export const Cotizaciones = () => {
     const [cotizaciones, setCotizaciones] = useState([]);
@@ -12,6 +13,7 @@ export const Cotizaciones = () => {
     const [statusFilter, setStatusFilter] = useState('Todos');
     const [selectedCotizacion, setSelectedCotizacion] = useState(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [printingId, setPrintingId] = useState(null);
 
     const { showToast } = useToast();
     const { activeEmisor } = useAuth();
@@ -32,6 +34,25 @@ export const Cotizaciones = () => {
             showToast('Error al cargar cotizaciones', 'error');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePrintCotizacion = async (cotizacionId, folio) => {
+        try {
+            setPrintingId(cotizacionId);
+            showToast('Generando PDF de la cotización...', 'info');
+            const res = await api.get(`/cotizaciones/${cotizacionId}/pdf`);
+            if (res.data?.success && res.data?.pdfUrl) {
+                await openPdfViewer(res.data.pdfUrl, `Cotización ${folio || cotizacionId}`);
+                showToast('Cotización abierta en el visor PDF', 'success');
+            } else {
+                showToast('No se pudo generar el PDF de la cotización', 'error');
+            }
+        } catch (error) {
+            console.error('Error imprimiendo cotización:', error);
+            showToast('Error al generar la representación impresa de la cotización', 'error');
+        } finally {
+            setPrintingId(null);
         }
     };
 
@@ -221,6 +242,18 @@ export const Cotizaciones = () => {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
+                                                <button
+                                                    onClick={() => handlePrintCotizacion(cotizacion.id, cotizacion.folio)}
+                                                    disabled={printingId === cotizacion.id}
+                                                    className="p-1.5 text-slate-500 hover:text-primary-600 hover:bg-primary-50 rounded-md transition-colors disabled:opacity-50"
+                                                    title="Imprimir / Ver Cotización en PDF"
+                                                >
+                                                    {printingId === cotizacion.id ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                                                    ) : (
+                                                        <Printer className="w-4 h-4" />
+                                                    )}
+                                                </button>
                                                 {cotizacion.estado !== 'Facturada' && (
                                                     <button
                                                         onClick={() => navigate('/facturas/nueva', { state: { cotizacionId: cotizacion.id } })}
@@ -396,6 +429,18 @@ export const Cotizaciones = () => {
                                 className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-700 hover:bg-slate-100 transition-colors font-medium"
                             >
                                 Cerrar
+                            </button>
+                            <button
+                                onClick={() => handlePrintCotizacion(selectedCotizacion.id, selectedCotizacion.folio)}
+                                disabled={printingId === selectedCotizacion.id}
+                                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                                {printingId === selectedCotizacion.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin text-primary-600" />
+                                ) : (
+                                    <Printer className="w-4 h-4 text-primary-600" />
+                                )}
+                                Imprimir Cotización (PDF)
                             </button>
                             {selectedCotizacion.estado !== 'Facturada' && (
                                 <button

@@ -40,7 +40,20 @@ export const updateEstilo = async (req, res) => {
         if (color_primario !== undefined) updateData.color_primario = color_primario;
         if (color_secundario !== undefined) updateData.color_secundario = color_secundario;
         if (tipo_letra !== undefined) updateData.tipo_letra = tipo_letra;
-        if (layout_id !== undefined) updateData.layout_id = layout_id;
+        if (layout_id !== undefined) {
+            updateData.layout_id = layout_id;
+            if (template_mapping === undefined && estilo && estilo.template_mapping) {
+                try {
+                    const currentMap = typeof estilo.template_mapping === 'string'
+                        ? JSON.parse(estilo.template_mapping)
+                        : { ...estilo.template_mapping };
+                    if (currentMap) {
+                        currentMap['1'] = layout_id;
+                        updateData.template_mapping = currentMap;
+                    }
+                } catch (e) {}
+            }
+        }
         
         if (template_mapping !== undefined) {
             updateData.template_mapping = typeof template_mapping === 'string' 

@@ -1,4 +1,5 @@
 import { Cotizacion, DetalleCotizacion, Emisor, Receptor, Concepto, Impuesto } from '../models/index.js';
+import { generarPDFCotizacion } from '../services/pdfService.js';
 
 export const getCotizaciones = async (req, res) => {
     try {
@@ -86,5 +87,16 @@ export const updateCotizacionStatus = async (req, res) => {
     } catch (error) {
         console.error('Error updating cotizacion:', error);
         res.status(500).json({ message: 'Error al actualizar cotización' });
+    }
+};
+
+export const getCotizacionPdf = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await generarPDFCotizacion(id);
+        res.json(result);
+    } catch (error) {
+        console.error('Error generating cotizacion PDF:', error);
+        res.status(500).json({ message: 'Error al generar PDF de cotización', error: error.message });
     }
 };

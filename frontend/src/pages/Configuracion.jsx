@@ -4,7 +4,7 @@ import {
     Building2, Save, Shield, Settings, Users, AlertCircle, 
     CheckCircle2, Plus, List, ArrowRight, Sparkles, Layers,
     Zap, Activity, Search, RefreshCw, FileText, Check, ShieldCheck, 
-    History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key
+    History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key, Mail, Send
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -31,6 +31,19 @@ export const Configuracion = () => {
     const [saving, setSaving] = useState(false);
     const [empresa, setEmpresa] = useState({ id: null, nombre: '', activo: true });
     const [nuevoNombre, setNuevoNombre] = useState('');
+    const [smtpForm, setSmtpForm] = useState({
+        smtp_host: '',
+        smtp_port: 587,
+        smtp_secure: false,
+        smtp_user: '',
+        smtp_pass: '',
+        smtp_from_name: '',
+        smtp_from_email: ''
+    });
+    const [savingSmtp, setSavingSmtp] = useState(false);
+    const [testingSmtp, setTestingSmtp] = useState(false);
+    const [correoPruebaSmtp, setCorreoPruebaSmtp] = useState('');
+    const [smtpTestStatus, setSmtpTestStatus] = useState(null);
 
     // Estados para la gestión de múltiples empresas (solo Administradores)
     const [empresas, setEmpresas] = useState([]);
@@ -106,6 +119,15 @@ export const Configuracion = () => {
             const { data } = await api.get('/empresas/mi-empresa', { params });
             setEmpresa(data);
             setNuevoNombre(data.nombre);
+            setSmtpForm({
+                smtp_host: data.smtp_host || '',
+                smtp_port: data.smtp_port || 587,
+                smtp_secure: Boolean(data.smtp_secure),
+                smtp_user: data.smtp_user || '',
+                smtp_pass: data.smtp_pass ? '••••••••' : '',
+                smtp_from_name: data.smtp_from_name || data.nombre || '',
+                smtp_from_email: data.smtp_from_email || data.smtp_user || ''
+            });
         } catch (error) {
             console.error("Error fetching empresa details:", error);
             showToast("No se pudieron obtener los detalles del espacio empresarial.", "error");
@@ -238,7 +260,66 @@ export const Configuracion = () => {
         changeActiveEmpresa(targetEmp);
         setEmpresa(targetEmp);
         setNuevoNombre(targetEmp.nombre);
+        setSmtpForm({
+            smtp_host: targetEmp.smtp_host || '',
+            smtp_port: targetEmp.smtp_port || 587,
+            smtp_secure: Boolean(targetEmp.smtp_secure),
+            smtp_user: targetEmp.smtp_user || '',
+            smtp_pass: targetEmp.smtp_pass ? '••••••••' : '',
+            smtp_from_name: targetEmp.smtp_from_name || targetEmp.nombre || '',
+            smtp_from_email: targetEmp.smtp_from_email || targetEmp.smtp_user || ''
+        });
         showToast(`Espacio de trabajo cambiado a: ${targetEmp.nombre}`);
+    };
+
+    const handleSaveSmtp = async (e) => {
+        e.preventDefault();
+        setSavingSmtp(true);
+        try {
+            const params = {};
+            const targetId = empresa.id || activeEmpresa?.id;
+            if (user?.rol === 'Administrador' && targetId) {
+                params.empresa_id = targetId;
+            }
+            const payload = {
+                ...smtpForm,
+                smtp_pass: smtpForm.smtp_pass === '••••••••' ? '' : smtpForm.smtp_pass
+            };
+            const { data } = await api.put('/empresas/mi-empresa', payload, { params });
+            setEmpresa(data.empresa);
+            showToast('✅ Configuración de correo SMTP del espacio guardada con éxito');
+            if (user?.rol === 'Administrador') {
+                fetchAllEmpresas();
+            }
+        } catch (error) {
+            console.error('Error guardando SMTP de empresa:', error);
+            showToast(error.response?.data?.message || 'Error al guardar configuración SMTP', 'error');
+        } finally {
+            setSavingSmtp(false);
+        }
+    };
+
+    const handleTestSmtp = async () => {
+        setTestingSmtp(true);
+        setSmtpTestStatus(null);
+        try {
+            const payload = {
+                ...smtpForm,
+                smtp_pass: smtpForm.smtp_pass === '••••••••' ? '' : smtpForm.smtp_pass,
+                correo_prueba: correoPruebaSmtp.trim(),
+                empresa_id: empresa.id || activeEmpresa?.id
+            };
+            const { data } = await api.post('/empresas/test-smtp', payload);
+            setSmtpTestStatus({ ok: true, message: data.message });
+            showToast(`✅ ${data.message}`);
+        } catch (error) {
+            console.error('Error probando SMTP:', error);
+            const errMsg = error.response?.data?.message || 'No se pudo conectar al servidor SMTP';
+            setSmtpTestStatus({ ok: false, message: errMsg });
+            showToast(errMsg, 'error');
+        } finally {
+            setTestingSmtp(false);
+        }
     };
 
     // Funciones PAC
@@ -508,6 +589,177 @@ export const Configuracion = () => {
                                 >
                                     <Save className="w-4 h-4" /> 
                                     {saving ? 'Guardando...' : 'Guardar Nombre del Espacio'}
+                                </button>
+                            </div>
+                        </form>
+
+                        {/* Configuración de Correo SMTP del Espacio de Trabajo (Nivel 1 de la Cascada) */}
+                        <form onSubmit={handleSaveSmtp} className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
+                            <div className="border-b border-slate-100 pb-4 flex items-center justify-between">
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                        <Mail className="w-5 h-5 text-indigo-600" /> Correo Electrónico del Espacio de Trabajo (SMTP General)
+                                    </h2>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Este servidor se usa por defecto para enviar los CFDI (PDF y XML) de todos los emisores del espacio.
+                                    </p>
+                                </div>
+                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider ${
+                                    smtpForm.smtp_host && smtpForm.smtp_user
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                    {smtpForm.smtp_host && smtpForm.smtp_user ? 'SMTP Configurado' : 'Sin Configurar'}
+                                </span>
+                            </div>
+
+                            <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900 space-y-1">
+                                <div className="font-bold flex items-center gap-1.5">
+                                    <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                                    <span>Arquitectura en Cascada (Espacio de Trabajo → Emisor)</span>
+                                </div>
+                                <p className="text-[11px] text-indigo-700 leading-relaxed">
+                                    Los correos de cualquier emisor saldrán usando esta cuenta general con el <strong>Nombre del Emisor</strong> como remitente visible y su <strong>Correo de Contacto (Reply-To)</strong> para respuestas. Si algún emisor requiere salir desde su propio dominio, puedes activarle su propio SMTP en la sección <strong>Emisores</strong>.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                                <div className="sm:col-span-7">
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Servidor SMTP (Host)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={smtpForm.smtp_host}
+                                        onChange={(e) => setSmtpForm({ ...smtpForm, smtp_host: e.target.value })}
+                                        placeholder="Ej. smtp.gmail.com, smtp.office365.com, mail.tudominio.com"
+                                        className="w-full px-3.5 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-sm outline-none"
+                                    />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Puerto
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={smtpForm.smtp_port}
+                                        onChange={(e) => {
+                                            const port = parseInt(e.target.value) || 587;
+                                            setSmtpForm({ ...smtpForm, smtp_port: port, smtp_secure: port === 465 });
+                                        }}
+                                        placeholder="587"
+                                        className="w-full px-3 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-sm font-mono outline-none"
+                                    />
+                                </div>
+                                <div className="sm:col-span-3 flex items-end pb-2">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-slate-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={smtpForm.smtp_secure}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setSmtpForm({
+                                                    ...smtpForm,
+                                                    smtp_secure: checked,
+                                                    smtp_port: checked ? 465 : (smtpForm.smtp_port === 465 ? 587 : smtpForm.smtp_port)
+                                                });
+                                            }}
+                                            className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                                        />
+                                        <span>SSL Directo (Puerto 465)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Usuario / Correo de Salida SMTP
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={smtpForm.smtp_user}
+                                        onChange={(e) => setSmtpForm({ ...smtpForm, smtp_user: e.target.value, smtp_from_email: e.target.value })}
+                                        placeholder="facturacion@tudominio.com"
+                                        className="w-full px-3.5 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Contraseña SMTP / App Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={smtpForm.smtp_pass}
+                                        onFocus={() => {
+                                            if (smtpForm.smtp_pass === '••••••••') {
+                                                setSmtpForm({ ...smtpForm, smtp_pass: '' });
+                                            }
+                                        }}
+                                        onChange={(e) => setSmtpForm({ ...smtpForm, smtp_pass: e.target.value })}
+                                        placeholder="Contraseña o Contraseña de Aplicación"
+                                        className="w-full px-3.5 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-sm outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Nombre Remitente por Defecto
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={smtpForm.smtp_from_name}
+                                        onChange={(e) => setSmtpForm({ ...smtpForm, smtp_from_name: e.target.value })}
+                                        placeholder="Ej. Departamento de Facturación"
+                                        className="w-full px-3.5 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-sm outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Correo Destino para Prueba (Opcional)
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="email"
+                                            value={correoPruebaSmtp}
+                                            onChange={(e) => setCorreoPruebaSmtp(e.target.value)}
+                                            placeholder="ejemplo@correo.com"
+                                            className="flex-1 px-3 py-2 border border-slate-200 focus:border-indigo-500 rounded-lg text-xs outline-none"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleTestSmtp}
+                                            disabled={testingSmtp || !smtpForm.smtp_host || !smtpForm.smtp_user}
+                                            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all"
+                                        >
+                                            <Send className="w-3.5 h-3.5" />
+                                            <span>{testingSmtp ? 'Probando...' : 'Probar'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {smtpTestStatus && (
+                                <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 ${
+                                    smtpTestStatus.ok
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                        : 'bg-rose-50 border-rose-200 text-rose-800'
+                                }`}>
+                                    <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${smtpTestStatus.ok ? 'text-emerald-600' : 'text-rose-600'}`} />
+                                    <div className="flex-1 font-medium leading-relaxed">{smtpTestStatus.message}</div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end pt-3 border-t border-slate-100">
+                                <button
+                                    type="submit"
+                                    disabled={savingSmtp}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-bold shadow-sm transition-all active:scale-95"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    <span>{savingSmtp ? 'Guardando SMTP...' : 'Guardar Configuración SMTP'}</span>
                                 </button>
                             </div>
                         </form>

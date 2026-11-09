@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, ArrowRight, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight, History } from 'lucide-react';
+import { Save, Upload, Building2, Key, FileText, CheckCircle2, Eye, Layout, Plus, Trash2, Hash, ArrowLeft, ArrowRight, Globe, BadgeCheck, AlertTriangle, X, Palette, Image as ImageIcon, Sparkles, Pipette, Check, RefreshCw, ShieldCheck, Zap, Server, Activity, Search, ExternalLink, HelpCircle, AlertCircle, ArrowUpRight, History, Mail, Send, Clock, Fingerprint, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
+import { openPdfViewer } from '../utils/pdfViewer';
 
 import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
 
@@ -55,8 +56,18 @@ export const Emisores = () => {
         colonia: '',
         modo_prueba: true,
         es_agapes: false,
-        password_csd: ''
+        password_csd: '',
+        correo_emisor: '',
+        usar_smtp_propio: false,
+        smtp_host: '',
+        smtp_port: 587,
+        smtp_secure: false,
+        smtp_user: '',
+        smtp_pass: '',
+        smtp_from_name: ''
     });
+    const [testingSmtpEmisor, setTestingSmtpEmisor] = useState(false);
+    const [testEmailEmisor, setTestEmailEmisor] = useState('');
 
     // Formulario de nuevo emisor
     const [newEmisorData, setNewEmisorData] = useState({
@@ -76,6 +87,13 @@ export const Emisores = () => {
         certificado: null,
         llave_privada: null
     });
+
+    const [fielFiles, setFielFiles] = useState({
+        certificado: null,
+        llave_privada: null
+    });
+    const [passwordFiel, setPasswordFiel] = useState('');
+    const [uploadingFiel, setUploadingFiel] = useState(false);
 
     const [coloniasOpt, setColoniasOpt] = useState([]);
     const [coloniasNewOpt, setColoniasNewOpt] = useState([]);
@@ -212,9 +230,20 @@ export const Emisores = () => {
                 colonia: selectedEmisor.colonia || '',
                 modo_prueba: selectedEmisor.modo_prueba !== false,
                 es_agapes: selectedEmisor.es_agapes === true,
-                password_csd: ''
+                password_csd: '',
+                correo_emisor: selectedEmisor.correo_emisor || '',
+                usar_smtp_propio: selectedEmisor.usar_smtp_propio === true,
+                smtp_host: selectedEmisor.smtp_host || '',
+                smtp_port: selectedEmisor.smtp_port || 587,
+                smtp_secure: selectedEmisor.smtp_secure === true,
+                smtp_user: selectedEmisor.smtp_user || '',
+                smtp_pass: selectedEmisor.smtp_pass ? '********' : '',
+                smtp_from_name: selectedEmisor.smtp_from_name || ''
             });
+            setTestEmailEmisor(selectedEmisor.correo_emisor || selectedEmisor.smtp_user || '');
             setCsdFiles({ certificado: null, llave_privada: null });
+            setFielFiles({ certificado: null, llave_privada: null });
+            setPasswordFiel('');
             setLogoFile(null);
             setLogoPreview(null);
             setRemoveLogo(false);
@@ -418,6 +447,7 @@ export const Emisores = () => {
                 const formDataLogo = new FormData();
                 formDataLogo.append('logo', logoFile);
                 formDataLogo.append('layout_id', layoutId);
+                formDataLogo.append('template_mapping', JSON.stringify({ 1: layoutId }));
                 formDataLogo.append('color_primario', colorPrimario);
                 formDataLogo.append('color_secundario', colorSecundario);
                 const res = await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
@@ -642,13 +672,7 @@ export const Emisores = () => {
             });
             
             if (res.data && res.data.pdfUrl) {
-                const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
-                const fullUrl = res.data.pdfUrl.startsWith('http') ? res.data.pdfUrl : `${baseUrl}${res.data.pdfUrl}`;
-                
-                const win = window.open(fullUrl, '_blank');
-                if (!win) {
-                    showToast('El navegador bloqueó la ventana emergente.', 'warning');
-                }
+                await openPdfViewer(res.data.pdfUrl, 'Vista Previa Emisor');
             } else {
                 throw new Error('No se recibió la URL del PDF');
             }
@@ -658,6 +682,29 @@ export const Emisores = () => {
             showToast(`Error al generar la vista previa: ${msg}`, 'error');
         } finally {
             setIsGeneratingPdf(false);
+        }
+    };
+
+    const handleTestSmtpEmisor = async () => {
+        if (!selectedEmisor) return;
+        setTestingSmtpEmisor(true);
+        try {
+            const res = await api.post(`/emisores/${selectedEmisor.id}/test-smtp`, {
+                usar_smtp_propio: formData.usar_smtp_propio,
+                smtp_host: formData.smtp_host,
+                smtp_port: formData.smtp_port,
+                smtp_secure: formData.smtp_secure,
+                smtp_user: formData.smtp_user,
+                smtp_pass: formData.smtp_pass,
+                smtp_from_name: formData.smtp_from_name,
+                correo_emisor: formData.correo_emisor,
+                email_destino: testEmailEmisor || formData.correo_emisor || formData.smtp_user
+            });
+            showToast(res.data?.message || '✅ Conexión SMTP verificada con éxito');
+        } catch (error) {
+            showToast(error.response?.data?.message || 'Error al probar el servidor SMTP', 'error');
+        } finally {
+            setTestingSmtpEmisor(false);
         }
     };
 
@@ -683,11 +730,26 @@ export const Emisores = () => {
                 updatedEmisor = resFiles.data.emisor;
             }
 
+            if (fielFiles.certificado && fielFiles.llave_privada) {
+                const formDataFiel = new FormData();
+                formDataFiel.append('certificado', fielFiles.certificado);
+                formDataFiel.append('llave_privada', fielFiles.llave_privada);
+                if (passwordFiel) formDataFiel.append('password_fiel', passwordFiel);
+
+                const resFiel = await api.put(`/emisores/${selectedEmisor.id}/fiel`, formDataFiel, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                if (resFiel.data?.emisor) {
+                    updatedEmisor = { ...updatedEmisor, ...resFiel.data.emisor, fiel_info: resFiel.data.fiel_info };
+                }
+            }
+
             // Guardar estilo, logotipo y colores corporativos
             if (logoFile) {
                 const formDataLogo = new FormData();
                 formDataLogo.append('logo', logoFile);
                 formDataLogo.append('layout_id', layoutId);
+                formDataLogo.append('template_mapping', JSON.stringify({ 1: layoutId }));
                 formDataLogo.append('color_primario', colorPrimario);
                 formDataLogo.append('color_secundario', colorSecundario);
                 await api.put(`/estilos/${selectedEmisor.id}`, formDataLogo, {
@@ -697,12 +759,14 @@ export const Emisores = () => {
                 await api.put(`/estilos/${selectedEmisor.id}`, { 
                     remove_logo: true, 
                     layout_id: layoutId,
+                    template_mapping: { 1: layoutId },
                     color_primario: colorPrimario,
                     color_secundario: colorSecundario
                 });
             } else {
                 await api.put(`/estilos/${selectedEmisor.id}`, { 
                     layout_id: layoutId,
+                    template_mapping: { 1: layoutId },
                     color_primario: colorPrimario,
                     color_secundario: colorSecundario
                 });
@@ -795,6 +859,58 @@ export const Emisores = () => {
         const file = e.target.files[0];
         if (file) {
             setCsdFiles(prev => ({ ...prev, [type]: file }));
+        }
+    };
+
+    const handleFielFileUpload = (e, type) => {
+        const file = e.target.files[0];
+        if (file) {
+            setFielFiles(prev => ({ ...prev, [type]: file }));
+        }
+    };
+
+    const handleSaveFiel = async () => {
+        if (!selectedEmisor) return;
+        if (!fielFiles.certificado && !fielFiles.llave_privada && !passwordFiel) {
+            showToast('Selecciona los archivos .cer y .key de la e.firma e ingresa la contraseña.', 'warning');
+            return;
+        }
+        if (!fielFiles.certificado || !fielFiles.llave_privada) {
+            showToast('Debes seleccionar ambos archivos: Certificado (.cer) y Llave (.key) de la e.firma.', 'warning');
+            return;
+        }
+        if (!passwordFiel) {
+            showToast('Ingresa la contraseña de la e.firma (FIEL).', 'warning');
+            return;
+        }
+
+        setUploadingFiel(true);
+        try {
+            const formDataFiel = new FormData();
+            formDataFiel.append('certificado', fielFiles.certificado);
+            formDataFiel.append('llave_privada', fielFiles.llave_privada);
+            formDataFiel.append('password_fiel', passwordFiel);
+
+            const res = await api.put(`/emisores/${selectedEmisor.id}/fiel`, formDataFiel, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+
+            showToast('✅ ' + (res.data?.message || 'e.firma guardada y validada correctamente'));
+            if (res.data?.emisor) {
+                setSelectedEmisor(prev => ({
+                    ...prev,
+                    ...res.data.emisor,
+                    fiel_info: res.data.fiel_info
+                }));
+            }
+            setFielFiles({ certificado: null, llave_privada: null });
+            setPasswordFiel('');
+            fetchEmisores();
+        } catch (error) {
+            console.error('Error al subir e.firma:', error);
+            showToast(error.response?.data?.message || 'Error al guardar la e.firma', 'error');
+        } finally {
+            setUploadingFiel(false);
         }
     };
 
@@ -1283,6 +1399,19 @@ export const Emisores = () => {
                                                     {Number(em.ultimos_folios_pac).toLocaleString()} folios
                                                 </span>
                                             )}
+                                            {em.fiel_info?.tieneCertificado ? (
+                                                <span className={`inline-flex items-center gap-1 text-[10px] font-bold border px-2 py-0.5 rounded-full ${
+                                                    em.fiel_info.estado === 'vencido'
+                                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                                        : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                }`} title={`e.firma SAT (${em.fiel_info.noCertificado || 'Cargada'}) - ${em.fiel_info.mensaje}`}>
+                                                    <Fingerprint className="w-3 h-3 text-blue-600" /> e.firma SAT
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full" title="e.firma requerida para descarga masiva SAT en Cuentas por Pagar">
+                                                    <Fingerprint className="w-3 h-3 text-slate-400" /> Sin e.firma
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1671,6 +1800,176 @@ export const Emisores = () => {
                         </div>
                     </div>
 
+                    {/* Configuración de Envío de Correo (Cascada Híbrida / SMTP Propio) */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+                        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <Mail className="w-5 h-5 text-indigo-600" />
+                                <div>
+                                    <h2 className="font-semibold text-slate-800">Envío de Facturas por Correo (CFDI)</h2>
+                                    <p className="text-xs text-slate-500">Define el correo de respuesta de este RFC o personaliza un servidor SMTP exclusivo.</p>
+                                </div>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                                formData.usar_smtp_propio
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                                {formData.usar_smtp_propio ? '⚡ SMTP Propio del Emisor' : '🏢 Usa SMTP del Espacio de Trabajo'}
+                            </span>
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                                    Correo de Contacto / Respuesta del Emisor (Reply-To)
+                                </label>
+                                <input
+                                    type="email"
+                                    name="correo_emisor"
+                                    value={formData.correo_emisor || ''}
+                                    onChange={handleChange}
+                                    placeholder="facturacion@tuempresa.com"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm"
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                    Si usas el correo general del Espacio de Trabajo, el cliente verá el nombre <strong>{formData.razon_social || 'del Emisor'}</strong> y al responder le escribirá a este correo.
+                                </p>
+                            </div>
+
+                            {/* Toggle SMTP Propio */}
+                            <div className="flex items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                                <div className="flex items-center gap-3">
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            name="usar_smtp_propio"
+                                            checked={formData.usar_smtp_propio === true}
+                                            onChange={handleChange}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-800">Usar servidor SMTP propio para este Emisor</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Actívalo solo si deseas que las facturas de este RFC salgan desde un dominio o cuenta de correo distinta a la del Espacio de Trabajo.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {formData.usar_smtp_propio && (
+                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="md:col-span-2">
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Servidor SMTP (Host)</label>
+                                            <input
+                                                type="text"
+                                                name="smtp_host"
+                                                value={formData.smtp_host || ''}
+                                                onChange={handleChange}
+                                                placeholder="Ej: smtp.gmail.com o mail.tudominio.com"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-mono"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Puerto</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    name="smtp_port"
+                                                    value={formData.smtp_port}
+                                                    onChange={e => {
+                                                        const p = parseInt(e.target.value, 10) || 587;
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            smtp_port: p,
+                                                            smtp_secure: p === 465 ? true : prev.smtp_secure
+                                                        }));
+                                                    }}
+                                                    className="w-24 px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-mono"
+                                                />
+                                                <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="smtp_secure"
+                                                        checked={formData.smtp_secure === true}
+                                                        onChange={handleChange}
+                                                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span>SSL (465)</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Usuario / Correo SMTP</label>
+                                            <input
+                                                type="email"
+                                                name="smtp_user"
+                                                value={formData.smtp_user || ''}
+                                                onChange={handleChange}
+                                                placeholder="facturas@empresa.com"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Contraseña / Contraseña de Aplicación</label>
+                                            <input
+                                                type="password"
+                                                name="smtp_pass"
+                                                value={formData.smtp_pass || ''}
+                                                onChange={handleChange}
+                                                placeholder="••••••••••••••••"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">Nombre Visible del Remitente (Opcional)</label>
+                                        <input
+                                            type="text"
+                                            name="smtp_from_name"
+                                            value={formData.smtp_from_name || ''}
+                                            onChange={handleChange}
+                                            placeholder={formData.razon_social || 'Facturación Electrónica'}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Barra para probar el envío de correo de este Emisor */}
+                            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex-1 flex items-center gap-2">
+                                    <input
+                                        type="email"
+                                        value={testEmailEmisor}
+                                        onChange={e => setTestEmailEmisor(e.target.value)}
+                                        placeholder="Correo destino para prueba..."
+                                        className="w-full sm:max-w-xs px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:bg-white focus:border-indigo-500 outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleTestSmtpEmisor}
+                                        disabled={testingSmtpEmisor}
+                                        className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shrink-0 disabled:opacity-50"
+                                    >
+                                        <Send className="w-3.5 h-3.5" />
+                                        <span>{testingSmtpEmisor ? 'Probando...' : 'Probar Envío de Correo'}</span>
+                                    </button>
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                    Recuerda hacer clic en <strong>Guardar Cambios</strong> arriba tras editar.
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Personalizar Diseño / Plantilla Global y Colores */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
                         <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-2">
@@ -1954,55 +2253,66 @@ export const Emisores = () => {
 
                                             switch (layoutId) {
                                                 case 'v2':
-                                                    /* Layout v2: Barra Lateral */
+                                                    /* Layout v2: Barra Lateral Ejecutiva + Conceptos Ancho Completo */
                                                     return (
-                                                        <div className="flex rounded-lg overflow-hidden border border-slate-200 min-h-[220px]">
-                                                            {/* Sidebar */}
-                                                            <div className="w-1/3 p-3 text-white flex flex-col justify-between" style={{ backgroundColor: colorSecundario }}>
-                                                                <div className="space-y-2">
-                                                                    <div className="w-12 h-10 bg-white rounded p-1 flex items-center justify-center">
-                                                                        {renderLogo("max-h-full max-w-full object-contain", "w-5 h-5 text-slate-700")}
-                                                                    </div>
-                                                                    <div>
-                                                                        <p className="text-[10px] font-bold uppercase leading-tight">{emisorName}</p>
-                                                                        <p className="text-[9px] opacity-80 font-mono mt-0.5">{emisorRfc}</p>
-                                                                    </div>
-                                                                    <div className="text-[8px] opacity-75 leading-tight pt-1 border-t border-white/20">
-                                                                        <p>C.P. {emisorCp}</p>
-                                                                        <p>Régimen: 601 General Ley</p>
+                                                        <div className="flex flex-col rounded-lg overflow-hidden border border-slate-200 min-h-[220px]">
+                                                            {/* Top Section: Sidebar Header + Client Info */}
+                                                            <div className="flex border-b-2" style={{ borderColor: colorPrimario }}>
+                                                                {/* Sidebar Emisor */}
+                                                                <div className="w-5/12 p-2.5 text-white flex flex-col justify-between" style={{ backgroundColor: colorSecundario }}>
+                                                                    <div className="space-y-1.5">
+                                                                        <div className="w-10 h-8 bg-white rounded p-1 flex items-center justify-center">
+                                                                            {renderLogo("max-h-full max-w-full object-contain", "w-4 h-4 text-slate-700")}
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-[9.5px] font-bold uppercase leading-tight">{emisorName}</p>
+                                                                            <p className="text-[8.5px] opacity-80 font-mono mt-0.5">{emisorRfc}</p>
+                                                                        </div>
+                                                                        <div className="text-[7.5px] opacity-75 leading-tight pt-1 border-t border-white/20">
+                                                                            <p>C.P. {emisorCp} &bull; Régimen 601</p>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="bg-white/10 rounded p-1.5 text-center text-[8px] font-mono">
-                                                                    QR SAT &bull; TIMBRADO
+                                                                {/* Header & Receptor */}
+                                                                <div className="w-7/12 p-2.5 bg-slate-50/70 flex flex-col justify-between space-y-1.5">
+                                                                    <div className="flex justify-between items-start border-b border-slate-200 pb-1">
+                                                                        <div>
+                                                                            <span className="text-[9px] font-bold text-slate-800">FACTURA A-1024</span>
+                                                                            <p className="text-[7.5px] text-slate-400 font-mono">CFDI 4.0 &bull; INGRESO</p>
+                                                                        </div>
+                                                                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>PUE</span>
+                                                                    </div>
+                                                                    <div className="bg-white p-1.5 rounded border border-slate-200 text-[8px] space-y-0.5">
+                                                                        <p className="font-bold text-slate-800">CLIENTE: CORPORATIVO EMPRESARIAL</p>
+                                                                        <p className="text-slate-500 font-mono">RFC: CES180420KM9 &bull; Uso: G03</p>
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                            {/* Content */}
-                                                            <div className="w-2/3 p-3 bg-slate-50/50 flex flex-col justify-between space-y-2">
-                                                                <div className="flex justify-between items-start border-b border-slate-200 pb-1.5">
-                                                                    <div>
-                                                                        <span className="text-[9px] font-bold text-slate-800">FACTURA A-1024</span>
-                                                                        <p className="text-[8px] text-slate-400 font-mono">UUID: 4E70B182-E7A9-4C35-8EF6...</p>
+
+                                                            {/* Conceptos a Todo lo Ancho de Página */}
+                                                            <div className="p-2.5 bg-white space-y-2 flex-1 flex flex-col justify-between">
+                                                                <div className="space-y-1">
+                                                                    <div className="flex justify-between text-[7.5px] font-bold uppercase tracking-wider text-slate-400 pb-0.5 border-b border-slate-200">
+                                                                        <span>Conceptos (Ancho Completo)</span>
+                                                                        <span>Importe</span>
                                                                     </div>
-                                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>PUE</span>
-                                                                </div>
-                                                                <div className="bg-white p-2 rounded border border-slate-200 text-[9px] space-y-0.5">
-                                                                    <p className="font-bold text-slate-800">CLIENTE: CORPORATIVO EMPRESARIAL DEL SURESTE</p>
-                                                                    <p className="text-[8px] text-slate-500">RFC: CES180420KM9 &bull; Uso: G03 Gastos en general</p>
-                                                                </div>
-                                                                <div className="bg-white rounded border border-slate-200 text-[8.5px] divide-y divide-slate-100">
-                                                                    <div className="p-1.5 flex justify-between">
-                                                                        <span>Servicios Facturación Electrónica CFDI 4.0</span>
-                                                                        <span className="font-bold text-slate-800">$1,500.00</span>
-                                                                    </div>
-                                                                    <div className="p-1.5 flex justify-between">
-                                                                        <span>Licencia Timbrado Multi-Serie SAT</span>
-                                                                        <span className="font-bold text-slate-800">$1,000.00</span>
+                                                                    <div className="bg-slate-50 rounded border border-slate-200 p-1.5 text-[8px] space-y-0.5">
+                                                                        <div className="flex justify-between font-mono text-slate-500 text-[7.5px]">
+                                                                            <span>Cant: 1.00 &bull; E48 &bull; SAT: 84111506</span>
+                                                                            <span className="font-bold text-slate-700">$1,500.00</span>
+                                                                        </div>
+                                                                        <p className="font-semibold text-slate-900 text-[8.5px]">Servicios Facturación Electrónica CFDI 4.0 - Cobertura Anual Multi-RFC</p>
+                                                                        <div className="flex gap-1 text-[7px] text-slate-500 pt-0.5">
+                                                                            <span className="bg-slate-200/80 px-1 rounded font-mono">IVA Traslado 16%: $240.00</span>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex justify-end pt-1">
-                                                                    <div className="text-right px-3 py-1 rounded text-white" style={{ backgroundColor: colorPrimario }}>
-                                                                        <span className="text-[8px] opacity-80 uppercase block">Total a Pagar</span>
-                                                                        <span className="text-xs font-bold">$2,900.00 MXN</span>
+
+                                                                <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                                                                    <span className="text-[7.5px] text-slate-400 font-mono">UUID: 4E70B182-E7A9...</span>
+                                                                    <div className="text-right px-2.5 py-0.5 rounded text-white" style={{ backgroundColor: colorPrimario }}>
+                                                                        <span className="text-[7px] opacity-80 uppercase block">Total</span>
+                                                                        <span className="text-[11px] font-bold">$1,740.00 MXN</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -2930,7 +3240,21 @@ export const Emisores = () => {
                                 <Key className="w-5 h-5 text-slate-400" />
                                 <h2 className="font-semibold text-slate-800">Certificado (CSD)</h2>
                             </div>
-                            {selectedEmisor.certificado_path ? (
+                            {selectedEmisor.csd_info?.tieneCertificado ? (
+                                selectedEmisor.csd_info.estado === 'vencido' ? (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full">
+                                        <AlertTriangle className="w-3 h-3" /> Vencido
+                                    </span>
+                                ) : selectedEmisor.csd_info.estado === 'por_vencer' ? (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                                        <Clock className="w-3 h-3" /> Vence en {selectedEmisor.csd_info.diasRestantes}d
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full">
+                                        <CheckCircle2 className="w-3 h-3" /> Vigente ({selectedEmisor.csd_info.diasRestantes}d)
+                                    </span>
+                                )
+                            ) : selectedEmisor.certificado_path ? (
                                 <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                                     <CheckCircle2 className="w-3 h-3" /> Cargado
                                 </span>
@@ -2942,6 +3266,39 @@ export const Emisores = () => {
                         </div>
 
                         <div className="p-6 space-y-6">
+                            {/* Información técnica del certificado CSD si está cargado */}
+                            {selectedEmisor.csd_info?.tieneCertificado && (
+                                <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                                    selectedEmisor.csd_info.estado === 'vencido'
+                                        ? 'bg-rose-50 border-rose-200 text-rose-900'
+                                        : selectedEmisor.csd_info.estado === 'por_vencer'
+                                            ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                                }`}>
+                                    <div className="flex items-center justify-between border-b border-current/10 pb-2">
+                                        <span className="font-semibold text-slate-600">No. Certificado SAT:</span>
+                                        <span className="font-mono font-bold">{selectedEmisor.csd_info.noCertificado || '---'}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-500">Vigencia Oficial:</span>
+                                        <span className="font-medium">
+                                            {selectedEmisor.csd_info.vigenciaDesdeFormatted} al {selectedEmisor.csd_info.vigenciaHastaFormatted}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] pt-1">
+                                        <span className="text-slate-500">Días Restantes:</span>
+                                        <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                                            selectedEmisor.csd_info.diasRestantes <= 0
+                                                ? 'bg-rose-200 text-rose-800'
+                                                : selectedEmisor.csd_info.diasRestantes <= 30
+                                                    ? 'bg-amber-200 text-amber-800'
+                                                    : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                            {selectedEmisor.csd_info.diasRestantes <= 0 ? 'Expirado' : `${selectedEmisor.csd_info.diasRestantes} días`}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
                             <label className="text-center p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer group block relative">
                                 <input type="file" accept=".cer" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleFileUpload(e, 'certificado')} />
                                 <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2 group-hover:text-primary-500 transition-colors" />
@@ -2965,6 +3322,145 @@ export const Emisores = () => {
                                 <input type="password" name="password_csd" value={formData.password_csd} onChange={handleChange} placeholder="••••••••" className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-primary-500 focus:ring-1 focus:ring-primary-500 text-sm" />
                                 <p className="text-[10px] text-slate-400 mt-1">Déjalo en blanco si no deseas actualizar la clave.</p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Tarjeta de e.firma (FIEL) — Descarga Masiva SAT */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+                        <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Fingerprint className="w-5 h-5 text-blue-600" />
+                                <h2 className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+                                    e.firma (FIEL)
+                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                        SAT Web Service
+                                    </span>
+                                </h2>
+                            </div>
+                            {selectedEmisor.fiel_info?.tieneCertificado ? (
+                                selectedEmisor.fiel_info.estado === 'vencido' ? (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full">
+                                        <AlertTriangle className="w-3 h-3" /> Vencida
+                                    </span>
+                                ) : selectedEmisor.fiel_info.estado === 'por_vencer' ? (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
+                                        <Clock className="w-3 h-3" /> Vence en {selectedEmisor.fiel_info.diasRestantes}d
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full">
+                                        <CheckCircle2 className="w-3 h-3" /> Vigente ({selectedEmisor.fiel_info.diasRestantes}d)
+                                    </span>
+                                )
+                            ) : (
+                                <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                                    No configurada
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="p-6 space-y-5">
+                            {/* Banner informativo sobre la e.firma */}
+                            <div className="p-3.5 bg-blue-50/80 border border-blue-200/70 rounded-xl text-xs text-blue-950 leading-relaxed">
+                                <p className="font-semibold flex items-center gap-1.5 text-blue-800">
+                                    <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                                    Descarga Masiva Oficial SAT (Cuentas por Pagar)
+                                </p>
+                                <p className="mt-1 text-[11px] text-blue-900/90 leading-normal">
+                                    El Web Service del SAT requiere estrictamente la <strong>e.firma (FIEL)</strong> del contribuyente para autenticar las peticiones de descarga masiva de facturas de proveedores. Los sellos de timbrado CSD no son aceptados por el SAT para esta operación.
+                                </p>
+                            </div>
+
+                            {/* Información técnica de la e.firma si está cargada */}
+                            {selectedEmisor.fiel_info?.tieneCertificado && (
+                                <div className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                                    selectedEmisor.fiel_info.estado === 'vencido'
+                                        ? 'bg-rose-50 border-rose-200 text-rose-900'
+                                        : selectedEmisor.fiel_info.estado === 'por_vencer'
+                                            ? 'bg-amber-50 border-amber-200 text-amber-900'
+                                            : 'bg-slate-50 border-slate-200 text-slate-800'
+                                }`}>
+                                    <div className="flex items-center justify-between border-b border-current/10 pb-2">
+                                        <span className="font-semibold text-slate-600">No. Certificado e.firma:</span>
+                                        <span className="font-mono font-bold text-slate-900">{selectedEmisor.fiel_info.noCertificado || '---'}</span>
+                                    </div>
+                                    {selectedEmisor.fiel_info.nombreSujeto && (
+                                        <div className="flex items-center justify-between text-[11px]">
+                                            <span className="text-slate-500">Titular:</span>
+                                            <span className="font-medium truncate max-w-[210px] text-slate-800" title={selectedEmisor.fiel_info.nombreSujeto}>
+                                                {selectedEmisor.fiel_info.nombreSujeto}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-500">Vigencia Oficial:</span>
+                                        <span className="font-medium text-slate-700">
+                                            {selectedEmisor.fiel_info.vigenciaDesdeFormatted} al {selectedEmisor.fiel_info.vigenciaHastaFormatted}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-current/10">
+                                        <span className="text-slate-500">Días Restantes:</span>
+                                        <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${
+                                            selectedEmisor.fiel_info.diasRestantes <= 0
+                                                ? 'bg-rose-200 text-rose-800'
+                                                : selectedEmisor.fiel_info.diasRestantes <= 30
+                                                    ? 'bg-amber-200 text-amber-800'
+                                                    : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                            {selectedEmisor.fiel_info.diasRestantes <= 0 ? 'Expirada' : `${selectedEmisor.fiel_info.diasRestantes} días`}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Carga de archivos .cer y .key de e.firma */}
+                            <label className="text-center p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer group block relative">
+                                <input type="file" accept=".cer" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleFielFileUpload(e, 'certificado')} />
+                                <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
+                                <p className="text-xs font-semibold text-slate-700">Certificado e.firma (.cer)</p>
+                                <p className="text-[10px] text-slate-500 mt-1 max-w-[200px] mx-auto truncate">
+                                    {fielFiles.certificado ? `✔ ${fielFiles.certificado.name}` : (selectedEmisor.fiel_certificado_path ? '✔ Certificado FIEL en sistema' : 'Selecciona archivo .cer')}
+                                </p>
+                            </label>
+
+                            <label className="text-center p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100/50 transition-colors cursor-pointer group block relative">
+                                <input type="file" accept=".key" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => handleFielFileUpload(e, 'llave_privada')} />
+                                <Fingerprint className="w-8 h-8 text-slate-400 mx-auto mb-2 group-hover:text-blue-500 transition-colors" />
+                                <p className="text-xs font-semibold text-slate-700">Llave Privada e.firma (.key)</p>
+                                <p className="text-[10px] text-slate-500 mt-1 max-w-[200px] mx-auto truncate">
+                                    {fielFiles.llave_privada ? `✔ ${fielFiles.llave_privada.name}` : (selectedEmisor.fiel_llave_privada_path ? '✔ Llave FIEL en sistema' : 'Selecciona archivo .key')}
+                                </p>
+                            </label>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Contraseña de la e.firma (FIEL)</label>
+                                <input 
+                                    type="password" 
+                                    value={passwordFiel} 
+                                    onChange={(e) => setPasswordFiel(e.target.value)} 
+                                    placeholder={selectedEmisor.fiel_llave_privada_path ? "•••••••• (Guardada - Deja en blanco para no cambiar)" : "Contraseña de la FIEL"} 
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm" 
+                                />
+                                <p className="text-[10px] text-slate-400 mt-1">Clave secreta asignada por el SAT al tramitar la e.firma.</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveFiel}
+                                disabled={uploadingFiel || (!fielFiles.certificado && !fielFiles.llave_privada && !passwordFiel)}
+                                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-2"
+                            >
+                                {uploadingFiel ? (
+                                    <>
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Validando e.firma con SAT...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Fingerprint className="w-3.5 h-3.5" />
+                                        <span>Guardar / Actualizar e.firma</span>
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
 

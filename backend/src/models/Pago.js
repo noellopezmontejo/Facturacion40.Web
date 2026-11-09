@@ -16,7 +16,10 @@ export const Pago = sequelize.define('Pago', {
     cta_ordenante: { type: DataTypes.STRING },
     rfc_emisor_cta_ben: { type: DataTypes.STRING(13) },
     cta_beneficiario: { type: DataTypes.STRING },
-    documento_rep_id: { type: DataTypes.INTEGER }, 
+    documento_rep_id: { type: DataTypes.INTEGER },
+    estado: { type: DataTypes.STRING(20), defaultValue: 'Activo' }, // Activo, Cancelado
+    motivo_cancelacion: { type: DataTypes.STRING(2), allowNull: true },
+    fecha_cancelacion: { type: DataTypes.DATE, allowNull: true }
 }, {
     tableName: 'pagos',
     timestamps: true

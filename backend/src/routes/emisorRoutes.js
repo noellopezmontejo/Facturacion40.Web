@@ -5,6 +5,7 @@ import {
     updateEmisor, 
     deleteEmisor, 
     uploadCSD, 
+    uploadFIEL,
     uploadLogoEmisor, 
     upload, 
     getSeries, 
@@ -18,7 +19,8 @@ import {
     getHistorialFoliosPAC,
     testConexionPAC,
     consultarStatusSatPACController,
-    consultarPeticionesPendientesPACController
+    consultarPeticionesPendientesPACController,
+    testSmtpEmisor
 } from '../controllers/emisorController.js';
 import { verifyToken, checkEmisorPermission, requireRole } from '../middleware/auth.js';
 
@@ -31,11 +33,16 @@ router.use(checkEmisorPermission);
 router.get('/', getEmisores);
 router.post('/', createEmisor);
 router.put('/:id', updateEmisor);
+router.post('/:id/test-smtp', testSmtpEmisor);
 router.put('/:id/logo', upload.single('logo'), uploadLogoEmisor);
 router.put('/:id/csd', upload.fields([
     { name: 'certificado', maxCount: 1 },
     { name: 'llave_privada', maxCount: 1 }
 ]), uploadCSD);
+router.put('/:id/fiel', upload.fields([
+    { name: 'certificado', maxCount: 1 },
+    { name: 'llave_privada', maxCount: 1 }
+]), uploadFIEL);
 router.delete('/:id', deleteEmisor);
 router.get('/:id/series', getSeries);
 router.post('/:id/series', upsertSerie);

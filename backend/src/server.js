@@ -11,6 +11,9 @@ import * as models from './models/index.js';
 import { ensurePacColumns } from './utils/initPacColumns.js';
 
 dotenv.config();
+if (fs.existsSync(path.resolve('backend/.env'))) {
+  dotenv.config({ path: path.resolve('backend/.env'), override: true });
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +43,9 @@ import documentoRecibidoRoutes from './routes/documentoRecibidoRoutes.js';
 import cotizacionRoutes from './routes/cotizacionRoutes.js';
 import ordenServicioRoutes from './routes/ordenServicioRoutes.js';
 import pacRoutes from './routes/pacRoutes.js';
+import reporteRoutes from './routes/reporteRoutes.js';
+import recurrenteRoutes from './routes/recurrenteRoutes.js';
+import { procesarSuscripcionesPendientes } from './services/recurrenteService.js';
 
 
 
@@ -72,6 +78,8 @@ app.use('/api/documentos-recibidos', documentoRecibidoRoutes);
 app.use('/api/cotizaciones', cotizacionRoutes);
 app.use('/api/ordenes-servicio', ordenServicioRoutes);
 app.use('/api/pac', pacRoutes);
+app.use('/api/reportes', reporteRoutes);
+app.use('/api/recurrentes', recurrenteRoutes);
 
 
 

@@ -84,6 +84,7 @@ export const generarXML = async (documento, emisor, receptor, detalles) => {
         const qty = parseFloat(d.cantidad);
         const disc = parseFloat(d.descuento || 0);
 
+        const exactBase = (qty * price) - disc;
         const importeConcepto = parseFloat(roundDec(qty * price, 2));
         const descuentoConcepto = parseFloat(roundDec(disc, 2));
         const baseConcepto = parseFloat(roundDec(importeConcepto - descuentoConcepto, 2));
@@ -121,10 +122,10 @@ export const generarXML = async (documento, emisor, receptor, detalles) => {
             conceptTraslados.forEach(imp => {
                 const tasa = parseFloat(imp.tasa_cuota || 0);
                 const tipoFactor = imp.tipo_factor || 'Tasa';
-                const impAmt = tipoFactor === 'Exento' ? 0 : parseFloat(roundDec(baseConcepto * tasa, 2));
+                const impAmt = tipoFactor === 'Exento' ? 0 : parseFloat(roundDec(exactBase * tasa, 2));
 
                 traslados.push({
-                    '@Base': roundDec(baseConcepto, 6),
+                    '@Base': roundDec(baseConcepto, 2),
                     '@Impuesto': imp.impuesto_sat,
                     '@TipoFactor': tipoFactor,
                     '@TasaOCuota': tipoFactor === 'Exento' ? undefined : roundTasa(tasa),
@@ -289,6 +290,20 @@ export const generarXML = async (documento, emisor, receptor, detalles) => {
 
     const totalComprobante = parseFloat(roundDec(subtotalXml - descuentoXml + totalTraslados - totalRetenciones + totalTrasladosLocales - totalRetencionesLocales, 2));
 
+    let cfdiRelacionadosNode = undefined;
+    if (documento.tipo_relacion && documento.uuids_relacionados) {
+        const uuidsList = String(documento.uuids_relacionados)
+            .split(/[\n,;]+/)
+            .map(u => u.trim())
+            .filter(Boolean);
+        if (uuidsList.length > 0) {
+            cfdiRelacionadosNode = {
+                '@TipoRelacion': documento.tipo_relacion,
+                'cfdi:CfdiRelacionado': uuidsList.map(u => ({ '@UUID': u }))
+            };
+        }
+    }
+
     const cfdiObject = {
         'cfdi:Comprobante': {
             '@xmlns:cfdi': 'http://www.sat.gob.mx/cfd/4',
@@ -313,6 +328,8 @@ export const generarXML = async (documento, emisor, receptor, detalles) => {
             '@MetodoPago': needsPaymentInfo ? (documento.metodo_pago || 'PUE') : undefined,
             '@LugarExpedicion': emisor.codigo_postal,
 
+            'cfdi:CfdiRelacionados': cfdiRelacionadosNode,
+
             'cfdi:Emisor': {
                 '@Rfc': emisor.rfc,
                 '@Nombre': emisor.razon_social,
@@ -323,7 +340,7 @@ export const generarXML = async (documento, emisor, receptor, detalles) => {
                 '@Nombre': receptor.razon_social,
                 '@DomicilioFiscalReceptor': receptor.codigo_postal,
                 '@RegimenFiscalReceptor': receptor.regimen_fiscal,
-                '@UsoCFDI': receptor.uso_cfdi || 'G03'
+                '@UsoCFDI': documento.uso_cfdi || receptor.uso_cfdi || 'G03'
             },
             'cfdi:Conceptos': {
                 'cfdi:Concepto': conceptosArr
@@ -443,7 +460,18 @@ export const firmarXML = async (xmlString, emisorId) => {
     return finalXml;
 };
 
-export const getPacToken = () => {
+export const isEmisorInSandbox = (emisor = {}) => {
+    if (emisor && typeof emisor.modo_prueba !== 'undefined' && emisor.modo_prueba !== null) {
+        return Boolean(emisor.modo_prueba);
+    }
+    const envSetting = (process.env.PAC_ENV || '').toLowerCase().trim();
+    return envSetting === 'sandbox' || envSetting === 'pruebas';
+};
+
+export const getPacToken = (emisor = {}) => {
+    if (isEmisorInSandbox(emisor)) {
+        return 'mvpNUXmQfK8='; // Token oficial de Pruebas / Sandbox de Profact
+    }
     const raw = (process.env.PAC_PROFACT_USER || '').trim();
     if (!raw || raw === 'mvpNUXmQfK8=' || raw === 'WSDL_PAC_TEST') {
         return '4cIoBiE1v5day42PhbSKxA==';
@@ -459,32 +487,9 @@ export const getPacRfcIntegrador = () => {
 
 /**
  * Determina el endpoint SOAP y el ambiente (Producción o Sandbox) del PAC Profact.
- * Si el token es de producción (como 4cIoBiE1v5day42PhbSKxA==), se conecta a producción fiscal.
  */
 export const getPacEndpoint = (emisor = {}) => {
-    const token = getPacToken();
-    const envSetting = (process.env.PAC_ENV || '').toLowerCase().trim();
-
-    // Si el usuario configuró explícitamente sandbox y usa usuario genérico de pruebas
-    if ((envSetting === 'sandbox' || envSetting === 'pruebas') && token === 'WSDL_PAC_TEST') {
-        return {
-            isSandbox: true,
-            pacUrl: 'https://pruebas.timbracfdi33.mx/Timbrado.asmx',
-            modo: 'Sandbox'
-        };
-    }
-
-    // El token de integrador oficial del usuario '4cIoBiE1v5day42PhbSKxA==' es de PRODUCCIÓN.
-    // En sandbox este token no existe. Por tanto se direcciona siempre al servidor oficial:
-    if (token === '4cIoBiE1v5day42PhbSKxA==' || envSetting === 'production' || envSetting === 'produccion') {
-        return {
-            isSandbox: false,
-            pacUrl: 'https://timbracfdi33.mx:1443/Timbrado.asmx',
-            modo: 'Producción'
-        };
-    }
-
-    const isSandbox = Boolean(emisor?.modo_prueba);
+    const isSandbox = isEmisorInSandbox(emisor);
     return {
         isSandbox,
         pacUrl: isSandbox ? 'https://pruebas.timbracfdi33.mx/Timbrado.asmx' : 'https://timbracfdi33.mx:1443/Timbrado.asmx',
@@ -493,9 +498,9 @@ export const getPacEndpoint = (emisor = {}) => {
 };
 
 export const timbrarPAC = async (xmlFirmado, emisor) => {
-    console.log(`[CFDI Service] Iniciando timbrado SOAP con PAC Profact...`);
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
+    console.log(`[CFDI Service] Iniciando timbrado SOAP con PAC Profact (${isSandbox ? 'Sandbox' : 'Producción'}, RFC: ${emisor?.rfc})...`);
     
     // Limpieza estricta: asegurar que no haya el prólogo XML antes de Base64
     const xmlLimpio = xmlFirmado.replace(/^<\?xml.*?\?>\s*/, '').trim();
@@ -540,18 +545,30 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
         let finalXml = vals.find(v => typeof v === 'string' && (v.includes('<cfdi:Comprobante') || v.includes('<Comprobante')));
         if (!finalXml) throw new Error('El PAC no devolvió un XML timbrado.');
 
-        const uuidMatch = finalXml.match(/UUID="([^"]+)"/);
+        const tfdMatch = finalXml.match(/<tfd:TimbreFiscalDigital[^>]*\bUUID="([^"]+)"/i) || finalXml.match(/<TimbreFiscalDigital[^>]*\bUUID="([^"]+)"/i);
+        const uuidMatch = tfdMatch || finalXml.match(/UUID="([^"]+)"/);
         const finalUuid = uuidMatch ? uuidMatch[1] : `ERR-${Date.now()}`;
         const xmlPath = getXmlPath(emisor.rfc, finalUuid);
         fs.writeFileSync(xmlPath, finalXml, 'utf-8');
+
+        const noCertificadoEmisor = (finalXml.match(/NoCertificado="([^"]+)"/) || [])[1] || '';
+        const selloCFDI = (finalXml.match(/SelloCFD="([^"]+)"/) || finalXml.match(/Sello="([^"]+)"/) || [])[1] || '';
+        const selloSAT = (finalXml.match(/SelloSAT="([^"]+)"/) || [])[1] || '';
+        const noCertificadoSAT = (finalXml.match(/NoCertificadoSAT="([^"]+)"/) || [])[1] || '';
+        const fechaTimbrado = (finalXml.match(/FechaTimbrado="([^"]+)"/) || [])[1] || new Date().toISOString();
+        const rfcProvCertif = (finalXml.match(/RfcProvCertif="([^"]+)"/) || [])[1] || 'SPR190613I52';
+        const cadenaOriginalTFD = `||1.1|${finalUuid}|${fechaTimbrado}|${rfcProvCertif}|${selloCFDI}|${noCertificadoSAT}||`;
 
         return { 
             success: true, 
             uuid: finalUuid, 
             xmlTimbradoUrl: `/storage/${emisor.rfc}/xml/${finalUuid}.xml`,
-            noCertificadoSAT: (finalXml.match(/NoCertificadoSAT="([^"]+)"/) || [])[1] || '',
-            selloSAT: (finalXml.match(/SelloSAT="([^"]+)"/) || [])[1] || '',
-            fechaTimbrado: (finalXml.match(/FechaTimbrado="([^"]+)"/) || [])[1] || new Date().toISOString()
+            noCertificadoEmisor,
+            noCertificadoSAT,
+            selloCFDI,
+            selloSAT,
+            fechaTimbrado,
+            cadenaOriginalTFD
         };
     } catch (error) {
         console.error('[CFDI Service] Error crítico en timbrarPAC:', error.message);
@@ -564,7 +581,7 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
  */
 export const getCreditosDisponibles = async (emisor = {}) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
     
     if (!pacToken) {
         return { 
@@ -643,7 +660,7 @@ export const getCreditosDisponibles = async (emisor = {}) => {
  */
 export const registrarEmisorPAC = async (emisor, customPassword = null) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
 
     if (!pacToken) {
         return { 
@@ -739,7 +756,7 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
  */
 export const asignarTimbresPAC = async (emisor, noTimbres) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
 
     const cant = parseInt(noTimbres, 10);
     if (!cant || cant <= 0) {
@@ -781,11 +798,108 @@ export const asignarTimbresPAC = async (emisor, noTimbres) => {
 };
 
 /**
+ * Cancela un CFDI 4.0 ante el SAT a través del PAC Profact (SOAP CancelaCFDIAck40)
+ * Motivos SAT:
+ *  '01' - Comprobante emitido con errores con relación (requiere folioUUIDSustitucion)
+ *  '02' - Comprobante emitido con errores sin relación
+ *  '03' - No se llevó a cabo la operación
+ *  '04' - Operación nominativa relacionada en una factura global
+ */
+export const cancelarCFDIPAC = async (emisor, folioUUID, motivoCancelacion = '02', folioUUIDSustitucion = '') => {
+    const { isSandbox, pacUrl } = getPacEndpoint(emisor);
+    const pacToken = getPacToken(emisor);
+
+    const uuidClean = (folioUUID || '').trim();
+    const motivoClean = (motivoCancelacion || '02').trim();
+    const sustitucionClean = motivoClean === '01' ? (folioUUIDSustitucion || '').trim() : '';
+
+    if (!uuidClean) {
+        return { success: false, mensaje: 'El documento no cuenta con un UUID fiscal para cancelar ante el SAT.' };
+    }
+
+    if (motivoClean === '01' && (!sustitucionClean || sustitucionClean.length < 30)) {
+        return {
+            success: false,
+            mensaje: 'El motivo "01 - Comprobante emitido con errores con relación" exige obligatoriamente el Folio Fiscal (UUID) del comprobante que lo sustituye.'
+        };
+    }
+
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><CancelaCFDIAck40 xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${(emisor.rfc || '').trim()}</rfcEmisor><folioUUID>${uuidClean}</folioUUID><motivoCancelacion>${motivoClean}</motivoCancelacion><folioUUIDSustitucion>${sustitucionClean}</folioUUIDSustitucion></CancelaCFDIAck40></s:Body></s:Envelope>`;
+
+    try {
+        console.log(`[CFDI Service] Solicitando cancelación CFDI 4.0 (${isSandbox ? 'Sandbox' : 'Producción'}) UUID=${uuidClean} Motivo=${motivoClean} Sustitucion=${sustitucionClean || 'N/A'}`);
+        const response = await axios.post(pacUrl, soapEnvelope, {
+            headers: {
+                'Content-Type': 'text/xml;charset=UTF-8',
+                'SOAPAction': 'http://tempuri.org/CancelaCFDIAck40'
+            },
+            timeout: 30000
+        });
+
+        const resultJson = await parseStringPromise(response.data, {
+            explicitArray: false,
+            tagNameProcessors: [name => name.replace(/.*:/, '')]
+        });
+
+        const resNode = resultJson.Envelope?.Body?.CancelaCFDIAck40Response?.CancelaCFDIAck40Result?.anyType;
+        if (!resNode) {
+            return { success: false, mensaje: 'El PAC no devolvió una respuesta estructurada de cancelación.' };
+        }
+
+        const vals = (Array.isArray(resNode) ? resNode : [resNode]).map(v => (typeof v === 'object' ? v._ : v) || '');
+        const tipo = (vals[0] || '').trim();
+        const codigo = (vals[1] || '').trim();
+        const mensaje = (vals[2] || 'Solicitud de cancelación procesada.').trim();
+        const acuseXml = vals.find(v => typeof v === 'string' && (v.includes('<Acuse') || v.includes('CancelaCFDResult') || v.includes('Signature'))) || vals[3] || '';
+
+        const isSuccess =
+            codigo === '0' ||
+            codigo === '201' ||
+            codigo === '202' ||
+            tipo.toUpperCase() === 'OK' ||
+            mensaje.toLowerCase().includes('cancelado') ||
+            mensaje.toLowerCase().includes('proceso');
+
+        if (!isSuccess && isSandbox) {
+            console.warn(`[CFDI Service] Aviso PAC Sandbox en cancelación [${codigo}]: ${mensaje}. Se permite cancelación en entorno Sandbox.`);
+            return {
+                success: true,
+                sandboxFallback: true,
+                codigo,
+                mensaje: `Cancelado en entorno de Pruebas (Sandbox). Respuesta PAC: [${codigo}] ${mensaje}`,
+                acuse: acuseXml || null
+            };
+        }
+
+        return {
+            success: isSuccess,
+            codigo,
+            mensaje: isSuccess ? mensaje : `Error PAC [${codigo}]: ${mensaje}`,
+            acuse: acuseXml || null
+        };
+    } catch (error) {
+        console.error('[CFDI Service] Error en cancelarCFDIPAC:', error.message);
+        if (isSandbox) {
+            return {
+                success: true,
+                sandboxFallback: true,
+                mensaje: `Cancelado localmente en entorno Sandbox (PAC: ${error.message})`,
+                acuse: null
+            };
+        }
+        return {
+            success: false,
+            mensaje: `Error al comunicar con el PAC para cancelar: ${error.message}`
+        };
+    }
+};
+
+/**
  * Consulta el estatus ante el SAT directamente mediante el PAC (SOAP ConsultaEstatusSat)
  */
 export const consultarStatusSatPAC = async (emisor, folioUUID) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
 
     if (!folioUUID) {
         return { success: false, mensaje: 'Se requiere el Folio Fiscal (UUID) a consultar.' };
@@ -830,7 +944,7 @@ export const consultarStatusSatPAC = async (emisor, folioUUID) => {
  */
 export const consultarPeticionesPendientesPAC = async (emisor) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
 
     const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ConsultaPeticionesPendientesCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcReceptor>${emisor.rfc}</rfcReceptor></ConsultaPeticionesPendientesCFDI></s:Body></s:Envelope>`;
 
@@ -870,7 +984,7 @@ export const consultarPeticionesPendientesPAC = async (emisor) => {
  */
 export const testConexionPACService = async (emisor) => {
     const { isSandbox, pacUrl } = getPacEndpoint(emisor);
-    const pacToken = getPacToken();
+    const pacToken = getPacToken(emisor);
 
     const startTime = Date.now();
     try {

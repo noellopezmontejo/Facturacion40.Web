@@ -24,6 +24,8 @@ import { Cotizaciones } from './pages/Cotizaciones';
 import { NuevaCotizacion } from './pages/NuevaCotizacion';
 import { OrdenesServicio } from './pages/OrdenesServicio';
 import { NuevaOrdenServicio } from './pages/NuevaOrdenServicio';
+import { Reportes } from './pages/Reportes';
+import { Recurrentes } from './pages/Recurrentes';
 
 
 function App() {
@@ -72,6 +74,20 @@ function App() {
                     <ProtectedRoute>
                         <DashboardLayout>
                             <NuevaFactura />
+                        </DashboardLayout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/reportes" element={
+                    <ProtectedRoute>
+                        <DashboardLayout>
+                            <Reportes />
+                        </DashboardLayout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/recurrentes" element={
+                    <ProtectedRoute>
+                        <DashboardLayout>
+                            <Recurrentes />
                         </DashboardLayout>
                     </ProtectedRoute>
                 } />

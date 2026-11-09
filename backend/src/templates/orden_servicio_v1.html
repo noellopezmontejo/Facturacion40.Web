@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{#if google_fonts_link}}
+    <link rel="stylesheet" href="{{google_fonts_link}}">
+    {{/if}}
+    <style>
+        :root {
+            --primary-color: {{color_primario}};
+            --secondary-color: {{color_secundario}};
+            --font-family: '{{tipo_letra}}', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 24px;
+            color: #1e293b;
+            font-size: 9.5px;
+            line-height: 1.35;
+            background-color: #f8fafc;
+        }
+
+        .document-container {
+            max-width: 860px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            padding: 28px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff !important;
+                padding: 0 !important;
+            }
+            .document-container {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 16px !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Header Layout */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .logo-img {
+            max-height: 70px;
+            max-width: 260px;
+            object-fit: contain;
+        }
+
+        .badge-box {
+            text-align: right;
+            vertical-align: top;
+        }
+
+        .badge-title {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            padding: 8px 18px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+
+        .folio-title {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 900;
+            color: #0f172a;
+            font-family: monospace;
+        }
+
+        .meta-grid {
+            margin-top: 6px;
+            font-size: 8.5px;
+            color: #475569;
+            line-height: 1.4;
+        }
+
+        .meta-grid strong {
+            color: #0f172a;
+        }
+
+        /* Status badges */
+        .status-pill {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 9999px;
+            font-size: 8.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-Recibido { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .status-En-Diagnostico { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+        .status-Esperando-Aprobacion { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .status-En-Reparacion { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+        .status-Reparado { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .status-Entregado { background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; }
+        .status-Cancelado { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .status-Facturado { background: #faf5ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+
+        /* Two columns: Emisor & Receptor */
+        .info-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 12px 0;
+            margin-bottom: 16px;
+            margin-left: -12px;
+            margin-right: -12px;
+        }
+
+        .info-card {
+            vertical-align: top;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 14px;
+            width: 50%;
+        }
+
+        .info-card-header {
+            font-size: 9px;
+            font-weight: 800;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 4px;
+        }
+
+        .info-row {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .info-label {
+            color: #64748b;
+            font-weight: 600;
+            font-size: 8.5px;
+        }
+
+        .info-value {
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 8.5px;
+            text-align: right;
+        }
+
+        .company-name {
+            font-size: 11px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        /* Section Container */
+        .section-box {
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f1f5f9;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 7px 12px;
+            font-size: 9.5px;
+            font-weight: 800;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .section-body {
+            padding: 12px;
+        }
+
+        /* Equipment grid */
+        .equipment-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .equipment-table td {
+            padding: 5px 8px;
+            font-size: 9px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .eq-label {
+            width: 25%;
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .eq-val {
+            width: 25%;
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        /* Diagnosis grid */
+        .diag-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .diag-card {
+            border-radius: 5px;
+            padding: 10px 12px;
+            font-size: 9px;
+        }
+
+        .diag-reported {
+            background-color: #fff1f2;
+            border: 1px solid #ffe4e6;
+            color: #9f1239;
+        }
+
+        .diag-technical {
+            background-color: #eff6ff;
+            border: 1px solid #dbeafe;
+            color: #1e40af;
+        }
+
+        .diag-title {
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 8.5px;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
+        }
+
+        .diag-text {
+            color: #334155;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        /* Table of Items */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .items-table th {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            font-size: 8px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 7px 10px;
+            text-align: left;
+        }
+
+        .items-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 9px;
+            vertical-align: top;
+        }
+
+        .items-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+
+        /* Totals */
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .totals-table td {
+            padding: 5px 12px;
+            font-size: 9px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .totals-table tr.total-row {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 11px;
+        }
+
+        .totals-table tr.total-row td {
+            border-bottom: none;
+            padding: 8px 12px;
+        }
+
+        /* Evidence Gallery */
+        .evidence-gallery {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .evidence-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            background-color: #f8fafc;
+            text-align: center;
+        }
+
+        .evidence-img {
+            width: 100%;
+            height: 110px;
+            object-fit: cover;
+            display: block;
+            background-color: #0f172a;
+        }
+
+        .evidence-video-badge {
+            width: 100%;
+            height: 90px;
+            background: #0f172a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            gap: 4px;
+        }
+
+        .evidence-caption {
+            padding: 6px;
+            font-size: 7.5px;
+            color: #475569;
+            line-height: 1.25;
+            text-align: left;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Signatures */
+        .signatures-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 40px 0;
+            margin-top: 28px;
+            margin-bottom: 16px;
+        }
+
+        .signature-cell {
+            vertical-align: top;
+            text-align: center;
+            width: 50%;
+        }
+
+        .signature-line {
+            border-top: 1.5px solid #94a3b8;
+            margin: 0 20px 8px 20px;
+        }
+
+        .signature-title {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .signature-subtitle {
+            font-size: 8px;
+            color: #64748b;
+        }
+
+        /* Terms & Warranty */
+        .terms-box {
+            background-color: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 7.5px;
+            color: #475569;
+            line-height: 1.35;
+            margin-top: 12px;
+        }
+
+        .terms-title {
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="document-container">
+        <!-- Header -->
+        <table class="header-table">
+            <tr>
+                <td style="width: 55%; vertical-align: middle;">
+                    {{#if logo_url}}
+                    <img src="{{logo_url}}" alt="Logo Emisor" class="logo-img">
+                    {{/if}}
+                </td>
+                <td class="badge-box">
+                    <div class="badge-title">Reporte de Seguimiento y Orden de Servicio</div>
+                    <div class="folio-title">FOLIO: {{orden.folio}}</div>
+                    <div class="meta-grid">
+                        <div><strong>Fecha de Ingreso:</strong> {{fecha_ingreso_formateada}}</div>
+                        {{#if fecha_entrega_estimada_formateada}}
+                        <div><strong>Entrega Estimada:</strong> {{fecha_entrega_estimada_formateada}}</div>
+                        {{/if}}
+                        {{#if fecha_entrega_real_formateada}}
+                        <div><strong>Entrega Real:</strong> {{fecha_entrega_real_formateada}}</div>
+                        {{/if}}
+                        <div style="margin-top: 5px;">
+                            <strong>Estatus Técnico:</strong> 
+                            <span class="status-pill status-{{estado_slug}}">{{orden.estado}}</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Emisor and Receptor Info Cards -->
+        <table class="info-grid">
+            <tr>
+                <td class="info-card">
+                    <div class="info-card-header">Centro de Servicio / Taller Técnico</div>
+                    <div class="company-name">{{emisor.razon_social}}</div>
+                    <div class="info-row">
+                        <span class="info-label">RFC:</span>
+                        <span class="info-value font-mono">{{emisor.rfc}}</span>
+                    </div>
+                    {{#if emisor.codigo_postal}}
+                    <div class="info-row">
+                        <span class="info-label">C.P.:</span>
+                        <span class="info-value">{{emisor.codigo_postal}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if emisor.telefono}}
+                    <div class="info-row">
+                        <span class="info-label">Teléfono Soporte:</span>
+                        <span class="info-value">{{emisor.telefono}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if emisor.email}}
+                    <div class="info-row">
+                        <span class="info-label">Correo Atención:</span>
+                        <span class="info-value">{{emisor.email}}</span>
+                    </div>
+                    {{/if}}
+                </td>
+
+                <td class="info-card">
+                    <div class="info-card-header">Datos del Propietario / Cliente</div>
+                    <div class="company-name">{{receptor.razon_social}}</div>
+                    <div class="info-row">
+                        <span class="info-label">RFC:</span>
+                        <span class="info-value font-mono">{{receptor.rfc}}</span>
+                    </div>
+                    {{#if receptor.telefono}}
+                    <div class="info-row">
+                        <span class="info-label">Teléfono Móvil:</span>
+                        <span class="info-value">{{receptor.telefono}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if receptor.email}}
+                    <div class="info-row">
+                        <span class="info-label">Correo:</span>
+                        <span class="info-value">{{receptor.email}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if receptor.codigo_postal}}
+                    <div class="info-row">
+                        <span class="info-label">C.P.:</span>
+                        <span class="info-value">{{receptor.codigo_postal}}</span>
+                    </div>
+                    {{/if}}
+                </td>
+            </tr>
+        </table>
+
+        <!-- Equipment / Unit Info -->
+        <div class="section-box">
+            <div class="section-header">
+                <span>Ficha del Equipo / Unidad de Servicio</span>
+                <span style="font-size: 8px; font-weight: normal; color: #64748b;">Control de inventario en taller</span>
+            </div>
+            <div class="section-body">
+                <table class="equipment-table">
+                    <tr>
+                        <td class="eq-label">Equipo / Dispositivo:</td>
+                        <td class="eq-val">{{orden.equipo}}</td>
+                        <td class="eq-label">Marca y Modelo:</td>
+                        <td class="eq-val">{{marca_modelo}}</td>
+                    </tr>
+                    <tr>
+                        <td class="eq-label">Número de Serie:</td>
+                        <td class="eq-val font-mono">{{numero_serie_str}}</td>
+                        <td class="eq-label">Contraseña / PIN:</td>
+                        <td class="eq-val font-mono">{{contrasena_str}}</td>
+                    </tr>
+                    <tr>
+                        <td class="eq-label">Accesorios Recibidos:</td>
+                        <td class="eq-val" colspan="3" style="font-weight: 500; color: #334155;">{{accesorios_str}}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Technical Tracking: Falla reportada y Diagnóstico -->
+        <div class="section-box">
+            <div class="section-header">
+                <span>Seguimiento Técnico & Diagnóstico de Reparación</span>
+            </div>
+            <div class="section-body">
+                <div class="diag-grid">
+                    <div class="diag-card diag-reported">
+                        <div class="diag-title">Problema o Falla Reportada por el Cliente:</div>
+                        <div class="diag-text">{{orden.falla_reportada}}</div>
+                    </div>
+
+                    <div class="diag-card diag-technical">
+                        <div class="diag-title">Diagnóstico Técnico Especializado & Dictamen:</div>
+                        <div class="diag-text">{{diagnostico_str}}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Refacciones y Servicios Table -->
+        {{#if detalles.length}}
+        <div class="section-box">
+            <div class="section-header">
+                <span>Refacciones, Materiales y Mano de Obra Aplicada</span>
+            </div>
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;" class="text-center">#</th>
+                        <th style="width: 15%;">Tipo</th>
+                        <th style="width: 45%;">Descripción del Servicio / Refacción</th>
+                        <th style="width: 10%;" class="text-center">Cant.</th>
+                        <th style="width: 12%;" class="text-right">P. Unitario</th>
+                        <th style="width: 13%;" class="text-right">Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each detalles}}
+                    <tr>
+                        <td class="text-center" style="color: #64748b; font-weight: 700;">{{inc @index}}</td>
+                        <td>
+                            <span style="font-size: 8px; font-weight: 700; color: var(--primary-color); text-transform: uppercase;">
+                                {{tipo_detalle}}
+                            </span>
+                        </td>
+                        <td style="font-weight: 600; color: #0f172a;">{{descripcion}}</td>
+                        <td class="text-center font-bold">{{formatDecimal cantidad 2}}</td>
+                        <td class="text-right font-mono">{{formatCurrency valor_unitario 2}}</td>
+                        <td class="text-right font-mono font-bold">{{formatCurrency importe 2}}</td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+
+            <!-- Totals -->
+            <div style="display: flex; justify-content: flex-end; padding: 10px 12px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                <div style="width: 260px;">
+                    <table class="totals-table">
+                        <tr>
+                            <td style="color: #475569; font-weight: 600;">Subtotal:</td>
+                            <td class="text-right font-mono" style="font-weight: 700;">{{formatCurrency orden.subtotal 2}}</td>
+                        </tr>
+                        {{#if orden.total_impuestos_trasladados}}
+                        <tr>
+                            <td style="color: #475569; font-weight: 600;">IVA (16%):</td>
+                            <td class="text-right font-mono" style="font-weight: 700;">{{formatCurrency orden.total_impuestos_trasladados 2}}</td>
+                        </tr>
+                        {{/if}}
+                        <tr class="total-row">
+                            <td>TOTAL:</td>
+                            <td class="text-right font-mono">{{formatCurrency orden.total 2}} {{orden.moneda}}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{/if}}
+
+        <!-- Evidence Gallery (Fotos / Videos) -->
+        {{#if evidencias_fotos.length}}
+        <div class="section-box">
+            <div class="section-header">
+                <span>Evidencias Fotográficas del Servicio ({{evidencias_fotos.length}} foto{{#if mas_de_una_foto}}s{{/if}})</span>
+                <span style="font-size: 8px; font-weight: normal; color: #64748b;">Registro visual de recepción y avance</span>
+            </div>
+            <div class="section-body">
+                <div class="evidence-gallery">
+                    {{#each evidencias_fotos}}
+                    <div class="evidence-card">
+                        <img src="{{data_uri}}" alt="Evidencia" class="evidence-img">
+                        <div class="evidence-caption">
+                            <strong>{{fecha_str}}</strong>
+                            <div>{{descripcion}}</div>
+                        </div>
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+        </div>
+        {{/if}}
+
+        {{#if evidencias_videos.length}}
+        <div style="margin-bottom: 16px; padding: 10px 14px; background: #f1f5f9; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 8.5px;">
+            <strong style="color: #0f172a;">Videos Adjuntos en Expediente Digital ({{evidencias_videos.length}}):</strong>
+            <ul style="margin: 4px 0 0 16px; padding: 0; color: #334155;">
+                {{#each evidencias_videos}}
+                <li>{{nombre_original}} — {{fecha_str}} {{#if descripcion}}({{descripcion}}){{/if}}</li>
+                {{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        <!-- Terms and Warranty Box -->
+        <div class="terms-box">
+            <div class="terms-title">Garantía, Términos y Condiciones del Servicio:</div>
+            &bull; Toda reparación física y componentes sustituidos cuentan con 30 días de garantía contra defectos de mano de obra o piezas.<br>
+            &bull; No aplica garantía en equipos con presencia de humedad o daño por descargas eléctricas posteriores a la entrega.<br>
+            &bull; El cliente cuenta con un plazo máximo de 30 días naturales posteriores a la notificación de entrega para recoger su equipo.
+        </div>
+
+        <!-- Signatures Grid -->
+        <table class="signatures-grid">
+            <tr>
+                <td class="signature-cell">
+                    <div style="height: 48px;"></div>
+                    <div class="signature-line"></div>
+                    <div class="signature-title">{{emisor.razon_social}}</div>
+                    <div class="signature-subtitle">Técnico Responsable / Taller de Servicio</div>
+                </td>
+                <td class="signature-cell">
+                    <div style="height: 48px;"></div>
+                    <div class="signature-line"></div>
+                    <div class="signature-title">{{receptor.razon_social}}</div>
+                    <div class="signature-subtitle">Firma de Entrega / Conformidad del Cliente</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+
+</html>

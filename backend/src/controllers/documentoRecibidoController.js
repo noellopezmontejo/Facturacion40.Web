@@ -1,8 +1,22 @@
-import { Proveedor, DocumentoRecibido, PagoRecibido, PagoDocumentoRecibido, Emisor } from '../models/index.js';
+import { 
+    Proveedor, 
+    DocumentoRecibido, 
+    PagoRecibido, 
+    PagoDocumentoRecibido, 
+    Emisor,
+    SolicitudDescargaSat 
+} from '../models/index.js';
 import { parseCFDI } from '../services/xmlParserService.js';
-import { solicitarDescargaMasivaSAT } from '../services/descargaSatService.js';
+import { 
+    solicitarDescargaMasivaSAT, 
+    consultarEstatusDescarga, 
+    descargarPaqueteXMLs, 
+    resolverCredenciales 
+} from '../services/descargaSatService.js';
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
+import fs from 'fs';
+import { getFielCerPath, getFielKeyPath, getXmlPath, getPublicUrl } from '../utils/storageHelper.js';
 
 /**
  * Helper para recalcular el saldo y estado de pago de una factura recibida.
@@ -369,10 +383,10 @@ export const getResumenCuentasPorPagar = async (req, res) => {
 };
 
 /**
- * Solicita una descarga masiva al SAT (Simulación/Mock).
+ * Solicita una descarga masiva al SAT (Directo Web Service / FIEL / CSD).
  */
 export const solicitarDescargaSAT = async (req, res) => {
-    const { emisor_id, fecha_inicio, fecha_fin } = req.body;
+    const { emisor_id, fecha_inicio, fecha_fin, password_fiel, guardar_fiel } = req.body;
 
     try {
         const emisor = await Emisor.findByPk(emisor_id);
@@ -380,20 +394,311 @@ export const solicitarDescargaSAT = async (req, res) => {
             return res.status(404).json({ message: 'Emisor del sistema no encontrado' });
         }
 
+        let customCreds = null;
+        if (req.files && req.files['fiel_cer'] && req.files['fiel_key']) {
+            const cerBuffer = req.files['fiel_cer'][0].buffer;
+            const keyBuffer = req.files['fiel_key'][0].buffer;
+            const fielPass = password_fiel || emisor.password_fiel || emisor.password_csd || '';
+            customCreds = {
+                cerBuffer,
+                keyBuffer,
+                password: fielPass
+            };
+
+            // Si el usuario marcó guardar la e.firma para no tener que subirla en cada petición
+            if (guardar_fiel === 'true' || guardar_fiel === true) {
+                const fielCerPath = getFielCerPath(emisor.rfc);
+                const fielKeyPath = getFielKeyPath(emisor.rfc);
+                fs.writeFileSync(fielCerPath, cerBuffer);
+                fs.writeFileSync(fielKeyPath, keyBuffer);
+                emisor.fiel_certificado_path = `/storage/${emisor.rfc}/fiel/fiel.cer`;
+                emisor.fiel_llave_privada_path = `/storage/${emisor.rfc}/fiel/fiel.key`;
+                if (password_fiel) emisor.password_fiel = password_fiel;
+                await emisor.save();
+            }
+        }
+
+        let creds;
+        try {
+            creds = resolverCredenciales(emisor, customCreds);
+        } catch (cErr) {
+            return res.status(400).json({ 
+                message: `No se pudieron cargar los certificados de firma (${emisor.rfc}): ${cErr.message}. Verifica tus archivos .cer y .key.` 
+            });
+        }
+
         const params = {
+            rfcSolicitante: emisor.rfc,
             rfcReceptor: emisor.rfc,
             fechaInicio: fecha_inicio,
-            fechaFin: fecha_fin
+            fechaFin: fecha_fin,
+            tipoSolicitud: 'CFDI'
         };
 
-        const resultado = await solicitarDescargaMasivaSAT(params, {
-            cer: emisor.certificado_path,
-            key: emisor.llave_privada_path
+        const resultado = await solicitarDescargaMasivaSAT(params, creds);
+
+        // Guardar la solicitud en base de datos para seguimiento y descarga
+        const nuevaSolicitud = await SolicitudDescargaSat.create({
+            emisor_id: emisor.id,
+            id_solicitud_sat: resultado.solicitudId,
+            rfc_solicitante: emisor.rfc,
+            rfc_receptor: emisor.rfc,
+            fecha_inicio: fecha_inicio,
+            fecha_fin: fecha_fin,
+            tipo_solicitud: 'CFDI',
+            tipo_descarga: 'Recibidos',
+            estado_sat: resultado.estado || 'Aceptada',
+            codigo_estado: resultado.codigoEstado || '5000',
+            mensaje_sat: resultado.mensaje || 'Solicitud recibida por el SAT'
         });
 
-        res.json(resultado);
+        res.json({
+            ...resultado,
+            id: nuevaSolicitud.id,
+            solicitud: nuevaSolicitud
+        });
     } catch (error) {
         console.error('Error al solicitar descarga SAT:', error);
         res.status(500).json({ message: 'Error al conectar con el webservice del SAT', error: error.message });
+    }
+};
+
+/**
+ * Obtiene el historial de solicitudes de descarga masiva SAT de un emisor
+ */
+export const getSolicitudesDescarga = async (req, res) => {
+    const { emisor_id } = req.query;
+    try {
+        const whereClause = emisor_id ? { emisor_id: Number(emisor_id) } : {};
+        const solicitudes = await SolicitudDescargaSat.findAll({
+            where: whereClause,
+            order: [['createdAt', 'DESC']],
+            limit: 50
+        });
+        res.json(solicitudes);
+    } catch (error) {
+        console.error('Error obteniendo solicitudes de descarga SAT:', error);
+        res.status(500).json({ message: 'Error al consultar historial de solicitudes' });
+    }
+};
+
+/**
+ * Consulta y actualiza el estatus de una solicitud ante el SAT (VerificaSolicitudDescarga)
+ */
+export const verificarSolicitudSAT = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const solicitud = await SolicitudDescargaSat.findByPk(id, {
+            include: [{ model: Emisor }]
+        });
+        if (!solicitud) {
+            return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+
+        const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);
+        const creds = resolverCredenciales(emisor);
+
+        const estatus = await consultarEstatusDescarga(solicitud.id_solicitud_sat, emisor.rfc, creds);
+
+        if (estatus.success) {
+            solicitud.estado_sat = estatus.estado || solicitud.estado_sat;
+            solicitud.codigo_estado = estatus.codigoEstado || solicitud.codigo_estado;
+            solicitud.mensaje_sat = estatus.mensaje || solicitud.mensaje_sat;
+            if (estatus.numeroCFDIs) {
+                solicitud.numero_cfdis = estatus.numeroCFDIs;
+            }
+            if (estatus.paquetesIds && estatus.paquetesIds.length > 0) {
+                solicitud.paquetes_ids = estatus.paquetesIds;
+            }
+            await solicitud.save();
+        }
+
+        res.json({
+            success: true,
+            solicitud,
+            estatus
+        });
+    } catch (error) {
+        console.error('Error verificando solicitud SAT:', error);
+        res.status(500).json({ message: 'Error al consultar estatus en el SAT', error: error.message });
+    }
+};
+
+/**
+ * Simula la finalización de paquetes en Modo Prueba para permitir probar la descarga e importación.
+ */
+export const simularPaquetesPrueba = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const solicitud = await SolicitudDescargaSat.findByPk(id);
+        if (!solicitud) {
+            return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+
+        solicitud.estado_sat = 'Terminada';
+        solicitud.codigo_estado = '5000';
+        solicitud.numero_cfdis = 2;
+        solicitud.paquetes_ids = [`DEMO-PKG-${Date.now()}`];
+        solicitud.mensaje_sat = 'Paquete de prueba generado (Modo Prueba). Listo para descargar e importar a Cuentas por Pagar.';
+        await solicitud.save();
+
+        res.json({
+            success: true,
+            message: 'Paquete de prueba generado exitosamente. Ya puedes descargar e importar.',
+            solicitud
+        });
+    } catch (error) {
+        console.error('Error simulando paquetes prueba:', error);
+        res.status(500).json({ message: 'Error al simular paquete', error: error.message });
+    }
+};
+
+/**
+ * Descarga los paquetes generados por el SAT, descomprime los XMLs e ingesta las facturas y pagos recibidos
+ */
+export const descargarEImportarPaquetesSAT = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const solicitud = await SolicitudDescargaSat.findByPk(id, {
+            include: [{ model: Emisor }]
+        });
+        if (!solicitud) {
+            return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+
+        const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);
+        const creds = resolverCredenciales(emisor);
+
+        let paquetes = solicitud.paquetes_ids;
+        if (!paquetes || (Array.isArray(paquetes) && paquetes.length === 0)) {
+            const estatus = await consultarEstatusDescarga(solicitud.id_solicitud_sat, emisor.rfc, creds);
+            if (estatus.paquetesIds && estatus.paquetesIds.length > 0) {
+                paquetes = estatus.paquetesIds;
+                solicitud.paquetes_ids = paquetes;
+                await solicitud.save();
+            }
+        }
+
+        if (!paquetes || paquetes.length === 0) {
+            return res.status(400).json({ 
+                message: `El SAT aún no ha generado los paquetes de descarga para esta solicitud (Estatus: ${solicitud.estado_sat}). Intenta verificar en unos momentos.` 
+            });
+        }
+
+        let totalXMLs = 0;
+        let facturasImportadas = 0;
+        let pagosImportados = 0;
+        let erroresImportacion = 0;
+
+        for (const paqId of paquetes) {
+            try {
+                const archivosXml = await descargarPaqueteXMLs(paqId, emisor.rfc, creds);
+                totalXMLs += archivosXml.length;
+
+                for (const item of archivosXml) {
+                    try {
+                        const cfdiData = await parseCFDI(item.contenidoXml);
+
+                        // Buscar o crear Proveedor
+                        const [proveedor] = await Proveedor.findOrCreate({
+                            where: { rfc: cfdiData.emisor.rfc, emisor_id: emisor.id },
+                            defaults: {
+                                razon_social: cfdiData.emisor.nombre || 'Proveedor Desconocido',
+                                regimen_fiscal: cfdiData.emisor.regimenFiscal
+                            }
+                        });
+
+                        if (['I', 'E', 'N'].includes(cfdiData.tipoComprobante)) {
+                            const isNomina = cfdiData.tipoComprobante === 'N';
+                            const metodoPagoVal = isNomina ? 'PUE' : (cfdiData.metodoPago || 'PUE');
+                            const formaPagoVal = cfdiData.formaPago || (isNomina ? '99' : '03');
+
+                            const [doc, created] = await DocumentoRecibido.findOrCreate({
+                                where: { uuid: cfdiData.uuid },
+                                defaults: {
+                                    emisor_id: emisor.id,
+                                    proveedor_id: proveedor.id,
+                                    uuid: cfdiData.uuid,
+                                    serie: cfdiData.serie,
+                                    folio: cfdiData.folio,
+                                    fecha: cfdiData.fecha,
+                                    forma_pago: formaPagoVal,
+                                    metodo_pago: metodoPagoVal,
+                                    moneda: cfdiData.moneda || 'MXN',
+                                    tipo_cambio: cfdiData.tipoCambio || 1,
+                                    subtotal: cfdiData.subtotal || cfdiData.total,
+                                    descuento: cfdiData.descuento || 0,
+                                    total: cfdiData.total,
+                                    saldo_insoluto: (isNomina || metodoPagoVal === 'PUE') ? 0 : cfdiData.total,
+                                    estado_pago: (isNomina || metodoPagoVal === 'PUE') ? 'Pagado' : 'Pendiente'
+                                }
+                            });
+
+                            // Guardar archivo XML físico para consulta/descarga
+                            try {
+                                const xmlPath = getXmlPath(emisor.rfc, cfdiData.uuid);
+                                fs.writeFileSync(xmlPath, item.contenidoXml, 'utf8');
+                                doc.xml_url = getPublicUrl(emisor.rfc, 'xml', `${cfdiData.uuid}.xml`);
+                                await doc.save();
+                            } catch (writeErr) {
+                                console.warn('No se pudo guardar el archivo XML en disco:', writeErr.message);
+                            }
+
+                            if (created) facturasImportadas++;
+                            await recalcularSaldoFacturaRecibida(doc.id);
+                        } else if (cfdiData.tipoComprobante === 'P') {
+                            const [pago, created] = await PagoRecibido.findOrCreate({
+                                where: { uuid: cfdiData.uuid },
+                                defaults: {
+                                    emisor_id: emisor.id,
+                                    proveedor_id: proveedor.id,
+                                    uuid: cfdiData.uuid,
+                                    serie: cfdiData.serie,
+                                    folio: cfdiData.folio,
+                                    fecha_pago: cfdiData.fecha,
+                                    forma_pago_p: cfdiData.formaPago || '03',
+                                    moneda_p: cfdiData.moneda || 'MXN',
+                                    monto: cfdiData.total
+                                }
+                            });
+
+                            try {
+                                const xmlPath = getXmlPath(emisor.rfc, cfdiData.uuid);
+                                fs.writeFileSync(xmlPath, item.contenidoXml, 'utf8');
+                                pago.xml_url = getPublicUrl(emisor.rfc, 'xml', `${cfdiData.uuid}.xml`);
+                                await pago.save();
+                            } catch (writeErr) {
+                                console.warn('No se pudo guardar XML de pago:', writeErr.message);
+                            }
+
+                            if (created) pagosImportados++;
+                        }
+                    } catch (itemErr) {
+                        console.error('Error procesando XML individual:', itemErr.message);
+                        erroresImportacion++;
+                    }
+                }
+            } catch (paqErr) {
+                console.error(`Error procesando paquete ${paqId}:`, paqErr.message);
+            }
+        }
+
+        solicitud.estado_sat = 'Descargada';
+        solicitud.paquetes_descargados = paquetes;
+        await solicitud.save();
+
+        res.json({
+            success: true,
+            message: `Sincronización SAT completa: ${facturasImportadas} facturas y ${pagosImportados} pagos importados a Cuentas por Pagar.`,
+            resumen: {
+                totalXMLs,
+                facturasImportadas,
+                pagosImportados,
+                erroresImportacion
+            }
+        });
+    } catch (error) {
+        console.error('Error descargando e importando paquetes SAT:', error);
+        res.status(500).json({ message: 'Error al descargar e importar paquetes del SAT', error: error.message });
     }
 };

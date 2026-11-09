@@ -24,12 +24,17 @@ mobile/dist/
 
 # Storage, Generated documents and uploads
 backend/src/storage/*/csd/
+backend/src/storage/*/fiel/
 backend/src/storage/*/pdf/
 backend/src/storage/*/xml/
+backend/src/storage/*/cotizaciones/
+backend/src/storage/*/ordenes_servicio/
+backend/src/storage/*/descargas_sat/
 backend/src/storage/pdf/
 backend/src/storage/xml/
 backend/src/storage/previews/
 backend/scratch/
+scratch/
 
 # Keep SAT XSLT files
 !backend/src/storage/sat_xslt/

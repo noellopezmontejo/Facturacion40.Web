@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{#if google_fonts_link}}
+    <link rel="stylesheet" href="{{google_fonts_link}}">
+    {{/if}}
+    <style>
+        :root {
+            --primary-color: {{color_primario}};
+            --secondary-color: {{color_secundario}};
+            --font-family: '{{tipo_letra}}', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 24px;
+            color: #1e293b;
+            font-size: 9.5px;
+            line-height: 1.35;
+            background-color: #f8fafc;
+        }
+
+        .document-container {
+            max-width: 860px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            padding: 28px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff !important;
+                padding: 0 !important;
+            }
+            .document-container {
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 16px !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+
+        /* Header Layout */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        .logo-img {
+            max-height: 70px;
+            max-width: 260px;
+            object-fit: contain;
+        }
+
+        .quote-badge-box {
+            text-align: right;
+            vertical-align: top;
+        }
+
+        .quote-badge-title {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            padding: 8px 18px;
+            font-size: 13px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        }
+
+        .quote-folio {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: 900;
+            color: #0f172a;
+            font-family: monospace;
+        }
+
+        .quote-meta-grid {
+            margin-top: 6px;
+            font-size: 8.5px;
+            color: #475569;
+            line-height: 1.4;
+        }
+
+        .quote-meta-grid strong {
+            color: #0f172a;
+        }
+
+        /* Two columns: Emisor & Receptor */
+        .info-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 12px 0;
+            margin-bottom: 20px;
+            margin-left: -12px;
+            margin-right: -12px;
+        }
+
+        .info-card {
+            vertical-align: top;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 14px;
+            width: 50%;
+        }
+
+        .info-card-header {
+            font-size: 9px;
+            font-weight: 800;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 4px;
+        }
+
+        .info-row {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .info-label {
+            color: #64748b;
+            font-weight: 600;
+            font-size: 8.5px;
+        }
+
+        .info-value {
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 8.5px;
+            text-align: right;
+        }
+
+        .company-name {
+            font-size: 11px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        /* Table of Items */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .items-table th {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            font-size: 8.5px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 8px 10px;
+            text-align: left;
+        }
+
+        .items-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 9px;
+            vertical-align: top;
+        }
+
+        .items-table tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        /* Bottom Section: Notes & Totals */
+        .bottom-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+        }
+
+        .notes-box {
+            vertical-align: top;
+            width: 58%;
+            padding-right: 20px;
+        }
+
+        .notes-content {
+            background-color: #f8fafc;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 8.5px;
+            color: #334155;
+            min-height: 90px;
+        }
+
+        .notes-title {
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            font-size: 8.5px;
+            letter-spacing: 0.4px;
+        }
+
+        .totals-box {
+            vertical-align: top;
+            width: 42%;
+        }
+
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .totals-table td {
+            padding: 6px 12px;
+            font-size: 9px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .totals-table tr.total-row {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 11px;
+        }
+
+        .totals-table tr.total-row td {
+            border-bottom: none;
+            padding: 8px 12px;
+        }
+
+        .amount-in-words {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #f1f5f9;
+            border-left: 3px solid var(--primary-color);
+            border-radius: 4px;
+            font-size: 8.5px;
+            color: #334155;
+            font-weight: 600;
+        }
+
+        /* Signatures */
+        .signatures-grid {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 40px 0;
+            margin-top: 36px;
+            margin-bottom: 20px;
+        }
+
+        .signature-cell {
+            vertical-align: top;
+            text-align: center;
+            width: 50%;
+        }
+
+        .signature-line {
+            border-top: 1.5px solid #94a3b8;
+            margin: 0 20px 8px 20px;
+        }
+
+        .signature-title {
+            font-size: 9px;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .signature-subtitle {
+            font-size: 8px;
+            color: #64748b;
+        }
+
+        /* Disclaimer footer */
+        .footer-disclaimer {
+            border-top: 1px solid #e2e8f0;
+            padding-top: 12px;
+            text-align: center;
+            font-size: 7.5px;
+            color: #94a3b8;
+            line-height: 1.4;
+        }
+
+        .status-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .status-Borrador { background: #f1f5f9; color: #475569; }
+        .status-Enviada { background: #eff6ff; color: #1d4ed8; }
+        .status-Aceptada { background: #ecfdf5; color: #047857; }
+        .status-Rechazada { background: #fef2f2; color: #b91c1c; }
+        .status-Facturada { background: #faf5ff; color: #6b21a8; }
+        .status-Cancelada { background: #fffbeb; color: #b45309; }
+    </style>
+</head>
+
+<body>
+    <div class="document-container">
+        <!-- Header -->
+        <table class="header-table">
+            <tr>
+                <td style="width: 55%; vertical-align: middle;">
+                    {{#if logo_url}}
+                    <img src="{{logo_url}}" alt="Logo Emisor" class="logo-img">
+                    {{/if}}
+                </td>
+                <td class="quote-badge-box">
+                    <div class="quote-badge-title">Cotización Comercial</div>
+                    <div class="quote-folio">FOLIO: {{cotizacion.folio}}</div>
+                    <div class="quote-meta-grid">
+                        <div><strong>Fecha de Emisión:</strong> {{fecha_formateada}}</div>
+                        <div><strong>Vigencia:</strong> {{cotizacion.vigencia_dias}} días (Vence: {{fecha_vencimiento_formateada}})</div>
+                        <div><strong>Moneda:</strong> {{cotizacion.moneda}} {{#if tipo_cambio_str}}(T.C. {{tipo_cambio_str}}){{/if}}</div>
+                        <div style="margin-top: 4px;">
+                            <strong>Estatus:</strong> 
+                            <span class="status-pill status-{{cotizacion.estado}}">{{cotizacion.estado}}</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Emisor and Receptor Info Cards -->
+        <table class="info-grid">
+            <tr>
+                <td class="info-card">
+                    <div class="info-card-header">Emisor / Proveedor</div>
+                    <div class="company-name">{{emisor.razon_social}}</div>
+                    <div class="info-row">
+                        <span class="info-label">RFC:</span>
+                        <span class="info-value font-mono">{{emisor.rfc}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Régimen Fiscal:</span>
+                        <span class="info-value">{{emisor.regimen_fiscal}} - {{emisor.regimen_desc}}</span>
+                    </div>
+                    {{#if emisor.codigo_postal}}
+                    <div class="info-row">
+                        <span class="info-label">C.P. Expedición:</span>
+                        <span class="info-value">{{emisor.codigo_postal}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if emisor.telefono}}
+                    <div class="info-row">
+                        <span class="info-label">Teléfono:</span>
+                        <span class="info-value">{{emisor.telefono}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if emisor.email}}
+                    <div class="info-row">
+                        <span class="info-label">Correo:</span>
+                        <span class="info-value">{{emisor.email}}</span>
+                    </div>
+                    {{/if}}
+                </td>
+
+                <td class="info-card">
+                    <div class="info-card-header">Cliente / Receptor</div>
+                    <div class="company-name">{{receptor.razon_social}}</div>
+                    <div class="info-row">
+                        <span class="info-label">RFC:</span>
+                        <span class="info-value font-mono">{{receptor.rfc}}</span>
+                    </div>
+                    {{#if receptor.regimen_fiscal}}
+                    <div class="info-row">
+                        <span class="info-label">Régimen Fiscal:</span>
+                        <span class="info-value">{{receptor.regimen_fiscal}} - {{receptor.regimen_desc}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if receptor.codigo_postal}}
+                    <div class="info-row">
+                        <span class="info-label">C.P. Domicilio:</span>
+                        <span class="info-value">{{receptor.codigo_postal}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if receptor.email}}
+                    <div class="info-row">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value">{{receptor.email}}</span>
+                    </div>
+                    {{/if}}
+                    {{#if receptor.telefono}}
+                    <div class="info-row">
+                        <span class="info-label">Teléfono:</span>
+                        <span class="info-value">{{receptor.telefono}}</span>
+                    </div>
+                    {{/if}}
+                </td>
+            </tr>
+        </table>
+
+        <!-- Table of Conceptos -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;" class="text-center">#</th>
+                    <th style="width: 10%;" class="text-center">Clave SAT</th>
+                    <th style="width: 10%;" class="text-center">Cant. / Unidad</th>
+                    <th style="width: 45%;">Descripción</th>
+                    <th style="width: 15%;" class="text-right">Precio Unit.</th>
+                    <th style="width: 15%;" class="text-right">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each detalles}}
+                <tr>
+                    <td class="text-center" style="color: #64748b; font-weight: 700;">{{inc @index}}</td>
+                    <td class="text-center font-mono" style="font-size: 8px; color: #64748b;">{{clave_prod_serv}}</td>
+                    <td class="text-center">
+                        <span style="font-weight: 700; color: #0f172a;">{{formatDecimal cantidad 2}}</span>
+                        <span style="font-size: 8px; color: #64748b; display: block;">{{clave_unidad}} {{#if unidad}}({{unidad}}){{/if}}</span>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600; color: #0f172a;">{{descripcion}}</div>
+                        {{#if no_identificacion}}
+                        <div style="font-size: 7.5px; color: #64748b; font-family: monospace;">SKU/No. Id: {{no_identificacion}}</div>
+                        {{/if}}
+                    </td>
+                    <td class="text-right font-mono">{{formatCurrency valor_unitario 2}}</td>
+                    <td class="text-right font-mono" style="font-weight: 700; color: #0f172a;">{{formatCurrency importe 2}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <!-- Bottom: Conditions & Totals -->
+        <table class="bottom-table">
+            <tr>
+                <td class="notes-box">
+                    <div class="notes-content">
+                        <div class="notes-title">Términos, Condiciones y Notas:</div>
+                        {{#if cotizacion.notas}}
+                        <div style="white-space: pre-wrap; line-height: 1.45;">{{cotizacion.notas}}</div>
+                        {{else}}
+                        <div style="color: #94a3b8;">
+                            &bull; Precios sujetos a cambio sin previo aviso.<br>
+                            &bull; Tiempo de entrega y disponibilidad confirmada al procesar la orden.<br>
+                            &bull; La presente cotización tiene una vigencia legal de {{cotizacion.vigencia_dias}} días naturales.<br>
+                            &bull; Para autorizar este presupuesto, favor de firmar de conformidad o enviar orden de compra.
+                        </div>
+                        {{/if}}
+                    </div>
+
+                    <div class="amount-in-words">
+                        <strong>Importe en letra:</strong> {{total_en_letra}}
+                    </div>
+                </td>
+
+                <td class="totals-box">
+                    <table class="totals-table">
+                        <tr>
+                            <td style="color: #475569; font-weight: 600;">Subtotal:</td>
+                            <td class="text-right font-mono" style="font-weight: 700;">{{formatCurrency cotizacion.subtotal 2}}</td>
+                        </tr>
+                        {{#if cotizacion.descuento_mayor_cero}}
+                        <tr>
+                            <td style="color: #dc2626; font-weight: 600;">Descuento:</td>
+                            <td class="text-right font-mono" style="color: #dc2626; font-weight: 700;">- {{formatCurrency cotizacion.descuento 2}}</td>
+                        </tr>
+                        {{/if}}
+                        {{#if cotizacion.total_impuestos_trasladados}}
+                        <tr>
+                            <td style="color: #475569; font-weight: 600;">IVA Trasladado (16%):</td>
+                            <td class="text-right font-mono" style="font-weight: 700;">{{formatCurrency cotizacion.total_impuestos_trasladados 2}}</td>
+                        </tr>
+                        {{/if}}
+                        {{#if cotizacion.total_impuestos_retenidos}}
+                        <tr>
+                            <td style="color: #b45309; font-weight: 600;">Retenciones:</td>
+                            <td class="text-right font-mono" style="color: #b45309; font-weight: 700;">- {{formatCurrency cotizacion.total_impuestos_retenidos 2}}</td>
+                        </tr>
+                        {{/if}}
+                        <tr class="total-row">
+                            <td>TOTAL:</td>
+                            <td class="text-right font-mono">{{formatCurrency cotizacion.total 2}} {{cotizacion.moneda}}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Signatures Grid -->
+        <table class="signatures-grid">
+            <tr>
+                <td class="signature-cell">
+                    <div style="height: 48px;"></div>
+                    <div class="signature-line"></div>
+                    <div class="signature-title">{{emisor.razon_social}}</div>
+                    <div class="signature-subtitle">Elaborado por / Asesor Comercial</div>
+                </td>
+                <td class="signature-cell">
+                    <div style="height: 48px;"></div>
+                    <div class="signature-line"></div>
+                    <div class="signature-title">{{receptor.razon_social}}</div>
+                    <div class="signature-subtitle">Aceptado de Conformidad (Firma y Sello de Autorización)</div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Footer Disclaimer -->
+        <div class="footer-disclaimer">
+            Esta cotización comercial es de carácter informativo y presupuestario. No constituye un Comprobante Fiscal Digital por Internet (CFDI).<br>
+            Al solicitar la facturación definitiva, se expedirá el comprobante correspondiente de conformidad con las disposiciones fiscales vigentes.
+        </div>
+    </div>
+</body>
+
+</html>

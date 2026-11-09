@@ -4,8 +4,9 @@ import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ConfiguracionEstilo, Pago, PagoDocumento, Documento, Emisor, Receptor } from '../models/index.js';
-import { getPdfPath, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
+import { ConfiguracionEstilo, Pago, PagoDocumento, Documento, Emisor, Receptor, Cotizacion, DetalleCotizacion, OrdenServicio, DetalleOrdenServicio } from '../models/index.js';
+import { getPdfPath, getXmlPath, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
+import xml2js from 'xml2js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +39,11 @@ handlebars.registerHelper('eq', function (a, b) {
 
 handlebars.registerHelper('or', function (a, b) {
     return a || b;
+});
+
+handlebars.registerHelper('inc', function (value) {
+    const val = parseInt(value, 10);
+    return isNaN(val) ? 1 : val + 1;
 });
 
 // Catálogos Oficiales SAT para CFDI 4.0
@@ -222,7 +228,7 @@ export function generateDynamicEmisorLogo(emisor = {}, estilo = {}) {
     const cleanWords = razonSocial.replace(/[^a-zA-Z0-9\s]/g, '')
         .split(/\s+/)
         .filter(w => !['DE', 'LA', 'EL', 'Y', 'EN', 'SA', 'CV', 'SC', 'SAPI', 'RL', 'MI', 'POR'].includes(w.toUpperCase()));
-    
+
     let initials = 'CF';
     if (cleanWords.length >= 2) {
         initials = (cleanWords[0][0] + cleanWords[1][0] + (cleanWords[2] ? cleanWords[2][0] : '')).toUpperCase().substring(0, 3);
@@ -455,7 +461,7 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
 
         if (!overrides?.layout_id && estilo.template_mapping && documento.tipo_documento_id && !isPago) {
             const mappedLayout = estilo.template_mapping[documento.tipo_documento_id];
-            if (mappedLayout) {
+            if (mappedLayout && typeof mappedLayout === 'string' && mappedLayout.trim() !== '' && mappedLayout !== 'undefined') {
                 templateFileName = `invoice_${mappedLayout}.html`;
                 console.log(`[PDF Service] Usando plantilla mapeada: ${templateFileName} para Tipo Documento: ${documento.tipo_documento_id}`);
             }
@@ -493,7 +499,7 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                     const impPagado = parseFloat(drJson.imp_pagado || 0);
                     const totalDoc = parseFloat(doc.total || 0);
                     const subtotalDoc = parseFloat(doc.subtotal || 0);
-                    
+
                     let impTrasDoc = parseFloat(doc.total_impuestos_trasladados || 0);
                     if (impTrasDoc === 0 && totalDoc > subtotalDoc) {
                         impTrasDoc = totalDoc - subtotalDoc;
@@ -522,7 +528,7 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                     "SELECT Descripcion FROM CatFormaPagoSat WHERE c_FormaPago = ?",
                     { replacements: [pagoInfo.forma_pago], type: Documento.sequelize.QueryTypes.SELECT }
                 );
-                
+
                 pagoInfo = pagoInfo.toJSON ? pagoInfo.toJSON() : { ...pagoInfo };
                 pagoInfo.monto_form = parseFloat(pagoInfo.monto || 0).toFixed(2);
                 if (results && results.length > 0) {
@@ -558,45 +564,34 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         // Resolver logotipo del emisor (subido por el usuario o generado dinámico premium)
         const logoDataUri = resolveLogoDataUri(estilo, emisor);
 
-        // Calcular impuestos detallados (traslados y retenciones)
-        const traslados = [];
-        const retenciones = [];
-        let totalTraslados = 0;
-        let totalRetenciones = 0;
+        // 3.1 Intentar cargar datos del XML timbrado oficial si existe
+        let xmlDocData = null;
+        if (documento.uuid) {
+            try {
+                const xmlFilePath = getXmlPath(emisor.rfc, documento.uuid);
+                if (fs.existsSync(xmlFilePath)) {
+                    const xmlContent = fs.readFileSync(xmlFilePath, 'utf8');
+                    const xmlParser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
+                    const parsed = await xmlParser.parseStringPromise(xmlContent);
+                    if (parsed && parsed['cfdi:Comprobante']) {
+                        xmlDocData = parsed['cfdi:Comprobante'];
+                        console.log(`[PDF Service] Impuestos y datos CFDI leídos directamente del XML oficial para UUID: ${documento.uuid}`);
+                    }
+                }
+            } catch (xmlReadErr) {
+                console.warn('[PDF Service] Error leyendo XML timbrado para PDF:', xmlReadErr.message);
+            }
+        }
 
         let computedSubtotal = 0;
         detalles.forEach(det => {
             computedSubtotal += parseFloat(det.importe || 0);
         });
 
-        detalles.forEach(det => {
-            const base = parseFloat(det.importe) - parseFloat(det.descuento || 0);
-
-            // IVA 16% (Simplificado para la representación impresa)
-            const iva = base * 0.16;
-            totalTraslados += iva;
-
-            if (det.retencion_isr) {
-                const isr = base * parseFloat(det.retencion_isr_tasa || 0.10);
-                totalRetenciones += isr;
-                retenciones.push({ impuesto: 'ISR', tasa: (det.retencion_isr_tasa * 100).toFixed(2), importe: isr.toFixed(2) });
-            }
-            if (det.retencion_iva) {
-                const tasaIVA = 0.106667;
-                const ivaRet = base * tasaIVA;
-                totalRetenciones += ivaRet;
-                retenciones.push({ impuesto: 'IVA Ret', tasa: (tasaIVA * 100).toFixed(2), importe: ivaRet.toFixed(2) });
-            }
-        });
-
-        if (documento.ajuste_manual && detalles.length > 0) {
+        // 3.2 Manejo de ajuste manual (sólo en borradores / pre-timbrado)
+        if (documento.ajuste_manual && detalles.length > 0 && !xmlDocData) {
             const targetSubtotal = parseFloat(documento.subtotal || 0);
-            const targetTraslados = parseFloat(documento.total_impuestos_trasladados || 0);
-            const targetRetenciones = parseFloat(documento.total_impuestos_retenidos || 0);
-
             const diffSubtotal = targetSubtotal - computedSubtotal;
-            const diffTraslados = targetTraslados - totalTraslados;
-            const diffRetenciones = targetRetenciones - totalRetenciones;
 
             const lastDet = detalles[detalles.length - 1];
             const currentImp = parseFloat(lastDet.importe || 0);
@@ -606,16 +601,6 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                 lastDet.setDataValue('importe', adjustedImp);
             } else {
                 lastDet.importe = adjustedImp;
-            }
-
-            totalTraslados = targetTraslados;
-            totalRetenciones = targetRetenciones;
-
-            if (retenciones.length > 0) {
-                const mainRet = retenciones.find(r => r.impuesto === 'ISR') || retenciones[0];
-                if (mainRet) {
-                    mainRet.importe = (parseFloat(mainRet.importe) + diffRetenciones).toFixed(2);
-                }
             }
         }
 
@@ -633,10 +618,10 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                         const amt = parseFloat(t.importe || 0);
                         if (!isNaN(amt)) {
                             totalTrasladosLocales += amt;
-                            trasladosLocales.push({ 
-                                impuesto: t.impuesto || 'N/A', 
-                                tasa: (parseFloat(t.tasa || 0) * 100).toFixed(2), 
-                                importe: amt.toFixed(2) 
+                            trasladosLocales.push({
+                                impuesto: t.impuesto || 'N/A',
+                                tasa: (parseFloat(t.tasa || 0) * 100).toFixed(2),
+                                importe: amt.toFixed(2)
                             });
                         }
                     });
@@ -646,10 +631,10 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                         const amt = parseFloat(r.importe || 0);
                         if (!isNaN(amt)) {
                             totalRetencionesLocales += amt;
-                            retencionesLocales.push({ 
-                                impuesto: r.impuesto || 'N/A', 
-                                tasa: (parseFloat(r.tasa || 0) * 100).toFixed(2), 
-                                importe: amt.toFixed(2) 
+                            retencionesLocales.push({
+                                impuesto: r.impuesto || 'N/A',
+                                tasa: (parseFloat(r.tasa || 0) * 100).toFixed(2),
+                                importe: amt.toFixed(2)
                             });
                         }
                     });
@@ -696,6 +681,16 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         const monedaCode = docRaw.moneda || 'MXN';
         const monedaDesc = monedaCode === 'MXN' ? 'MXN - Peso Mexicano' : (monedaCode === 'USD' ? 'USD - Dólar Estadounidense' : monedaCode);
 
+        // Estructuras para cálculo y desglose de impuestos
+        const globalTrasladosMap = {};
+        const retenciones = [];
+        let totalTraslados = 0;
+        let totalRetenciones = 0;
+
+        const xmlConceptNodes = xmlDocData?.['cfdi:Conceptos']?.['cfdi:Concepto'];
+        const xmlConcepts = Array.isArray(xmlConceptNodes) ? xmlConceptNodes : (xmlConceptNodes ? [xmlConceptNodes] : []);
+        const xmlImpuestos = xmlDocData?.['cfdi:Impuestos'];
+
         // Mapear conceptos / detalles con todos los campos SAT CFDI 4.0
         const detallesFormatted = detalles.map((d, idx) => {
             const raw = d.toJSON ? d.toJSON() : d;
@@ -711,24 +706,147 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
             const unidad = raw.unidad || conceptoObj.unidad || 'Servicio';
             const noId = raw.no_identificacion || raw.codigo || conceptoObj.codigo || `ITEM-0${idx + 1}`;
             const descripcion = raw.descripcion || conceptoObj.descripcion || 'Concepto sin descripción';
-            const objetoImp = raw.objeto_imp || '02';
+            const objetoImp = raw.objeto_imp || raw.es_objeto_imp || '02';
             const objetoImpDesc = CAT_OBJETO_IMP[objetoImp] || 'Sí objeto de impuesto';
             const objetoImpDisplay = `${objetoImp} - ${objetoImpDesc}`;
 
-            // Calcular desglose de impuesto de la partida
             const impuestosItem = [];
-            if (objetoImp === '02') {
-                const ivaTasa = 0.16;
-                const ivaImp = base * ivaTasa;
-                impuestosItem.push({
-                    impuesto: '002 IVA',
-                    tipo: 'Traslado',
-                    factor: 'Tasa',
-                    tasa: '16.00%',
-                    tasa_cuota: '0.160000',
-                    base: base.toFixed(2),
-                    importe: ivaImp.toFixed(2)
+
+            // A) Si existe XML timbrado, extraer los impuestos certificados del concepto
+            if (xmlConcepts[idx] && xmlConcepts[idx]['cfdi:Impuestos']) {
+                const cImp = xmlConcepts[idx]['cfdi:Impuestos'];
+                if (cImp['cfdi:Traslados'] && cImp['cfdi:Traslados']['cfdi:Traslado']) {
+                    const cTrasList = Array.isArray(cImp['cfdi:Traslados']['cfdi:Traslado'])
+                        ? cImp['cfdi:Traslados']['cfdi:Traslado']
+                        : [cImp['cfdi:Traslados']['cfdi:Traslado']];
+                    cTrasList.forEach(t => {
+                        const tasaNum = parseFloat(t.TasaOCuota !== undefined ? t.TasaOCuota : 0);
+                        const tasaPorc = t.TipoFactor === 'Exento' ? 'Exento' : `${(tasaNum * 100).toFixed(2)}%`;
+                        const impSat = t.Impuesto || '002';
+                        const impNombre = impSat === '002' ? '002 IVA' : impSat === '001' ? '001 ISR' : impSat === '003' ? '003 IEPS' : `${impSat} Imp`;
+                        impuestosItem.push({
+                            impuesto: impNombre,
+                            tipo: 'Traslado',
+                            factor: t.TipoFactor || 'Tasa',
+                            tasa: tasaPorc,
+                            tasa_cuota: t.TasaOCuota !== undefined ? t.TasaOCuota : '0.000000',
+                            base: parseFloat(t.Base !== undefined ? t.Base : base).toFixed(2),
+                            importe: parseFloat(t.Importe !== undefined ? t.Importe : 0).toFixed(2)
+                        });
+                    });
+                }
+                if (cImp['cfdi:Retenciones'] && cImp['cfdi:Retenciones']['cfdi:Retencion']) {
+                    const cRetList = Array.isArray(cImp['cfdi:Retenciones']['cfdi:Retencion'])
+                        ? cImp['cfdi:Retenciones']['cfdi:Retencion']
+                        : [cImp['cfdi:Retenciones']['cfdi:Retencion']];
+                    cRetList.forEach(r => {
+                        const tasaNum = parseFloat(r.TasaOCuota !== undefined ? r.TasaOCuota : 0);
+                        const tasaPorc = `${(tasaNum * 100).toFixed(2)}%`;
+                        const impSat = r.Impuesto || '001';
+                        const impNombre = impSat === '001' ? '001 ISR Ret' : impSat === '002' ? '002 IVA Ret' : `${impSat} Ret`;
+                        impuestosItem.push({
+                            impuesto: impNombre,
+                            tipo: 'Retención',
+                            factor: r.TipoFactor || 'Tasa',
+                            tasa: tasaPorc,
+                            tasa_cuota: r.TasaOCuota !== undefined ? r.TasaOCuota : '0.000000',
+                            base: parseFloat(r.Base !== undefined ? r.Base : base).toFixed(2),
+                            importe: parseFloat(r.Importe !== undefined ? r.Importe : 0).toFixed(2)
+                        });
+                    });
+                }
+            } else if (objetoImp === '02') {
+                // B) Modo pre-timbrado / borrador / sin XML: calcular dinámicamente según configuración
+                let conceptTraslados = (conceptoObj.Impuestos || []).filter(imp => imp.tipo === 'traslado');
+                if (conceptTraslados.length === 0 && raw.impuestos && Array.isArray(raw.impuestos)) {
+                    conceptTraslados = raw.impuestos.filter(imp => imp.tipo === 'traslado');
+                }
+
+                if (conceptTraslados.length === 0) {
+                    const docTraslados = parseFloat(docRaw.total_impuestos_trasladados || 0);
+                    const docTotal = parseFloat(docRaw.total || 0);
+                    const docSubtotal = parseFloat(docRaw.subtotal || computedSubtotal);
+                    if (docTraslados === 0 && docTotal <= docSubtotal) {
+                        conceptTraslados = [{
+                            impuesto_sat: '002',
+                            tipo_factor: 'Tasa',
+                            tasa_cuota: '0.000000',
+                            descripcion: 'IVA 0%'
+                        }];
+                    } else {
+                        conceptTraslados = [{
+                            impuesto_sat: '002',
+                            tipo_factor: 'Tasa',
+                            tasa_cuota: '0.160000',
+                            descripcion: 'IVA 16%'
+                        }];
+                    }
+                }
+
+                conceptTraslados.forEach(imp => {
+                    const tasa = parseFloat(imp.tasa_cuota !== undefined ? imp.tasa_cuota : 0.16);
+                    const tipoFactor = imp.tipo_factor || 'Tasa';
+                    const impAmt = tipoFactor === 'Exento' ? 0 : Math.round(base * tasa * 100) / 100;
+                    const tasaPorc = tipoFactor === 'Exento' ? 'Exento' : `${(tasa * 100).toFixed(2)}%`;
+                    const impSat = imp.impuesto_sat || '002';
+                    const impNombre = impSat === '002' ? '002 IVA' : impSat === '001' ? '001 ISR' : impSat === '003' ? '003 IEPS' : `${impSat} Imp`;
+
+                    impuestosItem.push({
+                        impuesto: impNombre,
+                        tipo: 'Traslado',
+                        factor: tipoFactor,
+                        tasa: tasaPorc,
+                        tasa_cuota: typeof imp.tasa_cuota === 'number' ? imp.tasa_cuota.toFixed(6) : (imp.tasa_cuota || '0.000000'),
+                        base: base.toFixed(2),
+                        importe: impAmt.toFixed(2)
+                    });
+
+                    const key = `${impSat}_${tipoFactor}_${tasa}`;
+                    if (!globalTrasladosMap[key]) {
+                        globalTrasladosMap[key] = {
+                            impuesto: impSat === '002' ? '002 - IVA' : impSat === '001' ? '001 - ISR' : `${impSat} - Impuesto`,
+                            tipo_factor: tipoFactor,
+                            tasa_cuota: tasa.toFixed(6),
+                            tasa_porcentaje: tasaPorc,
+                            base: 0,
+                            importe: 0
+                        };
+                    }
+                    globalTrasladosMap[key].base += base;
+                    globalTrasladosMap[key].importe += impAmt;
+                    totalTraslados += impAmt;
                 });
+
+                if (raw.retencion_isr) {
+                    const isrTasa = parseFloat(raw.retencion_isr_tasa || 0.10);
+                    const isrAmt = Math.round(base * isrTasa * 100) / 100;
+                    impuestosItem.push({
+                        impuesto: '001 ISR',
+                        tipo: 'Retención',
+                        factor: 'Tasa',
+                        tasa: `${(isrTasa * 100).toFixed(2)}%`,
+                        tasa_cuota: isrTasa.toFixed(6),
+                        base: base.toFixed(2),
+                        importe: isrAmt.toFixed(2)
+                    });
+                    totalRetenciones += isrAmt;
+                    retenciones.push({ impuesto: 'ISR', tasa: (isrTasa * 100).toFixed(2), importe: isrAmt.toFixed(2) });
+                }
+                if (raw.retencion_iva) {
+                    const tasaIVA = 0.106667;
+                    const ivaRet = Math.round(base * tasaIVA * 100) / 100;
+                    impuestosItem.push({
+                        impuesto: '002 IVA',
+                        tipo: 'Retención',
+                        factor: 'Tasa',
+                        tasa: `${(tasaIVA * 100).toFixed(2)}%`,
+                        tasa_cuota: tasaIVA.toFixed(6),
+                        base: base.toFixed(2),
+                        importe: ivaRet.toFixed(2)
+                    });
+                    totalRetenciones += ivaRet;
+                    retenciones.push({ impuesto: 'IVA Ret', tasa: (tasaIVA * 100).toFixed(2), importe: ivaRet.toFixed(2) });
+                }
             }
 
             return {
@@ -752,30 +870,123 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
 
         // Tabla formal de resumen de impuestos SAT
         const resumenImpuestosSat = [];
-        const baseSubtotal = computedSubtotal - parseFloat(docRaw.descuento || 0);
-        if (totalTraslados > 0 || parseFloat(docRaw.total_impuestos_trasladados || 0) > 0) {
-            const amtTras = totalTraslados > 0 ? totalTraslados : parseFloat(docRaw.total_impuestos_trasladados || 0);
-            resumenImpuestosSat.push({
-                tipo: 'Traslado',
-                impuesto: '002 - IVA',
-                tipo_factor: 'Tasa',
-                tasa_cuota: '0.160000',
-                tasa_porcentaje: '16.00%',
-                base: baseSubtotal.toFixed(2),
-                importe: amtTras.toFixed(2)
+        if (xmlImpuestos) {
+            // A) Directo del XML oficial
+            if (xmlImpuestos['cfdi:Traslados'] && xmlImpuestos['cfdi:Traslados']['cfdi:Traslado']) {
+                const gTrasList = Array.isArray(xmlImpuestos['cfdi:Traslados']['cfdi:Traslado'])
+                    ? xmlImpuestos['cfdi:Traslados']['cfdi:Traslado']
+                    : [xmlImpuestos['cfdi:Traslados']['cfdi:Traslado']];
+                gTrasList.forEach(gt => {
+                    const tasaNum = parseFloat(gt.TasaOCuota !== undefined ? gt.TasaOCuota : 0);
+                    const tasaPorc = gt.TipoFactor === 'Exento' ? 'Exento' : `${(tasaNum * 100).toFixed(2)}%`;
+                    const impSat = gt.Impuesto || '002';
+                    const impNombre = impSat === '002' ? '002 - IVA' : impSat === '001' ? '001 - ISR' : impSat === '003' ? '003 - IEPS' : gt.Impuesto;
+                    resumenImpuestosSat.push({
+                        tipo: 'Traslado',
+                        impuesto: impNombre,
+                        tipo_factor: gt.TipoFactor || 'Tasa',
+                        tasa_cuota: gt.TasaOCuota !== undefined ? gt.TasaOCuota : (gt.TipoFactor === 'Exento' ? '' : '0.000000'),
+                        tasa_porcentaje: tasaPorc,
+                        base: parseFloat(gt.Base !== undefined ? gt.Base : 0).toFixed(2),
+                        importe: parseFloat(gt.Importe !== undefined ? gt.Importe : 0).toFixed(2)
+                    });
+                });
+            }
+            if (xmlImpuestos['cfdi:Retenciones'] && xmlImpuestos['cfdi:Retenciones']['cfdi:Retencion']) {
+                const gRetList = Array.isArray(xmlImpuestos['cfdi:Retenciones']['cfdi:Retencion'])
+                    ? xmlImpuestos['cfdi:Retenciones']['cfdi:Retencion']
+                    : [xmlImpuestos['cfdi:Retenciones']['cfdi:Retencion']];
+                gRetList.forEach(gr => {
+                    const impSat = gr.Impuesto || '001';
+                    const impNombre = impSat === '001' ? '001 - ISR' : impSat === '002' ? '002 - IVA' : gr.Impuesto;
+                    const tasaNum = parseFloat(gr.TasaOCuota !== undefined ? gr.TasaOCuota : 0);
+                    const tasaPorc = gr.TasaOCuota ? `${(tasaNum * 100).toFixed(2)}%` : '';
+                    resumenImpuestosSat.push({
+                        tipo: 'Retención',
+                        impuesto: impNombre,
+                        tipo_factor: 'Tasa',
+                        tasa_cuota: gr.TasaOCuota || '',
+                        tasa_porcentaje: tasaPorc,
+                        base: gr.Base ? parseFloat(gr.Base).toFixed(2) : '',
+                        importe: parseFloat(gr.Importe || 0).toFixed(2)
+                    });
+                    retenciones.push({
+                        impuesto: impSat === '001' ? 'ISR' : 'IVA',
+                        tasa: tasaPorc ? tasaPorc.replace('%', '') : '',
+                        importe: parseFloat(gr.Importe || 0).toFixed(2)
+                    });
+                });
+            }
+            if (xmlImpuestos.TotalImpuestosTrasladados !== undefined) {
+                totalTraslados = parseFloat(xmlImpuestos.TotalImpuestosTrasladados);
+            }
+            if (xmlImpuestos.TotalImpuestosRetenidos !== undefined) {
+                totalRetenciones = parseFloat(xmlImpuestos.TotalImpuestosRetenidos);
+            }
+        } else {
+            // B) Modo pre-timbrado / borrador
+            Object.values(globalTrasladosMap).forEach(gt => {
+                resumenImpuestosSat.push({
+                    tipo: 'Traslado',
+                    impuesto: gt.impuesto,
+                    tipo_factor: gt.tipo_factor,
+                    tasa_cuota: gt.tasa_cuota,
+                    tasa_porcentaje: gt.tasa_porcentaje,
+                    base: gt.base.toFixed(2),
+                    importe: gt.importe.toFixed(2)
+                });
             });
+
+            retenciones.forEach(ret => {
+                resumenImpuestosSat.push({
+                    tipo: 'Retención',
+                    impuesto: ret.impuesto,
+                    tipo_factor: 'Tasa',
+                    tasa_cuota: (parseFloat(ret.tasa || 0) / 100).toFixed(6),
+                    tasa_porcentaje: `${ret.tasa}%`,
+                    base: (computedSubtotal - parseFloat(docRaw.descuento || 0)).toFixed(2),
+                    importe: ret.importe
+                });
+            });
+
+            if (docRaw.total_impuestos_trasladados !== undefined && docRaw.total_impuestos_trasladados !== null) {
+                totalTraslados = parseFloat(docRaw.total_impuestos_trasladados);
+            }
+            if (docRaw.total_impuestos_retenidos !== undefined && docRaw.total_impuestos_retenidos !== null) {
+                totalRetenciones = parseFloat(docRaw.total_impuestos_retenidos);
+            }
         }
-        retenciones.forEach(ret => {
-            resumenImpuestosSat.push({
-                tipo: 'Retención',
-                impuesto: ret.impuesto,
-                tipo_factor: 'Tasa',
-                tasa_cuota: (parseFloat(ret.tasa) / 100).toFixed(6),
-                tasa_porcentaje: `${ret.tasa}%`,
-                base: baseSubtotal.toFixed(2),
-                importe: ret.importe
-            });
-        });
+
+        // Determinar tasa de IVA predominante para la etiqueta dinámica en el cuadro de totales
+        const ivaTraslados = resumenImpuestosSat.filter(r => r.tipo === 'Traslado' && (r.impuesto.includes('002') || r.impuesto.includes('IVA')));
+        let ivaRateDisplay = '16%';
+        if (ivaTraslados.length === 1) {
+            const t = ivaTraslados[0];
+            ivaRateDisplay = t.tasa_porcentaje || '16%';
+            if (ivaRateDisplay === '0.00%') ivaRateDisplay = '0%';
+            if (ivaRateDisplay === '16.00%') ivaRateDisplay = '16%';
+            if (ivaRateDisplay === '8.00%') ivaRateDisplay = '8%';
+        } else if (ivaTraslados.length === 0) {
+            if (totalTraslados === 0) {
+                ivaRateDisplay = '0%';
+            } else {
+                ivaRateDisplay = '';
+            }
+        } else {
+            const distinctRates = [...new Set(ivaTraslados.map(t => t.tasa_porcentaje))];
+            if (distinctRates.length === 1) {
+                ivaRateDisplay = distinctRates[0];
+                if (ivaRateDisplay === '0.00%') ivaRateDisplay = '0%';
+                if (ivaRateDisplay === '16.00%') ivaRateDisplay = '16%';
+                if (ivaRateDisplay === '8.00%') ivaRateDisplay = '8%';
+            } else {
+                ivaRateDisplay = '';
+            }
+        }
+
+        const ivaLabel = ivaRateDisplay ? `IVA Trasladado (${ivaRateDisplay}):` : 'IVA Trasladado:';
+        const ivaLabelUpper = ivaRateDisplay ? `IVA TRASLADADO (${ivaRateDisplay}):` : 'IVA TRASLADADO:';
+        const ivaLabelShort = ivaRateDisplay ? `IVA (${ivaRateDisplay}):` : 'IVA:';
 
         const data = {
             emisor: {
@@ -827,6 +1038,10 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                 descuento_form: parseFloat(docRaw.descuento || 0).toFixed(2),
                 iva_total: totalTraslados.toFixed(2),
                 iva_total_form: totalTraslados.toFixed(2),
+                iva_label: ivaLabel,
+                iva_label_upper: ivaLabelUpper,
+                iva_label_short: ivaLabelShort,
+                iva_tasa_display: ivaRateDisplay,
                 total_form: parseFloat(docRaw.total || 0).toFixed(2),
                 total_retenciones: totalRetenciones.toFixed(2),
                 total_traslados_locales: totalTrasladosLocales.toFixed(2),
@@ -834,10 +1049,10 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                 total_en_letra: numeroALetras(parseFloat(docRaw.total || 0)),
                 fecha: docRaw.fecha ? new Date(docRaw.fecha).toLocaleString('es-MX') : new Date().toLocaleString('es-MX'),
                 fecha_timbrado: docRaw.fecha_timbrado ? new Date(docRaw.fecha_timbrado).toLocaleString('es-MX') : (docRaw.uuid ? new Date().toLocaleString('es-MX') : ''),
-                no_certificado_emisor: docRaw.no_certificado_emisor || emisorRaw.no_certificado || '00001000000504465028',
-                no_certificado_sat: docRaw.no_certificado_sat || '00001000000509846663',
-                sello_cfdi: docRaw.sello_cfdi || docRaw.sello || '',
-                sello_sat: docRaw.sello_sat || '',
+                no_certificado_emisor: docRaw.no_certificado_emisor || (xmlDocData ? xmlDocData.NoCertificado : null) || emisorRaw.no_certificado || '00001000000504465028',
+                no_certificado_sat: docRaw.no_certificado_sat || (xmlDocData?.['cfdi:Complemento']?.['tfd:TimbreFiscalDigital']?.NoCertificadoSAT) || '00001000000509846663',
+                sello_cfdi: docRaw.sello_cfdi || docRaw.sello || (xmlDocData?.['cfdi:Complemento']?.['tfd:TimbreFiscalDigital']?.SelloCFD) || '',
+                sello_sat: docRaw.sello_sat || (xmlDocData?.['cfdi:Complemento']?.['tfd:TimbreFiscalDigital']?.SelloSAT) || '',
                 cadena_original_tfd: docRaw.cadena_original_tfd || docRaw.cadena_original || ''
             },
             detalles: detallesFormatted,
@@ -861,10 +1076,10 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         if (estilo.config_adicional) {
             console.log('[PDF Service] Generando estilos modulares personalizados');
             try {
-                const config = typeof estilo.config_adicional === 'string' 
-                    ? JSON.parse(estilo.config_adicional) 
+                const config = typeof estilo.config_adicional === 'string'
+                    ? JSON.parse(estilo.config_adicional)
                     : estilo.config_adicional;
-                
+
                 // Visibilidad
                 if (config.visible_sections) {
                     Object.entries(config.visible_sections).forEach(([section, isVisible]) => {
@@ -873,15 +1088,35 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                         }
                     });
                 }
-                
+
                 // Orden (usando Flexbox)
-                if (config.sections_order && config.sections_order.length > 0) {
+                const defaultOrder = ['header', 'info', 'concepts', 'totals', 'stamps', 'footer'];
+                const isDefaultOrder = Array.isArray(config.sections_order) &&
+                    config.sections_order.length === defaultOrder.length &&
+                    config.sections_order.every((val, idx) => val === defaultOrder[idx]);
+
+                // Si el orden es el estándar (o no hay orden custom), NO inyectar flexbox.
+                // Los templates ya están maquetados en el orden natural correcto de arriba hacia abajo.
+                if (config.sections_order && config.sections_order.length > 0 && !isDefaultOrder) {
                     modularStyles += `.modular-container { display: flex !important; flex-direction: column !important; }\n`;
+                    modularStyles += `.top-accent-bar { order: -2 !important; }\n`;
+                    modularStyles += `.uuid-banner, .uuid-ribbon { order: 0 !important; }\n`;
+
+                    const sectionMap = {
+                        header: '.section-header, .doc-header-row, .instrument-header',
+                        info: '.section-info, .section-parties, .section-two-cols',
+                        concepts: '.section-concepts, .section-table',
+                        totals: '.section-totals, .section-summary, .section-summary-grid',
+                        stamps: '.section-stamps, .stamps-container, .notary-seal',
+                        footer: '.section-footer, .footer-note, .protocol-closing'
+                    };
+
                     config.sections_order.forEach((section, index) => {
-                        modularStyles += `.section-${section} { order: ${index} !important; }\n`;
+                        const selector = sectionMap[section] || `.section-${section}`;
+                        modularStyles += `${selector} { order: ${index} !important; }\n`;
                     });
                 }
-                
+
                 // Espaciado
                 if (config.spacing) {
                     Object.entries(config.spacing).forEach(([section, value]) => {
@@ -902,9 +1137,9 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         });
 
         const html = template(data);
-        
+
         // Inyectar estilos modulares antes del cierre de </head>
-        const finalHtml = modularStyles 
+        const finalHtml = modularStyles
             ? html.replace('</head>', `<style>${modularStyles}</style></head>`)
             : html;
 
@@ -951,7 +1186,7 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
                 pdfGenerated = true;
                 console.log('[PDF Service] PDF binario generado con éxito');
             } finally {
-                await browser.close().catch(() => {});
+                await browser.close().catch(() => { });
                 console.log('[PDF Service] Navegador Puppeteer cerrado');
             }
         } catch (puppeteerErr) {
@@ -959,8 +1194,8 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         }
 
         // 5. Retornar Resultado
-        const chosenUrl = pdfGenerated 
-            ? `/storage/${rfcSafe}/pdf/${pdfFileName}` 
+        const chosenUrl = pdfGenerated
+            ? `/storage/${rfcSafe}/pdf/${pdfFileName}`
             : `/storage/${rfcSafe}/pdf/${htmlFileName}`;
 
         return {
@@ -1035,11 +1270,11 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
         for (const f of facturas) {
             const doc = await Documento.findByPk(f.documento_id);
             if (!doc) continue;
-            
+
             const impPagado = parseFloat(f.monto_aplicado || 0);
             const totalDoc = parseFloat(doc.total || 0);
             const subtotalDoc = parseFloat(doc.subtotal || 0);
-            
+
             let impTrasDoc = parseFloat(doc.total_impuestos_trasladados || 0);
             if (impTrasDoc === 0 && totalDoc > subtotalDoc) {
                 impTrasDoc = totalDoc - subtotalDoc;
@@ -1074,7 +1309,7 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
             if (results && results.length > 0) {
                 formaPagoDesc = results[0].Descripcion;
             }
-        } catch (err) {}
+        } catch (err) { }
 
         const pagoInfo = {
             fecha_pago: paymentData.fecha_pago,
@@ -1157,7 +1392,7 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
                     data: pdfBuffer
                 };
             } finally {
-                await browser.close().catch(() => {});
+                await browser.close().catch(() => { });
             }
         } catch (puppeteerErr) {
             console.warn(`[PDF Service] Puppeteer no disponible para preview de pago (${puppeteerErr.message}). Utilizando HTML imprimible.`);
@@ -1168,6 +1403,304 @@ export const generarPDFPagoPreview = async (emisorId, receptorId, paymentData, f
         }
     } catch (error) {
         console.error('[PDF Service] Error en preview PDF:', error);
+        throw error;
+    }
+};
+
+/**
+ * Genera PDF o HTML imprimible corporativo de Cotización
+ */
+export const generarPDFCotizacion = async (cotizacionId) => {
+    try {
+        console.log(`[PDF Service] Iniciando generación de PDF para Cotización ID: ${cotizacionId}`);
+        const cotizacion = await Cotizacion.findByPk(cotizacionId, {
+            include: [
+                { model: Emisor },
+                { model: Receptor },
+                { model: DetalleCotizacion, as: 'detalles' }
+            ]
+        });
+
+        if (!cotizacion) {
+            throw new Error(`Cotización con ID ${cotizacionId} no encontrada`);
+        }
+
+        const emisor = cotizacion.Emisor || {};
+        const receptor = cotizacion.Receptor || {};
+        const detalles = cotizacion.detalles || [];
+        const rfcSafe = emisor.rfc ? emisor.rfc.trim().toUpperCase() : 'GENERICO';
+
+        let estilo = await ConfiguracionEstilo.findOne({ where: { emisor_id: emisor.id } });
+        if (!estilo) {
+            estilo = {
+                color_primario: '#0284c7',
+                color_secundario: '#0f172a',
+                tipo_letra: 'Inter'
+            };
+        }
+
+        const logoDataUri = resolveLogoDataUri(estilo, emisor);
+
+        const emisionDate = cotizacion.fecha ? new Date(cotizacion.fecha) : new Date();
+        const vigenciaDias = parseInt(cotizacion.vigencia_dias, 10) || 15;
+        const vencimientoDate = new Date(emisionDate.getTime() + (vigenciaDias * 24 * 60 * 60 * 1000));
+
+        const formatOptions = { day: '2-digit', month: 'long', year: 'numeric' };
+        const fechaFormateada = emisionDate.toLocaleDateString('es-MX', formatOptions);
+        const fechaVencimientoFormateada = vencimientoDate.toLocaleDateString('es-MX', formatOptions);
+
+        const templatePath = path.join(__dirname, '..', 'templates', 'cotizacion_v1.html');
+        const templateHtml = fs.readFileSync(templatePath, 'utf8');
+        const template = handlebars.compile(templateHtml);
+
+        const cotizacionRaw = cotizacion.toJSON ? cotizacion.toJSON() : cotizacion;
+        const emisorRaw = emisor.toJSON ? emisor.toJSON() : emisor;
+        const receptorRaw = receptor.toJSON ? receptor.toJSON() : receptor;
+
+        const totalNum = parseFloat(cotizacionRaw.total || 0);
+        const totalLetra = numeroALetras(totalNum);
+
+        const data = {
+            cotizacion: {
+                ...cotizacionRaw,
+                descuento_mayor_cero: parseFloat(cotizacionRaw.descuento || 0) > 0
+            },
+            emisor: {
+                ...emisorRaw,
+                regimen_desc: CAT_REGIMEN_FISCAL[emisorRaw.regimen_fiscal] || emisorRaw.regimen_fiscal || 'General de Ley'
+            },
+            receptor: {
+                ...receptorRaw,
+                regimen_desc: CAT_REGIMEN_FISCAL[receptorRaw.regimen_fiscal] || receptorRaw.regimen_fiscal || 'General de Ley'
+            },
+            detalles: detalles.map(d => (d.toJSON ? d.toJSON() : d)),
+            fecha_formateada: fechaFormateada,
+            fecha_vencimiento_formateada: fechaVencimientoFormateada,
+            tipo_cambio_str: cotizacionRaw.moneda !== 'MXN' && cotizacionRaw.tipo_cambio ? cotizacionRaw.tipo_cambio : null,
+            total_en_letra: totalLetra,
+            color_primario: estilo.color_primario || '#0284c7',
+            color_secundario: estilo.color_secundario || '#0f172a',
+            tipo_letra: estilo.tipo_letra || 'Inter',
+            google_fonts_link: getGoogleFontsLink(estilo.tipo_letra),
+            logo_url: logoDataUri
+        };
+
+        const html = template(data);
+        const printableHtml = createPrintableHtml(html, `Cotización ${cotizacion.folio || '#' + cotizacion.id}`);
+
+        const cotizacionesDir = getEmissorDir(rfcSafe, 'cotizaciones');
+        const cleanFolio = (cotizacion.folio || `COT-${cotizacion.id}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const pdfFileName = `${cleanFolio}.pdf`;
+        const htmlFileName = `${cleanFolio}.html`;
+        const pdfPath = path.join(cotizacionesDir, pdfFileName);
+        const htmlPath = path.join(cotizacionesDir, htmlFileName);
+
+        fs.writeFileSync(htmlPath, printableHtml, 'utf8');
+
+        let pdfGenerated = false;
+        try {
+            console.log('[PDF Service] Intentando compilar PDF con Puppeteer para cotización...');
+            const launchOptions = getPuppeteerLaunchOptions();
+            const browser = await puppeteer.launch(launchOptions);
+            try {
+                const page = await browser.newPage();
+                await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
+                await page.pdf({
+                    path: pdfPath,
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+                });
+                pdfGenerated = true;
+            } finally {
+                await browser.close().catch(() => {});
+            }
+        } catch (pupErr) {
+            console.warn(`[PDF Service] Puppeteer no disponible para cotización (${pupErr.message}). Utilizando HTML imprimible.`);
+        }
+
+        const chosenUrl = pdfGenerated
+            ? `/storage/${rfcSafe}/cotizaciones/${pdfFileName}`
+            : `/storage/${rfcSafe}/cotizaciones/${htmlFileName}`;
+
+        return {
+            success: true,
+            pdfUrl: chosenUrl,
+            htmlUrl: `/storage/${rfcSafe}/cotizaciones/${htmlFileName}`,
+            isHtmlFallback: !pdfGenerated
+        };
+    } catch (error) {
+        console.error('[PDF Service] Error generando PDF de cotización:', error);
+        throw error;
+    }
+};
+
+/**
+ * Genera PDF o Reporte de Seguimiento técnico imprimible de Orden de Servicio
+ */
+export const generarPDFOrdenServicio = async (ordenId) => {
+    try {
+        console.log(`[PDF Service] Iniciando generación de Reporte de Seguimiento para Orden ID: ${ordenId}`);
+        const orden = await OrdenServicio.findByPk(ordenId, {
+            include: [
+                { model: Emisor },
+                { model: Receptor },
+                { model: DetalleOrdenServicio, as: 'detalles' }
+            ]
+        });
+
+        if (!orden) {
+            throw new Error(`Orden de servicio con ID ${ordenId} no encontrada`);
+        }
+
+        const emisor = orden.Emisor || {};
+        const receptor = orden.Receptor || {};
+        const detalles = orden.detalles || [];
+        const rfcSafe = emisor.rfc ? emisor.rfc.trim().toUpperCase() : 'GENERICO';
+
+        let estilo = await ConfiguracionEstilo.findOne({ where: { emisor_id: emisor.id } });
+        if (!estilo) {
+            estilo = {
+                color_primario: '#0284c7',
+                color_secundario: '#0f172a',
+                tipo_letra: 'Inter'
+            };
+        }
+
+        const logoDataUri = resolveLogoDataUri(estilo, emisor);
+
+        const formatOptions = { day: '2-digit', month: 'long', year: 'numeric' };
+        const fechaIngresoFormateada = orden.fecha_ingreso ? new Date(orden.fecha_ingreso).toLocaleDateString('es-MX', formatOptions) : 'No especificada';
+        const fechaEntregaEstimadaFormateada = orden.fecha_entrega_estimada ? new Date(orden.fecha_entrega_estimada).toLocaleDateString('es-MX', formatOptions) : null;
+        const fechaEntregaRealFormateada = orden.fecha_entrega_real ? new Date(orden.fecha_entrega_real).toLocaleDateString('es-MX', formatOptions) : null;
+
+        const ordenRaw = orden.toJSON ? orden.toJSON() : orden;
+        const emisorRaw = emisor.toJSON ? emisor.toJSON() : emisor;
+        const receptorRaw = receptor.toJSON ? receptor.toJSON() : receptor;
+
+        // Procesar evidencias multimedia
+        const rawEvidencias = Array.isArray(ordenRaw.evidencias_multimedia)
+            ? ordenRaw.evidencias_multimedia
+            : (typeof ordenRaw.evidencias_multimedia === 'string'
+                ? JSON.parse(ordenRaw.evidencias_multimedia || '[]')
+                : []);
+
+        const evidenciasFotos = [];
+        const evidenciasVideos = [];
+
+        rawEvidencias.forEach(item => {
+            const fechaStr = item.fecha ? new Date(item.fecha).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            if (item.tipo === 'video') {
+                evidenciasVideos.push({
+                    ...item,
+                    fecha_str: fechaStr
+                });
+            } else {
+                let dataUri = item.url;
+                if (item.url && item.url.startsWith('/storage/')) {
+                    const relativePath = item.url.replace('/storage/', '');
+                    const diskPath = path.join(STORAGE_BASE, relativePath);
+                    if (fs.existsSync(diskPath)) {
+                        try {
+                            const buffer = fs.readFileSync(diskPath);
+                            const ext = path.extname(diskPath).replace('.', '').toLowerCase();
+                            const mime = ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg');
+                            dataUri = `data:${mime};base64,${buffer.toString('base64')}`;
+                        } catch (errRead) {
+                            console.error('[PDF Service] Error leyendo foto de evidencia:', errRead);
+                        }
+                    }
+                }
+                evidenciasFotos.push({
+                    ...item,
+                    data_uri: dataUri,
+                    fecha_str: fechaStr
+                });
+            }
+        });
+
+        const estadoSlug = (ordenRaw.estado || 'Recibido').replace(/\s+/g, '-').replace(/á/g, 'a').replace(/é/g, 'e').replace(/í/g, 'i').replace(/ó/g, 'o').replace(/ú/g, 'u');
+
+        const templatePath = path.join(__dirname, '..', 'templates', 'orden_servicio_v1.html');
+        const templateHtml = fs.readFileSync(templatePath, 'utf8');
+        const template = handlebars.compile(templateHtml);
+
+        const data = {
+            orden: ordenRaw,
+            emisor: {
+                ...emisorRaw,
+                regimen_desc: CAT_REGIMEN_FISCAL[emisorRaw.regimen_fiscal] || emisorRaw.regimen_fiscal || 'General de Ley'
+            },
+            receptor: {
+                ...receptorRaw,
+                regimen_desc: CAT_REGIMEN_FISCAL[receptorRaw.regimen_fiscal] || receptorRaw.regimen_fiscal || 'General de Ley'
+            },
+            detalles: detalles.map(d => (d.toJSON ? d.toJSON() : d)),
+            fecha_ingreso_formateada: fechaIngresoFormateada,
+            fecha_entrega_estimada_formateada: fechaEntregaEstimadaFormateada,
+            fecha_entrega_real_formateada: fechaEntregaRealFormateada,
+            estado_slug: estadoSlug,
+            marca_modelo: [ordenRaw.marca, ordenRaw.modelo].filter(Boolean).join(' ') || 'N/A',
+            numero_serie_str: ordenRaw.numero_serie || 'N/A',
+            contrasena_str: ordenRaw.contrasena_equipo || 'Sin contraseña',
+            accesorios_str: ordenRaw.accesorios_incluidos || 'Ninguno',
+            diagnostico_str: ordenRaw.diagnostico_tecnico || 'Pendiente de diagnóstico técnico detallado.',
+            evidencias_fotos: evidenciasFotos,
+            evidencias_videos: evidenciasVideos,
+            mas_de_una_foto: evidenciasFotos.length > 1,
+            color_primario: estilo.color_primario || '#0284c7',
+            color_secundario: estilo.color_secundario || '#0f172a',
+            tipo_letra: estilo.tipo_letra || 'Inter',
+            google_fonts_link: getGoogleFontsLink(estilo.tipo_letra),
+            logo_url: logoDataUri
+        };
+
+        const html = template(data);
+        const printableHtml = createPrintableHtml(html, `Reporte Seguimiento OS ${orden.folio || '#' + orden.id}`);
+
+        const ordenesDir = getEmissorDir(rfcSafe, 'ordenes_servicio');
+        const cleanFolio = (orden.folio || `OS-${orden.id}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const pdfFileName = `${cleanFolio}.pdf`;
+        const htmlFileName = `${cleanFolio}.html`;
+        const pdfPath = path.join(ordenesDir, pdfFileName);
+        const htmlPath = path.join(ordenesDir, htmlFileName);
+
+        fs.writeFileSync(htmlPath, printableHtml, 'utf8');
+
+        let pdfGenerated = false;
+        try {
+            console.log('[PDF Service] Intentando compilar PDF con Puppeteer para Orden de Servicio...');
+            const launchOptions = getPuppeteerLaunchOptions();
+            const browser = await puppeteer.launch(launchOptions);
+            try {
+                const page = await browser.newPage();
+                await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
+                await page.pdf({
+                    path: pdfPath,
+                    format: 'A4',
+                    printBackground: true,
+                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
+                });
+                pdfGenerated = true;
+            } finally {
+                await browser.close().catch(() => {});
+            }
+        } catch (pupErr) {
+            console.warn(`[PDF Service] Puppeteer no disponible para orden de servicio (${pupErr.message}). Utilizando HTML imprimible.`);
+        }
+
+        const chosenUrl = pdfGenerated
+            ? `/storage/${rfcSafe}/ordenes_servicio/${pdfFileName}`
+            : `/storage/${rfcSafe}/ordenes_servicio/${htmlFileName}`;
+
+        return {
+            success: true,
+            pdfUrl: chosenUrl,
+            htmlUrl: `/storage/${rfcSafe}/ordenes_servicio/${htmlFileName}`,
+            isHtmlFallback: !pdfGenerated
+        };
+    } catch (error) {
+        console.error('[PDF Service] Error generando PDF de orden de servicio:', error);
         throw error;
     }
 };

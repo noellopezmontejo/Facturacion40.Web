@@ -1,9 +1,9 @@
-import { 
-    Emisor, 
-    Usuario, 
-    Documento, 
-    DetalleDocumento, 
-    SerieFolio, 
+import {
+    Emisor,
+    Usuario,
+    Documento,
+    DetalleDocumento,
+    SerieFolio,
     Empresa,
     Pago,
     PagoDocumento,
@@ -31,19 +31,22 @@ import {
     sequelize
 } from '../models/index.js';
 import { generarPDF } from '../services/pdfService.js';
-import { 
-    getCreditosDisponibles, 
-    registrarEmisorPAC, 
-    asignarTimbresPAC, 
-    consultarStatusSatPAC, 
-    consultarPeticionesPendientesPAC, 
-    testConexionPACService 
+import { probarConexionSmtp, resolverConfiguracionSmtp } from '../services/emailService.js';
+import {
+    getCreditosDisponibles,
+    registrarEmisorPAC,
+    asignarTimbresPAC,
+    consultarStatusSatPAC,
+    consultarPeticionesPendientesPAC,
+    testConexionPACService
 } from '../services/cfdiService.js';
 import { Op } from 'sequelize';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { getCerPath, getKeyPath, getPublicUrl, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
+import { getCerPath, getKeyPath, getFielCerPath, getFielKeyPath, getPublicUrl, STORAGE_BASE, getEmissorDir } from '../utils/storageHelper.js';
+import { getCsdInfo, getFielInfo } from '../utils/csdHelper.js';
+import forge from 'node-forge';
 
 // Configuración de Multer para memoria (luego procesamos nosotros el guardado por RFC)
 const storage = multer.memoryStorage();
@@ -74,7 +77,13 @@ export const getEmisores = async (req, res) => {
                 order: [['razon_social', 'ASC']]
             });
         }
-        res.json(emisores);
+        const emisoresWithCsd = emisores.map(e => {
+            const json = e.toJSON();
+            json.csd_info = getCsdInfo(e.rfc);
+            json.fiel_info = getFielInfo(e.rfc);
+            return json;
+        });
+        res.json(emisoresWithCsd);
     } catch (error) {
         console.error('Error fetching emisores:', error);
         res.status(500).json({ message: 'Error al obtener emisores' });
@@ -102,8 +111,8 @@ export const createEmisor = async (req, res) => {
         // Validar si el RFC ya existe en el sistema
         const existingEmisor = await Emisor.findOne({ where: { rfc: emisorData.rfc } });
         if (existingEmisor) {
-            return res.status(400).json({ 
-                message: `El RFC "${emisorData.rfc}" ya está registrado en el sistema (${existingEmisor.razon_social}). Ingrese un RFC diferente.` 
+            return res.status(400).json({
+                message: `El RFC "${emisorData.rfc}" ya está registrado en el sistema (${existingEmisor.razon_social}). Ingrese un RFC diferente.`
             });
         }
 
@@ -164,21 +173,21 @@ export const createEmisor = async (req, res) => {
     } catch (error) {
         console.error('Error creating emisor:', error);
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 message: 'El RFC ingresado ya existe en la base de datos.',
-                error: error.message 
+                error: error.message
             });
         }
         if (error.name === 'SequelizeValidationError') {
             const msgs = error.errors?.map(e => e.message).join(', ') || error.message;
-            return res.status(400).json({ 
+            return res.status(400).json({
                 message: `Error de validación: ${msgs}`,
-                error: msgs 
+                error: msgs
             });
         }
-        res.status(500).json({ 
+        res.status(500).json({
             message: error.message || 'Error al crear emisor',
-            error: error.message 
+            error: error.message
         });
     }
 };
@@ -191,13 +200,84 @@ export const updateEmisor = async (req, res) => {
         const emisor = await Emisor.findByPk(id);
         if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
 
-        // WIP: Validar que el usuario tenga permiso sobre este emisor especificamente.
+        const updatePayload = { ...req.body };
+        if (!updatePayload.smtp_pass || updatePayload.smtp_pass === '********' || updatePayload.smtp_pass === '••••••••') {
+            delete updatePayload.smtp_pass;
+        }
 
-        await emisor.update(req.body);
+        await emisor.update(updatePayload);
         res.json(emisor);
     } catch (error) {
         console.error('Error updating emisor:', error);
         res.status(500).json({ message: 'Error al actualizar emisor' });
+    }
+};
+
+export const testSmtpEmisor = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const emisor = await Emisor.findByPk(id);
+        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+
+        const {
+            usar_smtp_propio,
+            smtp_host,
+            smtp_port,
+            smtp_secure,
+            smtp_user,
+            smtp_pass,
+            smtp_from_name,
+            correo_emisor,
+            correo_prueba,
+            email_destino
+        } = req.body;
+        const destinoPrueba = correo_prueba || email_destino || '';
+
+        if (usar_smtp_propio) {
+            const passToUse = (smtp_pass && smtp_pass !== '********' && smtp_pass !== '••••••••') ? smtp_pass : emisor.smtp_pass;
+            const result = await probarConexionSmtp({
+                smtp_host,
+                smtp_port,
+                smtp_secure,
+                smtp_user,
+                smtp_pass: passToUse,
+                smtp_from_name: smtp_from_name || emisor.razon_social,
+                smtp_from_email: smtp_user,
+                reply_to: correo_emisor || smtp_user
+            }, destinoPrueba);
+            return res.json({ ...result, origen: `SMTP Propio del Emisor (${emisor.rfc})` });
+        } else {
+            // Probar cascada con el Espacio de Trabajo (Empresa)
+            const tempEmisor = {
+                ...emisor.toJSON(),
+                usar_smtp_propio: false,
+                correo_emisor: correo_emisor || emisor.correo_emisor
+            };
+            const resolved = await resolverConfiguracionSmtp(tempEmisor);
+            if (!resolved) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El Espacio de Trabajo aún no tiene un servidor SMTP configurado. Configúralo en Configuración -> Correo SMTP o activa "Usar servidor SMTP propio" en este emisor.'
+                });
+            }
+            const result = await probarConexionSmtp({
+                smtp_host: resolved.host,
+                smtp_port: resolved.port,
+                smtp_secure: resolved.secure,
+                smtp_user: resolved.user,
+                smtp_pass: resolved.pass,
+                smtp_from_name: emisor.razon_social,
+                smtp_from_email: resolved.user,
+                reply_to: tempEmisor.correo_emisor || resolved.replyTo
+            }, destinoPrueba);
+            return res.json({ ...result, origen: resolved.origenLabel });
+        }
+    } catch (error) {
+        console.error('Error probando SMTP de emisor:', error);
+        res.status(400).json({
+            success: false,
+            message: error.message || 'No se pudo verificar la conexión SMTP.'
+        });
     }
 };
 
@@ -373,11 +453,69 @@ export const uploadCSD = async (req, res) => {
 
         res.json({
             message: 'Certificados actualizados correctamente',
-            emisor
+            emisor,
+            csd_info: getCsdInfo(emisor.rfc),
+            fiel_info: getFielInfo(emisor.rfc)
         });
     } catch (error) {
         console.error('Error uploading CSD:', error);
         res.status(500).json({ message: 'Error al procesar certificados' });
+    }
+};
+
+export const uploadFIEL = async (req, res) => {
+    const { id } = req.params;
+    const { password_fiel } = req.body;
+
+    try {
+        const emisor = await Emisor.findByPk(id);
+        if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
+
+        const files = req.files;
+        if (!files || !files.certificado || !files.llave_privada) {
+            return res.status(400).json({ message: 'Faltan archivos .cer o .key de la e.firma (FIEL)' });
+        }
+
+        const cerFile = files.certificado[0];
+        const keyFile = files.llave_privada[0];
+
+        // Validar contraseña si se proporcionó
+        if (password_fiel) {
+            try {
+                const derBytes = keyFile.buffer.toString('binary');
+                const asn1 = forge.asn1.fromDer(derBytes);
+                const p8 = forge.pki.decryptPrivateKeyInfo(asn1, password_fiel);
+                if (!p8) {
+                    return res.status(400).json({ message: 'La contraseña de la e.firma es incorrecta o no pudo descifrar la llave privada.' });
+                }
+            } catch (errDecrypt) {
+                return res.status(400).json({ message: 'La contraseña no corresponde a la llave privada (.key) de la e.firma: ' + errDecrypt.message });
+            }
+        }
+
+        // Rutas físicas
+        const cerDest = getFielCerPath(emisor.rfc);
+        const keyDest = getFielKeyPath(emisor.rfc);
+
+        // Guardar archivos físicamente
+        fs.writeFileSync(cerDest, cerFile.buffer);
+        fs.writeFileSync(keyDest, keyFile.buffer);
+
+        // Actualizar base de datos con rutas relativas/públicas
+        await emisor.update({
+            fiel_certificado_path: getPublicUrl(emisor.rfc, 'fiel', 'fiel.cer'),
+            fiel_llave_privada_path: getPublicUrl(emisor.rfc, 'fiel', 'fiel.key'),
+            password_fiel: password_fiel || emisor.password_fiel
+        });
+
+        res.json({
+            message: 'e.firma (FIEL) actualizada correctamente',
+            emisor,
+            fiel_info: getFielInfo(emisor.rfc)
+        });
+    } catch (error) {
+        console.error('Error uploading FIEL:', error);
+        res.status(500).json({ message: 'Error al procesar la e.firma: ' + error.message });
     }
 };
 
@@ -452,10 +590,10 @@ export const upsertSerie = async (req, res) => {
             res.json(existing);
         } else {
             // Create
-            const newSerie = await SerieFolio.create({ 
-                emisor_id, 
-                serie, 
-                ultimo_folio: ultimo_folio || 0, 
+            const newSerie = await SerieFolio.create({
+                emisor_id,
+                serie,
+                ultimo_folio: ultimo_folio || 0,
                 es_predeterminada: es_predeterminada || false,
                 tipo_documento_id
             });

@@ -15,9 +15,19 @@ export const Emisor = sequelize.define('Emisor', {
     no_exterior: { type: DataTypes.STRING },
     no_interior: { type: DataTypes.STRING },
     correo_emisor: { type: DataTypes.STRING },
+    usar_smtp_propio: { type: DataTypes.BOOLEAN, defaultValue: false },
+    smtp_host: { type: DataTypes.STRING, allowNull: true },
+    smtp_port: { type: DataTypes.INTEGER, defaultValue: 587 },
+    smtp_secure: { type: DataTypes.BOOLEAN, defaultValue: false },
+    smtp_user: { type: DataTypes.STRING, allowNull: true },
+    smtp_pass: { type: DataTypes.STRING, allowNull: true },
+    smtp_from_name: { type: DataTypes.STRING, allowNull: true },
     certificado_path: { type: DataTypes.STRING }, // CSD .cer (ruta relativa)
     llave_privada_path: { type: DataTypes.STRING }, // CSD .key (ruta relativa)
     password_csd: { type: DataTypes.STRING },
+    fiel_certificado_path: { type: DataTypes.STRING, allowNull: true }, // e.firma FIEL .cer
+    fiel_llave_privada_path: { type: DataTypes.STRING, allowNull: true }, // e.firma FIEL .key
+    password_fiel: { type: DataTypes.STRING, allowNull: true },
     modo_prueba: { type: DataTypes.BOOLEAN, defaultValue: true },
     es_agapes: { type: DataTypes.BOOLEAN, defaultValue: false },
     registrado_pac: { type: DataTypes.BOOLEAN, defaultValue: false },

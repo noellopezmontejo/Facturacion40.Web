@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Building2, FileText, CreditCard, Settings, LogOut, Package, FilePlus, Palette, Truck, UserSquare2, MapPinned, Tag, Landmark, ClipboardList, Wrench } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, FileText, CreditCard, Settings, LogOut, Package, FilePlus, Palette, Truck, UserSquare2, MapPinned, Tag, Landmark, ClipboardList, Wrench, BarChart3, CalendarClock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { NetLogo } from '../NetLogo';
 
@@ -8,6 +8,8 @@ const mainNavItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Generar Factura', path: '/facturas/nueva', icon: FilePlus },
     { name: 'Documentos Emitidos', path: '/documentos', icon: FileText },
+    { name: 'Facturación Recurrente', path: '/recurrentes', icon: CalendarClock },
+    { name: 'Reportes', path: '/reportes', icon: BarChart3 },
     { name: 'Cotizaciones', path: '/cotizaciones', icon: ClipboardList },
     { name: 'Órdenes de Servicio', path: '/ordenes-servicio', icon: Wrench },
     { name: 'Cuentas Por Cobrar', path: '/pagos', icon: CreditCard },

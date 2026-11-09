@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Users, DollarSign, Activity, ArrowRight, RefreshCcw } from 'lucide-react';
+import { 
+    FileText, Users, DollarSign, Activity, ArrowRight, 
+    RefreshCcw, AlertTriangle, ShieldCheck, ShieldAlert, 
+    KeyRound, Clock, ChevronRight 
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 
@@ -65,7 +69,15 @@ export const Dashboard = () => {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+                    <div className="flex items-center gap-3">
+                        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+                        {data?.csdStatus?.estado === 'vigente' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium rounded-full" title={`Vence: ${data.csdStatus.vigenciaHastaFormatted || ''}`}>
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>CSD Vigente ({data.csdStatus.diasRestantes} días)</span>
+                            </span>
+                        )}
+                    </div>
                     <p className="text-slate-500 text-sm mt-1">Visión general de tu facturación y cobranza en tiempo real.</p>
                 </div>
                 <div className="flex gap-2">
@@ -77,6 +89,70 @@ export const Dashboard = () => {
                     </Link>
                 </div>
             </div>
+
+            {/* Alerta Preventiva / Crítica de Certificados CSD */}
+            {data?.csdStatus && data.csdStatus.estado !== 'vigente' && (
+                <div className={`rounded-xl border p-4.5 shadow-xs transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                    data.csdStatus.estado === 'vencido'
+                        ? 'bg-rose-50 border-rose-200 text-rose-900'
+                        : data.csdStatus.estado === 'por_vencer'
+                            ? 'bg-amber-50 border-amber-200 text-amber-900'
+                            : 'bg-indigo-50 border-indigo-200 text-indigo-900'
+                }`}>
+                    <div className="flex items-start gap-3.5">
+                        <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 sm:mt-0 ${
+                            data.csdStatus.estado === 'vencido'
+                                ? 'bg-rose-100 text-rose-700'
+                                : data.csdStatus.estado === 'por_vencer'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                            {data.csdStatus.estado === 'vencido' ? (
+                                <ShieldAlert className="w-5 h-5" />
+                            ) : data.csdStatus.estado === 'por_vencer' ? (
+                                <Clock className="w-5 h-5" />
+                            ) : (
+                                <KeyRound className="w-5 h-5" />
+                            )}
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-sm tracking-tight">
+                                    {data.csdStatus.estado === 'vencido'
+                                        ? '⚠️ Certificado CSD Expirado (Timbrado Bloqueado)'
+                                        : data.csdStatus.estado === 'por_vencer'
+                                            ? `⚠️ Certificado CSD por Vencer en ${data.csdStatus.diasRestantes} días`
+                                            : 'ℹ️ Certificados CSD no cargados en el sistema'}
+                                </h4>
+                                <span className="font-mono text-xs px-2 py-0.5 rounded bg-white/70 border border-current/20 font-semibold">
+                                    {data.csdStatus.rfc}
+                                </span>
+                            </div>
+                            <p className="text-xs mt-1 leading-relaxed opacity-90 max-w-2xl">
+                                {data.csdStatus.mensaje}
+                                {data.csdStatus.noCertificado && (
+                                    <span className="block mt-0.5 font-mono text-[11px] opacity-80">
+                                        No. Certificado: {data.csdStatus.noCertificado} • Vigencia hasta: {data.csdStatus.vigenciaHastaFormatted}
+                                    </span>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        to="/emisores"
+                        className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all shrink-0 shadow-xs ${
+                            data.csdStatus.estado === 'vencido'
+                                ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                                : data.csdStatus.estado === 'por_vencer'
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                        }`}
+                    >
+                        <span>{data.csdStatus.estado === 'sin_certificados' ? 'Cargar CSD' : 'Actualizar CSD'}</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                </div>
+            )}
 
             {/* Tarjetas de Métricas */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

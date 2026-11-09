@@ -26,14 +26,24 @@ export const getEmissorDir = (rfc, tipo) => {
 };
 
 /**
- * Ruta al archivo .cer de un emisor
+ * Ruta al archivo .cer de un emisor (CSD)
  */
 export const getCerPath = (rfc) => path.join(getEmissorDir(rfc, 'csd'), 'certificado.cer');
 
 /**
- * Ruta al archivo .key de un emisor
+ * Ruta al archivo .key de un emisor (CSD)
  */
 export const getKeyPath = (rfc) => path.join(getEmissorDir(rfc, 'csd'), 'llave.key');
+
+/**
+ * Ruta al archivo .cer de la e.firma (FIEL) de un emisor
+ */
+export const getFielCerPath = (rfc) => path.join(getEmissorDir(rfc, 'fiel'), 'fiel.cer');
+
+/**
+ * Ruta al archivo .key de la e.firma (FIEL) de un emisor
+ */
+export const getFielKeyPath = (rfc) => path.join(getEmissorDir(rfc, 'fiel'), 'fiel.key');
 
 /**
  * Ruta para guardar un XML timbrado
@@ -44,6 +54,15 @@ export const getXmlPath = (rfc, uuid) => path.join(getEmissorDir(rfc, 'xml'), `$
  * Ruta para guardar un PDF
  */
 export const getPdfPath = (rfc, uuid) => path.join(getEmissorDir(rfc, 'pdf'), `${uuid}.pdf`);
+
+/**
+ * Directorio para evidencias de una orden de servicio
+ */
+export const getOrdenEvidenciasDir = (rfc, ordenId) => {
+    const dir = path.join(getEmissorDir(rfc, 'ordenes_servicio'), String(ordenId));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    return dir;
+};
 
 /**
  * URL pública relativa para acceder a un recurso vía /storage/...

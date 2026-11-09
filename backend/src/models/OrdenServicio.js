@@ -28,7 +28,8 @@ export const OrdenServicio = sequelize.define('OrdenServicio', {
     total_impuestos_trasladados: { type: DataTypes.DECIMAL(18, 6), defaultValue: 0 },
     total_impuestos_retenidos: { type: DataTypes.DECIMAL(18, 6), defaultValue: 0 },
     total: { type: DataTypes.DECIMAL(18, 6), defaultValue: 0 },
-    documento_id: { type: DataTypes.INTEGER, allowNull: true } // Factura asociada
+    documento_id: { type: DataTypes.INTEGER, allowNull: true }, // Factura asociada
+    evidencias_multimedia: { type: DataTypes.JSON, allowNull: true, defaultValue: [] }
 }, {
     tableName: 'ordenes_servicio',
     timestamps: true

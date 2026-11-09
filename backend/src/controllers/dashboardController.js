@@ -1,5 +1,6 @@
 import { Documento, Receptor, Pago, Emisor } from '../models/index.js';
 import { Op } from 'sequelize';
+import { getCsdInfo } from '../utils/csdHelper.js';
 
 export const getDashboardData = async (req, res) => {
     try {
@@ -223,6 +224,35 @@ export const getDashboardData = async (req, res) => {
         const carteraTrend = calcTrend(currentCarteraVencida, prevCarteraVencida);
         const clientesTrend = calcTrend(currentNewReceptorsCount, prevNewReceptorsCount);
 
+        // B. CSD Status & Expiration Alerts
+        let csdStatus = null;
+        const csdAlerts = [];
+
+        const emisoresParaCsd = await Emisor.findAll({
+            where: emisorIds.length > 0 ? { id: { [Op.in]: emisorIds } } : {},
+            attributes: ['id', 'rfc', 'razon_social', 'certificado_path']
+        });
+
+        for (const em of emisoresParaCsd) {
+            const info = getCsdInfo(em.rfc);
+            const emisorCsd = {
+                emisorId: em.id,
+                rfc: em.rfc,
+                razonSocial: em.razon_social,
+                ...info
+            };
+
+            // Asignar csdStatus al emisor seleccionado, o al primero si no hay selección
+            if (!csdStatus && (emisorId ? em.id === parseInt(emisorId) : true)) {
+                csdStatus = emisorCsd;
+            }
+
+            // Registrar alerta si está vencido, por vencer (<= 30 días) o sin certificados
+            if (info.estado === 'vencido' || info.estado === 'por_vencer' || info.estado === 'sin_certificados') {
+                csdAlerts.push(emisorCsd);
+            }
+        }
+
         res.json({
             metrics: {
                 ingresos: {
@@ -243,7 +273,9 @@ export const getDashboardData = async (req, res) => {
                 }
             },
             chartData,
-            recentDocuments
+            recentDocuments,
+            csdStatus,
+            csdAlerts
         });
 
     } catch (error) {

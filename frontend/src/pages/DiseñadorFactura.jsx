@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
+import { openPdfViewer } from '../utils/pdfViewer';
 import { SketchPicker } from 'react-color';
 import { Save, Upload, Palette, Layout, Eye, Check, Sparkles, Pipette, RefreshCw } from 'lucide-react';
 import { extractColorsFromImage, getDefaultPalettes } from '../utils/colorExtractor';
@@ -664,9 +665,9 @@ export const DiseñadorFactura = () => {
                 tipo_documento_id: tipo_documento_id
             };
             const res = await api.post(`/emisores/${activeEmisor.id}/preview-pdf`, previewData);
-            const baseUrl = (api.defaults.baseURL || '/api').replace('/api', '');
-            const fullUrl = res.data.pdfUrl.startsWith('http') ? res.data.pdfUrl : `${baseUrl}${res.data.pdfUrl}`;
-            window.open(fullUrl, '_blank');
+            if (res.data && res.data.pdfUrl) {
+                await openPdfViewer(res.data.pdfUrl, 'Vista Previa Plantilla');
+            }
         } catch (error) {
             console.error("Error generating preview PDF", error);
             showToast(`Error al generar la vista previa: ${error.response?.data?.message || error.message}`, "error");
@@ -842,7 +843,14 @@ export const DiseñadorFactura = () => {
                                 <button
                                     key={v.id}
                                     className={`p-2 border rounded-lg text-[10px] font-medium transition-all ${config.layout_id === `v${v.id}` ? 'border-primary-500 bg-primary-50 text-primary-700 ring-2 ring-primary-100' : 'border-slate-200 hover:border-slate-300 bg-white'}`}
-                                    onClick={() => setConfig({ ...config, layout_id: `v${v.id}` })}
+                                    onClick={() => {
+                                        const nextLayout = `v${v.id}`;
+                                        const nextMapping = { ...(config.template_mapping || {}) };
+                                        if (nextMapping[1]) {
+                                            nextMapping[1] = nextLayout;
+                                        }
+                                        setConfig({ ...config, layout_id: nextLayout, template_mapping: nextMapping });
+                                    }}
                                 >
                                     <Layout className="w-3 h-3 mx-auto mb-1" />
                                     {v.name}
