@@ -79,8 +79,16 @@ export const getEmisores = async (req, res) => {
         }
         const emisoresWithCsd = emisores.map(e => {
             const json = e.toJSON();
-            json.csd_info = getCsdInfo(e.rfc);
-            json.fiel_info = getFielInfo(e.rfc);
+            try {
+                json.csd_info = getCsdInfo(e.rfc);
+            } catch (csdErr) {
+                json.csd_info = { tieneCertificado: false, error: csdErr.message };
+            }
+            try {
+                json.fiel_info = getFielInfo(e.rfc);
+            } catch (fielErr) {
+                json.fiel_info = { tieneCertificado: false, error: fielErr.message };
+            }
             return json;
         });
         res.json(emisoresWithCsd);

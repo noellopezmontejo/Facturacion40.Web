@@ -119,6 +119,7 @@ app.get('/api/db-init', async (req, res) => {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: false });
+    await ensurePacColumns();
     res.json({ status: 'ok', message: 'Tablas sincronizadas correctamente' });
   } catch (error) {
     res.status(500).json({ status: 'error', message: error.message });
