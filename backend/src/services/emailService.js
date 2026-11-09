@@ -369,3 +369,150 @@ export const probarConexionSmtp = async (config, correoDestinoPrueba = '') => {
         throw new Error(traducirErrorSmtp(err, host, port, user));
     }
 };
+
+/**
+ * Resuelve la configuración de correo central de la plataforma:
+ * 1) Variables de entorno (.env): SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_PORT
+ * 2) Respaldo en base de datos: primera Empresa con configuración SMTP válida
+ */
+export const resolverConfiguracionSmtpCentral = async () => {
+    // 1. Intentar desde .env
+    const envHost = process.env.SMTP_HOST || process.env.SMTP_SERVER;
+    const envUser = process.env.SMTP_USER;
+    const envPass = process.env.SMTP_PASS;
+    if (envHost && envUser && envPass) {
+        const port = parseInt(process.env.SMTP_PORT) || 587;
+        const secure = resolveSmtpSecure(port, process.env.SMTP_SECURE === 'true');
+        const fromName = process.env.SMTP_FROM_NAME || 'Facturación CFDI 4.0 - Net Consultores';
+        return {
+            origen: 'env',
+            host: envHost.trim(),
+            port,
+            secure,
+            user: envUser.trim(),
+            pass: normalizeSmtpPassword(envHost, envPass),
+            from: `"${fromName.replace(/"/g, '')}" <${envUser.trim()}>`,
+            replyTo: envUser.trim()
+        };
+    }
+
+    // 2. Intentar desde base de datos (Empresa con SMTP configurado)
+    const { Op } = await import('sequelize');
+    const empresaConSmtp = await Empresa.findOne({
+        where: {
+            smtp_host: { [Op.ne]: null },
+            smtp_user: { [Op.ne]: null },
+            smtp_pass: { [Op.ne]: null }
+        },
+        order: [['id', 'ASC']]
+    });
+
+    if (empresaConSmtp && empresaConSmtp.smtp_host && empresaConSmtp.smtp_user && empresaConSmtp.smtp_pass) {
+        const port = parseInt(empresaConSmtp.smtp_port) || 587;
+        const secure = resolveSmtpSecure(port, empresaConSmtp.smtp_secure);
+        const fromName = empresaConSmtp.smtp_from_name || empresaConSmtp.nombre || 'Facturación CFDI 4.0';
+        const fromAddress = (empresaConSmtp.smtp_from_email || empresaConSmtp.smtp_user).trim();
+        return {
+            origen: 'empresa_db',
+            host: empresaConSmtp.smtp_host.trim(),
+            port,
+            secure,
+            user: empresaConSmtp.smtp_user.trim(),
+            pass: normalizeSmtpPassword(empresaConSmtp.smtp_host, empresaConSmtp.smtp_pass),
+            from: `"${fromName.replace(/"/g, '')}" <${fromAddress}>`,
+            replyTo: fromAddress
+        };
+    }
+
+    return null;
+};
+
+/**
+ * Envía el correo con el enlace seguro de restablecimiento de contraseña
+ */
+export const enviarCorreoRecuperacionPassword = async (usuario, resetUrl) => {
+    const smtpConfig = await resolverConfiguracionSmtpCentral();
+    if (!smtpConfig) {
+        throw new Error('No se encontró una configuración de correo central (SMTP) configurada en .env ni en los Espacios Empresariales.');
+    }
+
+    const transporter = nodemailer.createTransport({
+        host: smtpConfig.host,
+        port: smtpConfig.port,
+        secure: smtpConfig.secure,
+        auth: {
+            user: smtpConfig.user,
+            pass: smtpConfig.pass
+        },
+        tls: {
+            rejectUnauthorized: false
+        }
+    });
+
+    const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Restablecer contraseña</title>
+      <style>
+        body { margin: 0; padding: 24px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; }
+        .wrapper { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); border: 1px solid #e2e8f0; }
+        .header { background: linear-gradient(135deg, #091a32 0%, #0369a1 100%); padding: 32px 24px; text-align: center; color: #ffffff; }
+        .logo-title { font-size: 22px; font-weight: 800; letter-spacing: 0.5px; margin: 0; color: #ffffff; }
+        .logo-sub { font-size: 11px; text-transform: uppercase; color: #38bdf8; font-weight: 700; letter-spacing: 1.5px; margin: 6px 0 0 0; }
+        .content { padding: 36px 32px; font-size: 15px; line-height: 1.6; color: #334155; }
+        .greeting { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
+        .btn-wrapper { text-align: center; margin: 32px 0; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff !important; padding: 14px 34px; font-size: 15px; font-weight: 700; text-decoration: none; border-radius: 10px; box-shadow: 0 4px 14px rgba(2,132,199,0.35); }
+        .security-alert { background: #f8fafc; border-left: 4px solid #0284c7; padding: 14px 18px; border-radius: 8px; font-size: 13px; color: #475569; margin: 26px 0; }
+        .alt-link { font-size: 12px; color: #0284c7; word-break: break-all; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 22px 24px; text-align: center; font-size: 12px; color: #94a3b8; }
+      </style>
+    </head>
+    <body>
+      <div class="wrapper">
+        <div class="header">
+          <h1 class="logo-title">FACTURACIÓN <span style="color: #38bdf8;">CFDI 4.0</span></h1>
+          <p class="logo-sub">Net Consultores • Seguridad & Acceso</p>
+        </div>
+        <div class="content">
+          <div class="greeting">Hola, ${usuario.nombre || 'Usuario'}:</div>
+          <p>Hemos recibido una solicitud para restablecer la contraseña asociada a tu cuenta (<strong>${usuario.email}</strong>).</p>
+          <p>Para crear una nueva contraseña y recuperar tu acceso al sistema, haz clic en el siguiente botón:</p>
+          <div class="btn-wrapper">
+            <a href="${resetUrl}" target="_blank" class="btn">Restablecer mi Contraseña</a>
+          </div>
+          <div class="security-alert">
+            ⏱️ <strong>Seguridad:</strong> Este enlace es personal, seguro y expirará en <strong>1 hora</strong>.<br>
+            Si tú no solicitaste este cambio, puedes ignorar este mensaje; tu contraseña actual no será modificada.
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin-top: 24px;">Si el botón no funciona, copia y pega el siguiente enlace en tu navegador:</p>
+          <p><a href="${resetUrl}" target="_blank" class="alt-link">${resetUrl}</a></p>
+        </div>
+        <div class="footer">
+          © ${new Date().getFullYear()} Net Consultores • Facturación Electrónica CFDI 4.0<br>
+          Este es un correo automático del sistema, por favor no respondas a este remitente.
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    try {
+        const info = await transporter.sendMail({
+            from: smtpConfig.from,
+            to: usuario.email,
+            replyTo: smtpConfig.replyTo,
+            subject: '🔐 Restablecer contraseña - Facturación CFDI 4.0',
+            html: htmlContent
+        });
+
+        console.log(`[Email Service] Correo de recuperación enviado a ${usuario.email} (MessageId: ${info.messageId})`);
+        return { success: true, messageId: info.messageId };
+    } catch (err) {
+        console.error('[Email Service] Error enviando correo de recuperación:', err);
+        throw new Error(traducirErrorSmtp(err, smtpConfig.host, smtpConfig.port, smtpConfig.user));
+    }
+};

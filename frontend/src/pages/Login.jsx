@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, Mail, Lock, Eye, EyeOff, ShieldCheck, Zap, Building2, CheckCircle2, AlertCircle, Globe } from 'lucide-react';
+import { LogIn, Mail, Lock, Eye, EyeOff, ShieldCheck, Zap, Building2, CheckCircle2, AlertCircle, Globe, KeyRound, X, Send, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { NetLogo } from '../components/NetLogo';
+import api from '../api/axios';
 
 export const Login = () => {
     const [correo, setCorreo] = useState('');
@@ -14,6 +15,31 @@ export const Login = () => {
 
     const { login } = useAuth();
     const navigate = useNavigate();
+
+    // Recuperación de Contraseña
+    const [showRecuperarModal, setShowRecuperarModal] = useState(false);
+    const [recuperarEmail, setRecuperarEmail] = useState('');
+    const [recuperarLoading, setRecuperarLoading] = useState(false);
+    const [recuperarSuccess, setRecuperarSuccess] = useState(false);
+    const [recuperarMsg, setRecuperarMsg] = useState('');
+    const [recuperarError, setRecuperarError] = useState('');
+
+    const handleSolicitarRecuperacion = async (e) => {
+        e.preventDefault();
+        setRecuperarError('');
+        setRecuperarMsg('');
+        setRecuperarLoading(true);
+
+        try {
+            const res = await api.post('/auth/recuperar-password', { email: recuperarEmail });
+            setRecuperarSuccess(true);
+            setRecuperarMsg(res.data?.message || 'Si el correo está registrado, recibirás un enlace de recuperación.');
+        } catch (err) {
+            setRecuperarError(err.response?.data?.message || 'Error al procesar la solicitud de recuperación.');
+        } finally {
+            setRecuperarLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -192,6 +218,19 @@ export const Login = () => {
                                         <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
                                             Contraseña
                                         </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setRecuperarEmail(correo || '');
+                                                setRecuperarError('');
+                                                setRecuperarMsg('');
+                                                setRecuperarSuccess(false);
+                                                setShowRecuperarModal(true);
+                                            }}
+                                            className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors font-medium hover:underline"
+                                        >
+                                            ¿Olvidaste tu contraseña?
+                                        </button>
                                     </div>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -285,6 +324,135 @@ export const Login = () => {
                     © 2017 - 2026 <strong className="text-white font-semibold">Net Consultores</strong>. Todos los derechos reservados. Conectamos tu empresa al futuro.
                 </div>
             </div>
+
+            {/* Modal de Recuperación de Contraseña */}
+            {showRecuperarModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+                    <div 
+                        className="bg-[#0f172a] border border-slate-700/90 rounded-2xl w-full max-w-md p-6 sm:p-7 shadow-2xl shadow-black/80 relative overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Decorative top bar */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-sky-400" />
+                        
+                        {/* Close button */}
+                        <button
+                            type="button"
+                            onClick={() => setShowRecuperarModal(false)}
+                            className="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        {recuperarSuccess ? (
+                            <div className="text-center py-2 animate-fadeIn">
+                                <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4 text-emerald-400">
+                                    <CheckCircle2 className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    ¡Solicitud Procesada!
+                                </h3>
+                                <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                                    {recuperarMsg}
+                                </p>
+                                <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-400 text-left mb-6 space-y-1.5">
+                                    <p className="flex items-center gap-1.5 text-cyan-400 font-semibold">
+                                        <Mail className="w-3.5 h-3.5" /> Servidor Central de Correo
+                                    </p>
+                                    <p>• Revisa tu bandeja de entrada o tu carpeta de correo no deseado (SPAM).</p>
+                                    <p>• El enlace de recuperación tiene una vigencia estricta de <strong>1 hora</strong> por seguridad.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowRecuperarModal(false);
+                                        setRecuperarSuccess(false);
+                                    }}
+                                    className="w-full py-2.5 px-4 rounded-xl font-semibold text-sm text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                                >
+                                    Entendido, volver al inicio
+                                </button>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-11 h-11 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+                                        <KeyRound className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white">
+                                            Recuperar Contraseña
+                                        </h3>
+                                        <p className="text-xs text-slate-400">
+                                            Restablecimiento mediante correo institucional
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                                    Ingresa el correo electrónico asociado a tu cuenta de usuario. Te enviaremos un enlace seguro para que puedas definir una nueva contraseña.
+                                </p>
+
+                                {recuperarError && (
+                                    <div className="mb-4 p-3 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs flex items-start gap-2 animate-fadeIn">
+                                        <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                                        <div className="flex-1">{recuperarError}</div>
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleSolicitarRecuperacion} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                                            Correo Electrónico Registrado
+                                        </label>
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                                                <Mail className="h-4 w-4" />
+                                            </div>
+                                            <input
+                                                type="email"
+                                                required
+                                                autoFocus
+                                                value={recuperarEmail}
+                                                onChange={(e) => setRecuperarEmail(e.target.value)}
+                                                placeholder="tu.correo@ejemplo.com"
+                                                className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-end gap-3 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRecuperarModal(false)}
+                                            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={recuperarLoading || !recuperarEmail.trim()}
+                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20"
+                                        >
+                                            {recuperarLoading ? (
+                                                <>
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <span>Enviando enlace...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Send className="w-3.5 h-3.5" />
+                                                    <span>Enviar Enlace</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

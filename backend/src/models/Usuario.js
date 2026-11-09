@@ -7,7 +7,9 @@ export const Usuario = sequelize.define('Usuario', {
     email: { type: DataTypes.STRING, allowNull: false, unique: true },
     password_hash: { type: DataTypes.STRING, allowNull: false },
     activo: { type: DataTypes.BOOLEAN, defaultValue: true },
-    empresa_id: { type: DataTypes.INTEGER, allowNull: true }
+    empresa_id: { type: DataTypes.INTEGER, allowNull: true },
+    reset_password_token: { type: DataTypes.STRING(255), allowNull: true },
+    reset_password_expires: { type: DataTypes.DATE, allowNull: true }
 }, {
     tableName: 'usuarios',
     timestamps: true

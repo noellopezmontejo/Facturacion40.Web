@@ -108,7 +108,32 @@ export const ensurePacColumns = async () => {
             console.warn("[DB Migration] Error verificando tabla ordenes_servicio:", ordenErr.message);
         }
 
-        // 5. Asegurar nuevas tablas
+        // 5. Columnas en tabla 'usuarios' (Recuperación de contraseña)
+        try {
+            const [userCols] = await sequelize.query("SHOW COLUMNS FROM usuarios");
+            const userColNames = userCols.map(c => c.Field);
+
+            if (!userColNames.includes('reset_password_token')) {
+                try {
+                    await sequelize.query("ALTER TABLE usuarios ADD COLUMN `reset_password_token` VARCHAR(255) NULL");
+                    console.log("[DB Migration] Columna `reset_password_token` agregada a 'usuarios'.");
+                } catch (colErr) {
+                    console.warn("[DB Migration] Advertencia al agregar reset_password_token a usuarios:", colErr.message);
+                }
+            }
+            if (!userColNames.includes('reset_password_expires')) {
+                try {
+                    await sequelize.query("ALTER TABLE usuarios ADD COLUMN `reset_password_expires` DATETIME NULL");
+                    console.log("[DB Migration] Columna `reset_password_expires` agregada a 'usuarios'.");
+                } catch (colErr) {
+                    console.warn("[DB Migration] Advertencia al agregar reset_password_expires a usuarios:", colErr.message);
+                }
+            }
+        } catch (userErr) {
+            console.warn("[DB Migration] Error verificando tabla usuarios:", userErr.message);
+        }
+
+        // 6. Asegurar nuevas tablas
         await FolioHistorial.sync().catch(e => console.warn('FolioHistorial sync notice:', e.message));
         await SolicitudDescargaSat.sync().catch(e => console.warn('SolicitudDescargaSat sync notice:', e.message));
         await FacturacionRecurrente.sync().catch(e => console.warn('FacturacionRecurrente sync notice:', e.message));

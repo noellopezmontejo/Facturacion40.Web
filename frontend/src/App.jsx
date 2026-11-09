@@ -26,6 +26,7 @@ import { OrdenesServicio } from './pages/OrdenesServicio';
 import { NuevaOrdenServicio } from './pages/NuevaOrdenServicio';
 import { Reportes } from './pages/Reportes';
 import { Recurrentes } from './pages/Recurrentes';
+import { RestablecerPassword } from './pages/RestablecerPassword';
 
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
             <Router>
             <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/restablecer-password" element={<RestablecerPassword />} />
 
                 <Route path="/" element={
                     <ProtectedRoute>
