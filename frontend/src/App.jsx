@@ -27,6 +27,7 @@ import { NuevaOrdenServicio } from './pages/NuevaOrdenServicio';
 import { Reportes } from './pages/Reportes';
 import { Recurrentes } from './pages/Recurrentes';
 import { RestablecerPassword } from './pages/RestablecerPassword';
+import { MiSuscripcion } from './pages/MiSuscripcion';
 
 
 function App() {
@@ -181,6 +182,13 @@ function App() {
                     <ProtectedRoute allowedRoles={['Administrador']}>
                         <DashboardLayout>
                             <DiseñadorFactura />
+                        </DashboardLayout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/mi-suscripcion" element={
+                    <ProtectedRoute>
+                        <DashboardLayout>
+                            <MiSuscripcion />
                         </DashboardLayout>
                     </ProtectedRoute>
                 } />

@@ -23,3 +23,4 @@ export const PlanGlobal = sequelize.define('PlanGlobal', {
     tableName: 'planes_globales',
     timestamps: true
 });
+

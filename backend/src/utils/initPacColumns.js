@@ -5,6 +5,7 @@ import { FacturacionRecurrente } from '../models/FacturacionRecurrente.js';
 import { DetalleFacturacionRecurrente } from '../models/DetalleFacturacionRecurrente.js';
 import { HistorialFacturacionRecurrente } from '../models/HistorialFacturacionRecurrente.js';
 import { PlanGlobal } from '../models/PlanGlobal.js';
+import { PagoSuscripcion } from '../models/PagoSuscripcion.js';
 
 export const ensurePacColumns = async () => {
     try {
@@ -149,6 +150,7 @@ export const ensurePacColumns = async () => {
         await DetalleFacturacionRecurrente.sync().catch(e => console.warn('DetalleFacturacionRecurrente sync notice:', e.message));
         await HistorialFacturacionRecurrente.sync().catch(e => console.warn('HistorialFacturacionRecurrente sync notice:', e.message));
         await PlanGlobal.sync().catch(e => console.warn('PlanGlobal sync notice:', e.message));
+        await PagoSuscripcion.sync().catch(e => console.warn('PagoSuscripcion sync notice:', e.message));
 
         // 7. Sembrar planes globales si no existen
         const planesCount = await PlanGlobal.count();

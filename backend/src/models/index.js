@@ -38,6 +38,7 @@ import { FacturacionRecurrente } from './FacturacionRecurrente.js';
 import { DetalleFacturacionRecurrente } from './DetalleFacturacionRecurrente.js';
 import { HistorialFacturacionRecurrente } from './HistorialFacturacionRecurrente.js';
 import { PlanGlobal } from './PlanGlobal.js';
+import { PagoSuscripcion } from './PagoSuscripcion.js';
 
 
 // Junction models
@@ -57,6 +58,14 @@ Emisor.belongsTo(Empresa, { foreignKey: 'empresa_id' });
 // Empresa <-> PlanGlobal
 Empresa.belongsTo(PlanGlobal, { foreignKey: 'plan_codigo', targetKey: 'codigo', as: 'planGlobal', constraints: false });
 PlanGlobal.hasMany(Empresa, { foreignKey: 'plan_codigo', sourceKey: 'codigo', constraints: false });
+
+// PagoSuscripcion associations
+Empresa.hasMany(PagoSuscripcion, { foreignKey: 'empresa_id', as: 'pagosSuscripcion' });
+PagoSuscripcion.belongsTo(Empresa, { foreignKey: 'empresa_id' });
+Usuario.hasMany(PagoSuscripcion, { foreignKey: 'usuario_id' });
+PagoSuscripcion.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+PagoSuscripcion.belongsTo(PlanGlobal, { foreignKey: 'plan_codigo', targetKey: 'codigo', as: 'planGlobal', constraints: false });
+PlanGlobal.hasMany(PagoSuscripcion, { foreignKey: 'plan_codigo', sourceKey: 'codigo', constraints: false });
 
 // Usuario <-> Rol
 Usuario.belongsToMany(Rol, { through: UsuarioRol, foreignKey: 'usuario_id', otherKey: 'rol_id' });
@@ -273,6 +282,7 @@ export {
     DetalleFacturacionRecurrente,
     HistorialFacturacionRecurrente,
     PlanGlobal,
+    PagoSuscripcion,
     sequelize
 };
 

@@ -5,7 +5,7 @@ import {
     CheckCircle2, Plus, List, ArrowRight, Sparkles, Layers,
     Zap, Activity, Search, RefreshCw, FileText, Check, ShieldCheck, 
     History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key, Mail, Send,
-    CreditCard, Tag, DollarSign, Edit3, Clock, CheckCircle, Percent, X
+    CreditCard, Tag, DollarSign, Edit3, Clock, CheckCircle, Percent, X, XCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -60,6 +60,9 @@ export const Configuracion = () => {
     const [loadingPlanes, setLoadingPlanes] = useState(false);
     const [savingPlanes, setSavingPlanes] = useState(false);
     const [filtroEmpresasPlanes, setFiltroEmpresasPlanes] = useState('');
+    const [comprobantesPendientes, setComprobantesPendientes] = useState([]);
+    const [loadingComprobantes, setLoadingComprobantes] = useState(false);
+    const [procesandoPagoId, setProcesandoPagoId] = useState(null);
 
     // Modal para editar suscripción a discreción
     const [showSuscripcionModal, setShowSuscripcionModal] = useState(false);
@@ -216,6 +219,54 @@ export const Configuracion = () => {
         }
     };
 
+    // Consultas y validación de transferencias Banorte
+    const fetchComprobantesPendientes = async () => {
+        setLoadingComprobantes(true);
+        try {
+            const { data } = await api.get('/planes/comprobantes-pendientes');
+            setComprobantesPendientes(data || []);
+        } catch (error) {
+            console.error("Error al cargar comprobantes pendientes:", error);
+        } finally {
+            setLoadingComprobantes(false);
+        }
+    };
+
+    const handleAprobarPago = async (pago) => {
+        const empresaNombre = pago.Empresa?.nombre || 'la empresa';
+        if (!window.confirm(`¿Aprobar transferencia por $${Number(pago.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN y extender la suscripción de ${empresaNombre}?`)) {
+            return;
+        }
+        setProcesandoPagoId(pago.id);
+        try {
+            const { data } = await api.post(`/planes/aprobar-pago/${pago.id}`, { notas_admin: 'Validado exitosamente en cuenta Banorte' });
+            showToast(data.message || 'Pago aprobado y vigencia extendida con éxito.');
+            await fetchComprobantesPendientes();
+            await fetchAllEmpresas();
+        } catch (error) {
+            console.error('Error al aprobar pago:', error);
+            showToast(error.response?.data?.message || 'Error al aprobar pago.', 'error');
+        } finally {
+            setProcesandoPagoId(null);
+        }
+    };
+
+    const handleRechazarPago = async (pago) => {
+        const motivo = window.prompt('Indica el motivo de rechazo (se mostrará en el historial del cliente):', 'Comprobante no localizado o fondos no acreditados en cuenta bancaria Banorte.');
+        if (motivo === null) return;
+        setProcesandoPagoId(pago.id);
+        try {
+            const { data } = await api.post(`/planes/rechazar-pago/${pago.id}`, { motivo });
+            showToast(data.message || 'Pago marcado como rechazado.');
+            await fetchComprobantesPendientes();
+        } catch (error) {
+            console.error('Error al rechazar pago:', error);
+            showToast(error.response?.data?.message || 'Error al rechazar pago.', 'error');
+        } finally {
+            setProcesandoPagoId(null);
+        }
+    };
+
     const fetchEmpresa = async () => {
         setLoading(true);
         try {
@@ -301,6 +352,7 @@ export const Configuracion = () => {
         if (isAdmin) {
             fetchAllEmpresas();
             fetchPlanes();
+            fetchComprobantesPendientes();
             fetchPacResumen();
             fetchHistorial();
         }
@@ -648,6 +700,11 @@ export const Configuracion = () => {
                             <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
                                 {planesGlobales.length || 3}
                             </span>
+                            {comprobantesPendientes.length > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pulse" title="Transferencias por validar">
+                                    {comprobantesPendientes.length} pendientes
+                                </span>
+                            )}
                         </button>
                         <button
                             type="button"
@@ -1530,6 +1587,139 @@ export const Configuracion = () => {
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+
+                    {/* Bandeja de Comprobantes de Pago Pendientes (Transferencias Banorte) */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                        <Building2 className="w-5 h-5 text-red-600" />
+                                        Validación de Transferencias BANORTE (Comprobantes de Pago)
+                                    </h3>
+                                    {comprobantesPendientes.length > 0 && (
+                                        <span className="bg-red-500 text-white text-xs font-black px-2.5 py-0.5 rounded-full animate-pulse">
+                                            {comprobantesPendientes.length} por validar
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    Revisa los comprobantes que los clientes han transferido a tu cuenta Banorte. Al aprobar, su suscripción se extenderá automáticamente (+30 días o +365 días).
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={fetchComprobantesPendientes}
+                                disabled={loadingComprobantes}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-bold text-slate-700 bg-slate-50 transition shrink-0"
+                            >
+                                <RefreshCw className={`w-3.5 h-3.5 ${loadingComprobantes ? 'animate-spin text-indigo-600' : ''}`} />
+                                <span>Actualizar Bandeja</span>
+                            </button>
+                        </div>
+
+                        {comprobantesPendientes.length === 0 ? (
+                            <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                                <p className="text-sm font-bold text-slate-700">No hay transferencias pendientes de validación</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Todos los pagos reportados por los clientes han sido atendidos.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs">
+                                    <thead>
+                                        <tr className="border-b border-slate-200 bg-slate-50/60 text-slate-500 font-black uppercase tracking-wider text-[10px]">
+                                            <th className="py-3 px-3">Cliente / Espacio</th>
+                                            <th className="py-3 px-3">Usuario que Reportó</th>
+                                            <th className="py-3 px-3">Plan / Período</th>
+                                            <th className="py-3 px-3">Monto a Validar</th>
+                                            <th className="py-3 px-3">Referencia / Folio</th>
+                                            <th className="py-3 px-3">Fecha</th>
+                                            <th className="py-3 px-3">Comprobante</th>
+                                            <th className="py-3 px-3 text-right">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {comprobantesPendientes.map((pago) => (
+                                            <tr key={pago.id} className="hover:bg-slate-50/70 transition">
+                                                <td className="py-3 px-3">
+                                                    <div className="font-bold text-slate-900">{pago.Empresa?.nombre || 'Espacio desconocido'}</div>
+                                                    <span className="text-[11px] font-mono text-slate-400">ID #{pago.empresa_id}</span>
+                                                </td>
+                                                <td className="py-3 px-3 text-slate-600">
+                                                    <div>{pago.Usuario?.nombre || 'Usuario'}</div>
+                                                    <span className="text-[10px] text-slate-400">{pago.Usuario?.email}</span>
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    <span className="font-bold text-slate-800">{pago.planGlobal?.nombre || pago.plan_codigo}</span>
+                                                    <span className="block text-[10px] uppercase font-bold text-indigo-600">
+                                                        {pago.periodo} ({pago.periodo === 'anual' ? '+365 días' : '+30 días'})
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    <span className="text-sm font-black text-emerald-700">
+                                                        ${Number(pago.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 block">MXN</span>
+                                                </td>
+                                                <td className="py-3 px-3 font-mono text-slate-700 font-semibold">
+                                                    {pago.referencia_pago || '-'}
+                                                </td>
+                                                <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                                                    {new Date(pago.createdAt).toLocaleDateString('es-MX', {
+                                                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                                    })}
+                                                </td>
+                                                <td className="py-3 px-3">
+                                                    {pago.comprobante_url ? (
+                                                        <a
+                                                            href={pago.comprobante_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline bg-indigo-50 px-2 py-1 rounded"
+                                                        >
+                                                            <ExternalLink className="w-3.5 h-3.5" /> Ver Archivo
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-slate-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-3 text-right whitespace-nowrap">
+                                                    <div className="inline-flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAprobarPago(pago)}
+                                                            disabled={procesandoPagoId === pago.id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition"
+                                                            title="Aprobar y extender vigencia"
+                                                        >
+                                                            {procesandoPagoId === pago.id ? (
+                                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                            ) : (
+                                                                <Check className="w-3.5 h-3.5" />
+                                                            )}
+                                                            <span>Aprobar</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRechazarPago(pago)}
+                                                            disabled={procesandoPagoId === pago.id}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold border border-rose-200 transition"
+                                                            title="Rechazar comprobante"
+                                                        >
+                                                            <XCircle className="w-3.5 h-3.5" />
+                                                            <span>Rechazar</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
