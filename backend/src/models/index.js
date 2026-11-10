@@ -37,6 +37,7 @@ import { SolicitudDescargaSat } from './SolicitudDescargaSat.js';
 import { FacturacionRecurrente } from './FacturacionRecurrente.js';
 import { DetalleFacturacionRecurrente } from './DetalleFacturacionRecurrente.js';
 import { HistorialFacturacionRecurrente } from './HistorialFacturacionRecurrente.js';
+import { PlanGlobal } from './PlanGlobal.js';
 
 
 // Junction models
@@ -52,6 +53,10 @@ Usuario.belongsTo(Empresa, { foreignKey: 'empresa_id' });
 
 Empresa.hasMany(Emisor, { foreignKey: 'empresa_id' });
 Emisor.belongsTo(Empresa, { foreignKey: 'empresa_id' });
+
+// Empresa <-> PlanGlobal
+Empresa.belongsTo(PlanGlobal, { foreignKey: 'plan_codigo', targetKey: 'codigo', as: 'planGlobal', constraints: false });
+PlanGlobal.hasMany(Empresa, { foreignKey: 'plan_codigo', sourceKey: 'codigo', constraints: false });
 
 // Usuario <-> Rol
 Usuario.belongsToMany(Rol, { through: UsuarioRol, foreignKey: 'usuario_id', otherKey: 'rol_id' });
@@ -267,6 +272,7 @@ export {
     FacturacionRecurrente,
     DetalleFacturacionRecurrente,
     HistorialFacturacionRecurrente,
+    PlanGlobal,
     sequelize
 };
 

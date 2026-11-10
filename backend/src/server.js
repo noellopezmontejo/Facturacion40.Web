@@ -53,6 +53,7 @@ import ordenServicioRoutes from './routes/ordenServicioRoutes.js';
 import pacRoutes from './routes/pacRoutes.js';
 import reporteRoutes from './routes/reporteRoutes.js';
 import recurrenteRoutes from './routes/recurrenteRoutes.js';
+import planRoutes from './routes/planRoutes.js';
 import { procesarSuscripcionesPendientes } from './services/recurrenteService.js';
 
 
@@ -88,6 +89,7 @@ app.use('/api/ordenes-servicio', ordenServicioRoutes);
 app.use('/api/pac', pacRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/api/recurrentes', recurrenteRoutes);
+app.use('/api/planes', planRoutes);
 
 
 

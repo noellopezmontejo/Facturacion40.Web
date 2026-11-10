@@ -1,4 +1,4 @@
-import { Empresa, Emisor } from '../models/index.js';
+import { Empresa, Emisor, PlanGlobal } from '../models/index.js';
 import { probarConexionSmtp } from '../services/emailService.js';
 
 export const getEmpresas = async (req, res) => {
@@ -7,10 +7,16 @@ export const getEmpresas = async (req, res) => {
             return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden consultar todos los espacios.' });
         }
         const empresas = await Empresa.findAll({
-            include: [{
-                model: Emisor,
-                attributes: ['id', 'rfc', 'razon_social', 'regimen_fiscal', 'codigo_postal', 'empresa_id', 'modo_prueba', 'es_agapes']
-            }],
+            include: [
+                {
+                    model: Emisor,
+                    attributes: ['id', 'rfc', 'razon_social', 'regimen_fiscal', 'codigo_postal', 'empresa_id', 'modo_prueba', 'es_agapes']
+                },
+                {
+                    model: PlanGlobal,
+                    as: 'planGlobal'
+                }
+            ],
             order: [['id', 'ASC']]
         });
         res.json(empresas);
@@ -165,7 +171,14 @@ export const testSmtpEmpresa = async (req, res) => {
 };
 
 export const createEmpresa = async (req, res) => {
-    const { nombre } = req.body;
+    const { 
+        nombre, 
+        plan_codigo = 'negocio', 
+        periodo_suscripcion = 'mensual',
+        precio_personalizado = null,
+        folios_incluidos = null,
+        dias_gracia = 30
+    } = req.body;
     try {
         if (req.usuario.rol !== 'Administrador') {
             return res.status(403).json({ message: 'Acceso denegado. Solo administradores pueden crear espacios de trabajo.' });
@@ -173,14 +186,43 @@ export const createEmpresa = async (req, res) => {
         if (!nombre || !nombre.trim()) {
             return res.status(400).json({ message: 'El nombre de la empresa es obligatorio.' });
         }
-        const nuevaEmpresa = await Empresa.create({ nombre: nombre.trim(), activo: true });
+
+        // Obtener el plan global por defecto para asignar folios y características
+        const plan = await PlanGlobal.findOne({ where: { codigo: plan_codigo } });
+        const foliosFinales = folios_incluidos !== null ? folios_incluidos : (plan ? plan.folios_mensuales : 200);
+
+        const fechaInicio = new Date();
+        const fechaVence = new Date();
+        if (periodo_suscripcion === 'anual') {
+            fechaVence.setFullYear(fechaInicio.getFullYear() + 1);
+        } else {
+            fechaVence.setDate(fechaInicio.getDate() + (parseInt(dias_gracia) || 30));
+        }
+
+        const nuevaEmpresa = await Empresa.create({
+            nombre: nombre.trim(),
+            activo: true,
+            plan_codigo,
+            periodo_suscripcion,
+            precio_personalizado: (precio_personalizado !== null && precio_personalizado !== '') ? parseFloat(precio_personalizado) : null,
+            folios_incluidos: foliosFinales,
+            fecha_inicio: fechaInicio,
+            fecha_vencimiento: fechaVence,
+            estado_suscripcion: 'activa'
+        });
         
-        // Retornar la nueva empresa con emisores vacíos
+        // Retornar la nueva empresa con emisores y plan asociado
         const result = await Empresa.findByPk(nuevaEmpresa.id, {
-            include: [{
-                model: Emisor,
-                attributes: ['id', 'rfc', 'razon_social', 'regimen_fiscal', 'codigo_postal', 'empresa_id', 'modo_prueba', 'es_agapes']
-            }]
+            include: [
+                {
+                    model: Emisor,
+                    attributes: ['id', 'rfc', 'razon_social', 'regimen_fiscal', 'codigo_postal', 'empresa_id', 'modo_prueba', 'es_agapes']
+                },
+                {
+                    model: PlanGlobal,
+                    as: 'planGlobal'
+                }
+            ]
         });
 
         res.status(201).json(result);

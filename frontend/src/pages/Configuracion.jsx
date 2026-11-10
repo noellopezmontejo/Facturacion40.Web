@@ -4,7 +4,8 @@ import {
     Building2, Save, Shield, Settings, Users, AlertCircle, 
     CheckCircle2, Plus, List, ArrowRight, Sparkles, Layers,
     Zap, Activity, Search, RefreshCw, FileText, Check, ShieldCheck, 
-    History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key, Mail, Send
+    History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key, Mail, Send,
+    CreditCard, Tag, DollarSign, Edit3, Clock, CheckCircle, Percent, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -23,7 +24,8 @@ export const Configuracion = () => {
     const isAdmin = user?.rol === 'Administrador';
 
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialTab = (searchParams.get('tab') === 'pac' && isAdmin) ? 'pac' : 'espacios';
+    const tabParam = searchParams.get('tab');
+    const initialTab = (tabParam === 'pac' && isAdmin) ? 'pac' : (tabParam === 'planes' && isAdmin) ? 'planes' : 'espacios';
     const [activeTab, setActiveTab] = useState(initialTab);
     
     const { showToast } = useToast();
@@ -50,6 +52,30 @@ export const Configuracion = () => {
     const [loadingEmpresas, setLoadingEmpresas] = useState(false);
     const [nombreNuevaEmpresa, setNombreNuevaEmpresa] = useState('');
     const [creandoEmpresa, setCreandoEmpresa] = useState(false);
+    const [nuevoPlanCodigo, setNuevoPlanCodigo] = useState('negocio');
+    const [nuevoPeriodoSuscripcion, setNuevoPeriodoSuscripcion] = useState('mensual');
+
+    // Estados para Gestión de Planes y Precios Globales (Admin)
+    const [planesGlobales, setPlanesGlobales] = useState([]);
+    const [loadingPlanes, setLoadingPlanes] = useState(false);
+    const [savingPlanes, setSavingPlanes] = useState(false);
+    const [filtroEmpresasPlanes, setFiltroEmpresasPlanes] = useState('');
+
+    // Modal para editar suscripción a discreción
+    const [showSuscripcionModal, setShowSuscripcionModal] = useState(false);
+    const [empresaSeleccionada, setEmpresaSeleccionada] = useState(null);
+    const [savingSuscripcion, setSavingSuscripcion] = useState(false);
+    const [suscripcionForm, setSuscripcionForm] = useState({
+        plan_codigo: 'negocio',
+        periodo_suscripcion: 'mensual',
+        usar_precio_personalizado: false,
+        precio_personalizado: '',
+        folios_incluidos: 200,
+        fecha_inicio: '',
+        fecha_vencimiento: '',
+        estado_suscripcion: 'activa',
+        notas_suscripcion: ''
+    });
 
     // Estados para Gestión y Servicios PAC SAT
     const [pacResumen, setPacResumen] = useState(null);
@@ -89,19 +115,105 @@ export const Configuracion = () => {
     });
     const [guardandoCredenciales, setGuardandoCredenciales] = useState(false);
 
-    // Forzar fallback a 'espacios' si el usuario no es Administrador y tiene seleccionada la pestaña 'pac'
+    // Forzar fallback a 'espacios' si el usuario no es Administrador y tiene seleccionada la pestaña 'pac' o 'planes'
     useEffect(() => {
-        if (!isAdmin && activeTab === 'pac') {
+        if (!isAdmin && (activeTab === 'pac' || activeTab === 'planes')) {
             setActiveTab('espacios');
             setSearchParams({});
         }
     }, [isAdmin, activeTab]);
 
-    // Actualizar URL cuando cambia la pestaña (solo permite 'pac' a administradores)
+    // Actualizar URL cuando cambia la pestaña (solo permite 'pac' o 'planes' a administradores)
     const handleTabChange = (tabId) => {
-        if (tabId === 'pac' && !isAdmin) return;
+        if ((tabId === 'pac' || tabId === 'planes') && !isAdmin) return;
         setActiveTab(tabId);
-        setSearchParams(tabId === 'pac' ? { tab: 'pac' } : {});
+        setSearchParams(tabId !== 'espacios' ? { tab: tabId } : {});
+    };
+
+    // Consultas y gestión de Planes Globales
+    const fetchPlanes = async () => {
+        setLoadingPlanes(true);
+        try {
+            const { data } = await api.get('/planes');
+            setPlanesGlobales(data || []);
+        } catch (error) {
+            console.error("Error al cargar planes globales:", error);
+        } finally {
+            setLoadingPlanes(false);
+        }
+    };
+
+    const handlePlanChange = (index, field, value) => {
+        setPlanesGlobales(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], [field]: value };
+            return copy;
+        });
+    };
+
+    const handleSavePlanesGlobales = async (e) => {
+        if (e) e.preventDefault();
+        setSavingPlanes(true);
+        try {
+            const res = await api.put('/planes/actualizar-todos', { planes: planesGlobales });
+            showToast(res.data?.message || "Precios globales actualizados exitosamente.");
+            await fetchPlanes();
+            await fetchAllEmpresas();
+        } catch (error) {
+            console.error("Error guardando planes globales:", error);
+            showToast(error.response?.data?.message || "Error al actualizar precios globales.", "error");
+        } finally {
+            setSavingPlanes(false);
+        }
+    };
+
+    const handleOpenEditarSuscripcion = (emp) => {
+        setEmpresaSeleccionada(emp);
+        const plan = planesGlobales.find(p => p.codigo === emp.plan_codigo) || planesGlobales[1];
+        const tienePrecioCustom = emp.precio_personalizado !== null && emp.precio_personalizado !== undefined && emp.precio_personalizado !== '';
+
+        setSuscripcionForm({
+            plan_codigo: emp.plan_codigo || 'negocio',
+            periodo_suscripcion: emp.periodo_suscripcion || 'mensual',
+            usar_precio_personalizado: tienePrecioCustom,
+            precio_personalizado: tienePrecioCustom ? emp.precio_personalizado : '',
+            folios_incluidos: emp.folios_incluidos || plan?.folios_mensuales || 200,
+            fecha_inicio: emp.fecha_inicio ? new Date(emp.fecha_inicio).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+            fecha_vencimiento: emp.fecha_vencimiento ? new Date(emp.fecha_vencimiento).toISOString().slice(0, 10) : '',
+            estado_suscripcion: emp.estado_suscripcion || 'activa',
+            notas_suscripcion: emp.notas_suscripcion || ''
+        });
+        setShowSuscripcionModal(true);
+    };
+
+    const handleSaveSuscripcionEmpresa = async (e) => {
+        e.preventDefault();
+        if (!empresaSeleccionada) return;
+        setSavingSuscripcion(true);
+        try {
+            const payload = {
+                plan_codigo: suscripcionForm.plan_codigo,
+                periodo_suscripcion: suscripcionForm.periodo_suscripcion,
+                usar_precio_personalizado: suscripcionForm.usar_precio_personalizado,
+                precio_personalizado: suscripcionForm.usar_precio_personalizado ? parseFloat(suscripcionForm.precio_personalizado) : null,
+                folios_incluidos: parseInt(suscripcionForm.folios_incluidos) || 0,
+                fecha_inicio: suscripcionForm.fecha_inicio || null,
+                fecha_vencimiento: suscripcionForm.fecha_vencimiento || null,
+                estado_suscripcion: suscripcionForm.estado_suscripcion,
+                notas_suscripcion: suscripcionForm.notas_suscripcion
+            };
+
+            const res = await api.put(`/planes/empresa/${empresaSeleccionada.id}`, payload);
+            showToast(res.data?.message || "Suscripción actualizada exitosamente a discreción.");
+            setShowSuscripcionModal(false);
+            await fetchAllEmpresas();
+            await refreshActiveEmpresa();
+        } catch (error) {
+            console.error("Error guardando suscripción de empresa:", error);
+            showToast(error.response?.data?.message || "Error al actualizar suscripción.", "error");
+        } finally {
+            setSavingSuscripcion(false);
+        }
     };
 
     const fetchEmpresa = async () => {
@@ -188,6 +300,7 @@ export const Configuracion = () => {
         fetchEmpresa();
         if (isAdmin) {
             fetchAllEmpresas();
+            fetchPlanes();
             fetchPacResumen();
             fetchHistorial();
         }
@@ -202,9 +315,15 @@ export const Configuracion = () => {
         }
         setCreandoEmpresa(true);
         try {
-            const { data } = await api.post('/empresas', { nombre: nombreNuevaEmpresa.trim() });
+            const { data } = await api.post('/empresas', { 
+                nombre: nombreNuevaEmpresa.trim(),
+                plan_codigo: nuevoPlanCodigo,
+                periodo_suscripcion: nuevoPeriodoSuscripcion
+            });
             showToast("✅ Espacio empresarial creado con éxito.");
             setNombreNuevaEmpresa('');
+            setNuevoPlanCodigo('negocio');
+            setNuevoPeriodoSuscripcion('mensual');
             
             // Activar automáticamente el nuevo espacio de trabajo
             changeActiveEmpresa(data);
@@ -502,11 +621,11 @@ export const Configuracion = () => {
 
                 {/* Tabs */}
                 {isAdmin ? (
-                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
+                    <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start sm:self-auto flex-wrap gap-1">
                         <button
                             type="button"
                             onClick={() => handleTabChange('espacios')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
                                 activeTab === 'espacios'
                                     ? 'bg-white text-indigo-700 shadow-xs'
                                     : 'text-slate-600 hover:text-slate-900'
@@ -517,8 +636,23 @@ export const Configuracion = () => {
                         </button>
                         <button
                             type="button"
+                            onClick={() => handleTabChange('planes')}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === 'planes'
+                                    ? 'bg-white text-indigo-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <CreditCard className="w-4 h-4 text-emerald-600" />
+                            <span>Planes y Precios</span>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                                {planesGlobales.length || 3}
+                            </span>
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => handleTabChange('pac')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
                                 activeTab === 'pac'
                                     ? 'bg-white text-indigo-700 shadow-xs'
                                     : 'text-slate-600 hover:text-slate-900'
@@ -821,9 +955,33 @@ export const Configuracion = () => {
                                                                     {emisoresCount === 1 ? '1 emisor asociado' : `${emisoresCount} emisores asociados`}
                                                                 </span>
                                                             </div>
+                                                            <div className="flex items-center gap-2 text-xs text-slate-500 pt-0.5 flex-wrap">
+                                                                <span className="inline-flex items-center gap-1 font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                                                                    <CreditCard className="w-3 h-3 text-emerald-600" />
+                                                                    {emp.planGlobal?.nombre || (emp.plan_codigo ? `Plan ${emp.plan_codigo.toUpperCase()}` : 'Plan PyME')}
+                                                                </span>
+                                                                {emp.precio_personalizado !== null && emp.precio_personalizado !== undefined ? (
+                                                                    <span className="text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
+                                                                        ⭐ ${parseFloat(emp.precio_personalizado).toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN (A discreción)
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                                                                        Precio global
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
 
-                                                        <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditarSuscripcion(emp)}
+                                                                title="Editar precio y suscripción a discreción"
+                                                                className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 border border-slate-200 hover:border-purple-200 text-slate-600 rounded-lg text-xs font-bold transition shadow-xs"
+                                                            >
+                                                                <Edit3 className="w-3 h-3 text-purple-600" />
+                                                                <span>Suscripción</span>
+                                                            </button>
                                                             {isSelected ? (
                                                                 <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-100/60 px-3 py-1.5 rounded-lg border border-indigo-200">
                                                                     <CheckCircle2 className="w-4 h-4 text-indigo-600" />
@@ -870,6 +1028,49 @@ export const Configuracion = () => {
                                             className="w-full px-4 py-2.5 border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-lg text-sm transition-all outline-none bg-slate-50/30 font-medium text-slate-800"
                                             required
                                         />
+                                    </div>
+
+                                    {/* Selector de Plan y Modalidad para el Nuevo Espacio */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                                <CreditCard className="w-3.5 h-3.5 text-emerald-600" /> Plan Asignado por Defecto
+                                            </label>
+                                            <select
+                                                value={nuevoPlanCodigo}
+                                                onChange={(e) => setNuevoPlanCodigo(e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                            >
+                                                {planesGlobales.map(p => (
+                                                    <option key={p.codigo} value={p.codigo}>
+                                                        {p.nombre} ({p.folios_mensuales} folios - ${p.precio_mensual} MXN/mes)
+                                                    </option>
+                                                ))}
+                                                {planesGlobales.length === 0 && (
+                                                    <option value="negocio">Plan Negocio / PyME (200 folios)</option>
+                                                )}
+                                            </select>
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                Hereda automáticamente el precio global configurado en el catálogo.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                                                Modalidad Inicial
+                                            </label>
+                                            <select
+                                                value={nuevoPeriodoSuscripcion}
+                                                onChange={(e) => setNuevoPeriodoSuscripcion(e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                            >
+                                                <option value="mensual">Mensual (Tarifa regular)</option>
+                                                <option value="anual">Anual (2 meses de ahorro)</option>
+                                            </select>
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                Podrás cambiar a discreción el precio de este cliente en cualquier momento.
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <div className="flex justify-end pt-4 border-t border-slate-100">
@@ -941,7 +1142,399 @@ export const Configuracion = () => {
                 </div>
             )}
 
-            {/* PESTAÑA 2: SERVICIOS Y FOLIOS PAC SAT (PROFACT) - EXCLUSIVO SUPERUSUARIO / ADMINISTRADOR */}
+            {/* PESTAÑA 2: GESTIÓN DE PLANES, PRECIOS GLOBALES Y SUSCRIPCIONES (ADMINISTRADOR) */}
+            {isAdmin && activeTab === 'planes' && (
+                <div className="space-y-8 animate-in fade-in duration-200">
+                    {/* Tarjeta de Encabezado */}
+                    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-700/60 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400 text-slate-950 flex items-center gap-1 shadow-xs">
+                                        <CreditCard className="w-3 h-3" /> Catálogo Maestro de Suscripciones
+                                    </span>
+                                    <span className="text-xs text-slate-400">Precios por defecto en nuevos espacios</span>
+                                </div>
+                                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
+                                    Configuración de Planes y Tarifas
+                                </h2>
+                                <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+                                    Define los precios globales (mensual y anual con descuento) que heredarán automáticamente los nuevos clientes. Además, como Administrador tienes la libertad total de modificar el precio y condiciones de cualquier cliente individual a tu discreción en la tabla inferior.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={handleSavePlanesGlobales}
+                                disabled={savingPlanes}
+                                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/25 active:scale-95 transition-all shrink-0 disabled:opacity-50"
+                            >
+                                {savingPlanes ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span>Guardando Tarifas...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-4 h-4" />
+                                        <span>Guardar Precios Globales</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Grid de Edición de Planes Globales */}
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <Tag className="w-4 h-4 text-emerald-600" /> Tarifas Globales del Catálogo
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Edita los valores en los campos. Al dar clic en "Guardar Precios Globales", se aplicarán como base para toda la plataforma.
+                                </p>
+                            </div>
+                        </div>
+
+                        {loadingPlanes ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {planesGlobales.map((p, idx) => {
+                                    const precioMes = parseFloat(p.precio_mensual || 0);
+                                    const precioAnio = parseFloat(p.precio_anual || 0);
+                                    const ahorroAnual = (precioMes * 12) - precioAnio;
+                                    const mesesGratis = precioMes > 0 ? (ahorroAnual / precioMes).toFixed(1) : 0;
+                                    const esPopular = p.es_popular || p.codigo === 'negocio';
+
+                                    return (
+                                        <div 
+                                            key={p.codigo || idx}
+                                            className={`rounded-2xl border p-5 flex flex-col justify-between transition-all relative ${
+                                                esPopular 
+                                                    ? 'bg-gradient-to-b from-indigo-50/70 via-white to-white border-indigo-300 shadow-md ring-2 ring-indigo-500/20' 
+                                                    : 'bg-white border-slate-200 shadow-xs'
+                                            }`}
+                                        >
+                                            {esPopular && (
+                                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-3 py-0.5 rounded-full shadow-sm">
+                                                    ⭐ Más Vendido (Recomendado)
+                                                </div>
+                                            )}
+
+                                            <div className="space-y-4">
+                                                <div className="border-b border-slate-100 pb-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <input 
+                                                            type="text"
+                                                            value={p.nombre}
+                                                            onChange={(e) => handlePlanChange(idx, 'nombre', e.target.value)}
+                                                            className="text-base font-extrabold text-slate-800 bg-transparent border-b border-dashed border-slate-300 focus:border-indigo-500 outline-none w-full"
+                                                        />
+                                                    </div>
+                                                    <textarea 
+                                                        rows={2}
+                                                        value={p.descripcion || ''}
+                                                        onChange={(e) => handlePlanChange(idx, 'descripcion', e.target.value)}
+                                                        className="text-xs text-slate-500 mt-1 bg-transparent border border-transparent hover:border-slate-200 focus:border-indigo-400 rounded p-1 w-full outline-none resize-none"
+                                                        placeholder="Descripción del plan..."
+                                                    />
+                                                </div>
+
+                                                {/* Precios Mensual y Anual */}
+                                                <div className="grid grid-cols-2 gap-3 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
+                                                            Precio Mensual
+                                                        </label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                                                            <input 
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={p.precio_mensual}
+                                                                onChange={(e) => handlePlanChange(idx, 'precio_mensual', e.target.value)}
+                                                                className="w-full pl-6 pr-2 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-extrabold text-slate-800 focus:border-indigo-500 outline-none"
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 mt-0.5 block font-medium">MXN / mes</span>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-emerald-600 tracking-wider mb-1">
+                                                            Precio Anual
+                                                        </label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                                                            <input 
+                                                                type="number"
+                                                                step="0.01"
+                                                                value={p.precio_anual}
+                                                                onChange={(e) => handlePlanChange(idx, 'precio_anual', e.target.value)}
+                                                                className="w-full pl-6 pr-2 py-1.5 bg-white border border-emerald-300 rounded-lg text-sm font-extrabold text-emerald-700 focus:border-emerald-500 outline-none"
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] text-emerald-600 mt-0.5 block font-bold">
+                                                            {ahorroAnual > 0 ? `Ahorra $${ahorroAnual.toFixed(0)} (${mesesGratis} meses gratis)` : 'MXN / año'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Folios y Capacidades */}
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 mb-0.5">Folios/Mes</label>
+                                                        <input 
+                                                            type="number"
+                                                            value={p.folios_mensuales}
+                                                            onChange={(e) => handlePlanChange(idx, 'folios_mensuales', e.target.value)}
+                                                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 mb-0.5">Emisores</label>
+                                                        <input 
+                                                            type="number"
+                                                            value={p.max_emisores}
+                                                            onChange={(e) => handlePlanChange(idx, 'max_emisores', e.target.value)}
+                                                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black uppercase text-slate-400 mb-0.5">Usuarios</label>
+                                                        <input 
+                                                            type="number"
+                                                            value={p.max_usuarios}
+                                                            onChange={(e) => handlePlanChange(idx, 'max_usuarios', e.target.value)}
+                                                            className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-xs font-bold text-slate-700"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Características / Módulos Incluidos */}
+                                                <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">
+                                                        Módulos Incluidos en este Plan
+                                                    </span>
+
+                                                    <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={p.permite_cotizaciones}
+                                                            onChange={(e) => handlePlanChange(idx, 'permite_cotizaciones', e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span>Módulo de Cotizaciones</span>
+                                                    </label>
+
+                                                    <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={p.permite_ordenes_servicio}
+                                                            onChange={(e) => handlePlanChange(idx, 'permite_ordenes_servicio', e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span>Órdenes de Servicio (Fotos & Video)</span>
+                                                    </label>
+
+                                                    <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={p.permite_carta_porte}
+                                                            onChange={(e) => handlePlanChange(idx, 'permite_carta_porte', e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span>Carta Porte 3.1 (Vehículos y Choferes)</span>
+                                                    </label>
+
+                                                    <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={p.permite_recurrentes}
+                                                            onChange={(e) => handlePlanChange(idx, 'permite_recurrentes', e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span>Facturación Recurrente Automática</span>
+                                                    </label>
+
+                                                    <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={p.permite_descarga_sat}
+                                                            onChange={(e) => handlePlanChange(idx, 'permite_descarga_sat', e.target.checked)}
+                                                            className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span>Descarga Masiva SAT</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                                                <span>Código: <strong className="font-mono text-slate-600">{p.codigo}</strong></span>
+                                                <span className="text-emerald-600 font-bold">Activo en catálogo</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tabla de Suscripciones por Cliente / Espacio */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                    <Building2 className="w-5 h-5 text-indigo-600" /> Control de Suscripciones y Precios por Cliente
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Revisa qué clientes tienen precio personalizado a tu discreción o si pagan la tarifa global regular.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <div className="relative">
+                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input 
+                                        type="text"
+                                        placeholder="Buscar empresa o cliente..."
+                                        value={filtroEmpresasPlanes}
+                                        onChange={(e) => setFiltroEmpresasPlanes(e.target.value)}
+                                        className="pl-9 pr-3.5 py-1.5 border border-slate-200 rounded-lg text-xs font-medium w-60 outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg shrink-0">
+                                    {empresas.length} Clientes
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Listado de Empresas */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-50/60 text-slate-500 font-black uppercase tracking-wider text-[10px]">
+                                        <th className="py-3 px-3">Empresa / Cliente</th>
+                                        <th className="py-3 px-3">Plan Asignado</th>
+                                        <th className="py-3 px-3">Modalidad</th>
+                                        <th className="py-3 px-3">Precio Facturado</th>
+                                        <th className="py-3 px-3">Folios Incluidos</th>
+                                        <th className="py-3 px-3">Vigencia</th>
+                                        <th className="py-3 px-3">Estado</th>
+                                        <th className="py-3 px-3 text-right">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {empresas
+                                        .filter(e => !filtroEmpresasPlanes.trim() || e.nombre.toLowerCase().includes(filtroEmpresasPlanes.toLowerCase()))
+                                        .map(emp => {
+                                            const planAsociado = planesGlobales.find(p => p.codigo === emp.plan_codigo) || emp.planGlobal;
+                                            const tienePrecioCustom = emp.precio_personalizado !== null && emp.precio_personalizado !== undefined && emp.precio_personalizado !== '';
+                                            
+                                            // Calcular precio a mostrar
+                                            let precioMostrado = 0;
+                                            if (tienePrecioCustom) {
+                                                precioMostrado = parseFloat(emp.precio_personalizado);
+                                            } else if (planAsociado) {
+                                                precioMostrado = emp.periodo_suscripcion === 'anual' ? parseFloat(planAsociado.precio_anual) : parseFloat(planAsociado.precio_mensual);
+                                            }
+
+                                            // Calcular días restantes
+                                            let diasRestantes = null;
+                                            if (emp.fecha_vencimiento) {
+                                                const diff = new Date(emp.fecha_vencimiento).getTime() - new Date().getTime();
+                                                diasRestantes = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                            }
+
+                                            return (
+                                                <tr key={emp.id} className="hover:bg-slate-50/80 transition-colors">
+                                                    <td className="py-3 px-3">
+                                                        <div className="font-bold text-slate-800 text-xs">{emp.nombre}</div>
+                                                        <span className="font-mono text-[10px] text-slate-400">ESP-{String(emp.id).padStart(4, '0')}</span>
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px] inline-block">
+                                                            {planAsociado?.nombre || (emp.plan_codigo ? `Plan ${emp.plan_codigo}` : 'Plan PyME')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                                            emp.periodo_suscripcion === 'anual' 
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                                        }`}>
+                                                            {emp.periodo_suscripcion === 'anual' ? 'Anual' : 'Mensual'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        {tienePrecioCustom ? (
+                                                            <div className="space-y-0.5">
+                                                                <span className="font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded text-xs inline-flex items-center gap-1">
+                                                                    ⭐ ${precioMostrado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+                                                                </span>
+                                                                <span className="text-[10px] text-purple-600 block font-medium">A discreción (Especial)</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="space-y-0.5">
+                                                                <span className="font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs inline-block">
+                                                                    ${precioMostrado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} MXN
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 block font-medium">Tarifa global regular</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-3 font-semibold text-slate-700">
+                                                        {Number(emp.folios_incluidos || 200).toLocaleString()} folios
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        <div className="font-mono text-xs text-slate-700">
+                                                            {emp.fecha_vencimiento ? new Date(emp.fecha_vencimiento).toLocaleDateString('es-MX') : 'Sin fecha'}
+                                                        </div>
+                                                        {diasRestantes !== null && (
+                                                            <span className={`text-[10px] font-bold ${
+                                                                diasRestantes > 15 ? 'text-emerald-600' : diasRestantes > 0 ? 'text-amber-600' : 'text-rose-600'
+                                                            }`}>
+                                                                {diasRestantes > 0 ? `${diasRestantes} días restantes` : `Vencida hace ${Math.abs(diasRestantes)} días`}
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-3">
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                            emp.estado_suscripcion === 'activa' 
+                                                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                                                : emp.estado_suscripcion === 'periodo_gracia'
+                                                                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                                        }`}>
+                                                            {emp.estado_suscripcion === 'activa' ? 'Activa' : emp.estado_suscripcion === 'periodo_gracia' ? 'En Gracia' : 'Vencida'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-3 text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenEditarSuscripcion(emp)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-xs font-bold transition border border-indigo-200/80 shadow-xs"
+                                                        >
+                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                            <span>Editar a Discreción</span>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PESTAÑA 3: SERVICIOS Y FOLIOS PAC SAT (PROFACT) - EXCLUSIVO SUPERUSUARIO / ADMINISTRADOR */}
             {isAdmin && activeTab === 'pac' && (
                 <div className="space-y-6 animate-in fade-in duration-200">
                     {/* Tarjeta Resumen de Cuenta Integradora */}
@@ -1774,6 +2367,255 @@ export const Configuracion = () => {
                                         <>
                                             <Save className="w-3.5 h-3.5" />
                                             <span>Guardar y Probar Conexión</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Personalización de Suscripción a Discreción por Cliente */}
+            {showSuscripcionModal && empresaSeleccionada && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+                    <div 
+                        className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 space-y-6 relative overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center">
+                                    <CreditCard className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 text-base">
+                                        Personalizar Suscripción
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Cliente: <strong>{empresaSeleccionada.nombre}</strong> (ESP-{String(empresaSeleccionada.id).padStart(4, '0')})
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowSuscripcionModal(false)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveSuscripcionEmpresa} className="space-y-5">
+                            {/* Selector de Plan y Modalidad */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Plan Asignado
+                                    </label>
+                                    <select
+                                        value={suscripcionForm.plan_codigo}
+                                        onChange={(e) => {
+                                            const codigo = e.target.value;
+                                            const planSel = planesGlobales.find(p => p.codigo === codigo);
+                                            setSuscripcionForm({
+                                                ...suscripcionForm,
+                                                plan_codigo: codigo,
+                                                folios_incluidos: planSel ? planSel.folios_mensuales : suscripcionForm.folios_incluidos
+                                            });
+                                        }}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                    >
+                                        {planesGlobales.map(p => (
+                                            <option key={p.codigo} value={p.codigo}>
+                                                {p.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Modalidad de Cobro
+                                    </label>
+                                    <select
+                                        value={suscripcionForm.periodo_suscripcion}
+                                        onChange={(e) => setSuscripcionForm({ ...suscripcionForm, periodo_suscripcion: e.target.value })}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                    >
+                                        <option value="mensual">Mensual</option>
+                                        <option value="anual">Anual</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Switch de Precio Personalizado a Discreción */}
+                            <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/50 space-y-3">
+                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <input 
+                                        type="checkbox"
+                                        checked={suscripcionForm.usar_precio_personalizado}
+                                        onChange={(e) => setSuscripcionForm({
+                                            ...suscripcionForm,
+                                            usar_precio_personalizado: e.target.checked
+                                        })}
+                                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                                    />
+                                    <span className="text-xs font-bold text-purple-900">
+                                        ⭐ Asignar precio personalizado a discreción para este cliente
+                                    </span>
+                                </label>
+
+                                {suscripcionForm.usar_precio_personalizado ? (
+                                    <div className="animate-in fade-in duration-150 space-y-2 pt-1">
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-purple-500">$</span>
+                                            <input 
+                                                type="number"
+                                                step="0.01"
+                                                required
+                                                value={suscripcionForm.precio_personalizado}
+                                                onChange={(e) => setSuscripcionForm({ ...suscripcionForm, precio_personalizado: e.target.value })}
+                                                placeholder="Ej. 250.00"
+                                                className="w-full pl-7 pr-3 py-2 bg-white border border-purple-300 rounded-lg text-sm font-extrabold text-purple-950 focus:border-purple-600 outline-none"
+                                            />
+                                        </div>
+                                        <p className="text-[11px] text-purple-700 leading-snug">
+                                            Este precio especial pactado se mantendrá congelado para este cliente, incluso si modificas las tarifas globales de la plataforma.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <p className="text-[11px] text-slate-500 leading-snug">
+                                        Este cliente tomará automáticamente el precio global del catálogo: {' '}
+                                        <strong className="text-slate-700 font-bold">
+                                            ${(suscripcionForm.periodo_suscripcion === 'anual' 
+                                                ? (planesGlobales.find(p => p.codigo === suscripcionForm.plan_codigo)?.precio_anual || 0)
+                                                : (planesGlobales.find(p => p.codigo === suscripcionForm.plan_codigo)?.precio_mensual || 0)
+                                            )} MXN
+                                        </strong>
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Folios y Fechas de Vigencia */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Folios al Mes
+                                    </label>
+                                    <input 
+                                        type="number"
+                                        value={suscripcionForm.folios_incluidos}
+                                        onChange={(e) => setSuscripcionForm({ ...suscripcionForm, folios_incluidos: e.target.value })}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Fecha Vencimiento
+                                    </label>
+                                    <input 
+                                        type="date"
+                                        value={suscripcionForm.fecha_vencimiento}
+                                        onChange={(e) => setSuscripcionForm({ ...suscripcionForm, fecha_vencimiento: e.target.value })}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                        Estado Suscripción
+                                    </label>
+                                    <select
+                                        value={suscripcionForm.estado_suscripcion}
+                                        onChange={(e) => setSuscripcionForm({ ...suscripcionForm, estado_suscripcion: e.target.value })}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 bg-white"
+                                    >
+                                        <option value="activa">Activa</option>
+                                        <option value="periodo_gracia">Periodo de Gracia</option>
+                                        <option value="vencida">Vencida</option>
+                                        <option value="suspendida">Suspendida</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Botones rápidos de extensión de vigencia */}
+                            <div className="flex items-center gap-2 pt-1 text-xs flex-wrap">
+                                <span className="text-[10px] font-black uppercase text-slate-400">Extender rápido:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const d = new Date(suscripcionForm.fecha_vencimiento || new Date());
+                                        d.setDate(d.getDate() + 30);
+                                        setSuscripcionForm({ ...suscripcionForm, fecha_vencimiento: d.toISOString().slice(0, 10), estado_suscripcion: 'activa' });
+                                    }}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px]"
+                                >
+                                    +30 Días
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const d = new Date(suscripcionForm.fecha_vencimiento || new Date());
+                                        d.setDate(d.getDate() + 90);
+                                        setSuscripcionForm({ ...suscripcionForm, fecha_vencimiento: d.toISOString().slice(0, 10), estado_suscripcion: 'activa' });
+                                    }}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px]"
+                                >
+                                    +3 Meses
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const d = new Date(suscripcionForm.fecha_vencimiento || new Date());
+                                        d.setFullYear(d.getFullYear() + 1);
+                                        setSuscripcionForm({ ...suscripcionForm, fecha_vencimiento: d.toISOString().slice(0, 10), estado_suscripcion: 'activa' });
+                                    }}
+                                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded font-bold text-[11px] border border-emerald-200"
+                                >
+                                    +1 Año
+                                </button>
+                            </div>
+
+                            {/* Notas internas */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                                    Notas Internas de Convenio
+                                </label>
+                                <textarea 
+                                    rows={2}
+                                    value={suscripcionForm.notas_suscripcion}
+                                    onChange={(e) => setSuscripcionForm({ ...suscripcionForm, notas_suscripcion: e.target.value })}
+                                    placeholder="Ej. Precio promocional pactado por volumen anual..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 outline-none focus:border-indigo-500 resize-none"
+                                />
+                            </div>
+
+                            {/* Footer del Modal */}
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSuscripcionModal(false)}
+                                    className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingSuscripcion}
+                                    className="flex items-center gap-1.5 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-sm transition disabled:opacity-50"
+                                >
+                                    {savingSuscripcion ? (
+                                        <>
+                                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                            <span>Guardando...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-3.5 h-3.5" />
+                                            <span>Guardar Cambios a Discreción</span>
                                         </>
                                     )}
                                 </button>

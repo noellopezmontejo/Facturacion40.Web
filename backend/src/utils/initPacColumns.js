@@ -4,6 +4,7 @@ import { SolicitudDescargaSat } from '../models/SolicitudDescargaSat.js';
 import { FacturacionRecurrente } from '../models/FacturacionRecurrente.js';
 import { DetalleFacturacionRecurrente } from '../models/DetalleFacturacionRecurrente.js';
 import { HistorialFacturacionRecurrente } from '../models/HistorialFacturacionRecurrente.js';
+import { PlanGlobal } from '../models/PlanGlobal.js';
 
 export const ensurePacColumns = async () => {
     try {
@@ -51,7 +52,15 @@ export const ensurePacColumns = async () => {
             { name: 'smtp_user', def: 'VARCHAR(255) NULL' },
             { name: 'smtp_pass', def: 'VARCHAR(255) NULL' },
             { name: 'smtp_from_name', def: 'VARCHAR(255) NULL' },
-            { name: 'smtp_from_email', def: 'VARCHAR(255) NULL' }
+            { name: 'smtp_from_email', def: 'VARCHAR(255) NULL' },
+            { name: 'plan_codigo', def: "VARCHAR(50) DEFAULT 'negocio'" },
+            { name: 'periodo_suscripcion', def: "VARCHAR(20) DEFAULT 'mensual'" },
+            { name: 'precio_personalizado', def: 'DECIMAL(10,2) NULL' },
+            { name: 'folios_incluidos', def: 'INT DEFAULT 200' },
+            { name: 'fecha_inicio', def: 'DATETIME NULL' },
+            { name: 'fecha_vencimiento', def: 'DATETIME NULL' },
+            { name: 'estado_suscripcion', def: "VARCHAR(30) DEFAULT 'activa'" },
+            { name: 'notas_suscripcion', def: 'TEXT NULL' }
         ];
 
         for (const col of empresaColumnsToAdd) {
@@ -139,6 +148,91 @@ export const ensurePacColumns = async () => {
         await FacturacionRecurrente.sync().catch(e => console.warn('FacturacionRecurrente sync notice:', e.message));
         await DetalleFacturacionRecurrente.sync().catch(e => console.warn('DetalleFacturacionRecurrente sync notice:', e.message));
         await HistorialFacturacionRecurrente.sync().catch(e => console.warn('HistorialFacturacionRecurrente sync notice:', e.message));
+        await PlanGlobal.sync().catch(e => console.warn('PlanGlobal sync notice:', e.message));
+
+        // 7. Sembrar planes globales si no existen
+        const planesCount = await PlanGlobal.count();
+        if (planesCount === 0) {
+            console.log("[DB Migration] Sembrando planes globales predeterminados...");
+            await PlanGlobal.bulkCreate([
+                {
+                    codigo: 'basico',
+                    nombre: 'Plan Básico (RESICO / Emprendedor)',
+                    descripcion: 'Ideal para personas físicas, honorarios, arrendamiento y pequeños negocios que inician.',
+                    precio_mensual: 149.00,
+                    precio_anual: 1490.00,
+                    folios_mensuales: 50,
+                    max_emisores: 1,
+                    max_usuarios: 1,
+                    permite_cotizaciones: false,
+                    permite_ordenes_servicio: false,
+                    permite_carta_porte: false,
+                    permite_recurrentes: false,
+                    permite_descarga_sat: false,
+                    es_popular: false,
+                    activo: true,
+                    orden: 1
+                },
+                {
+                    codigo: 'negocio',
+                    nombre: 'Plan Negocio / PyME (Servicios & Talleres)',
+                    descripcion: 'Para empresas en crecimiento, talleres y prestadores de servicios que requieren cotizaciones y evidencias.',
+                    precio_mensual: 349.00,
+                    precio_anual: 3490.00,
+                    folios_mensuales: 200,
+                    max_emisores: 2,
+                    max_usuarios: 3,
+                    permite_cotizaciones: true,
+                    permite_ordenes_servicio: true,
+                    permite_carta_porte: false,
+                    permite_recurrentes: false,
+                    permite_descarga_sat: true,
+                    es_popular: true,
+                    activo: true,
+                    orden: 2
+                },
+                {
+                    codigo: 'corporativo',
+                    nombre: 'Plan Corporativo / Logística & Carta Porte',
+                    descripcion: 'Solución integral con emisión masiva, choferes, vehículos, facturas recurrentes y multi-empresa.',
+                    precio_mensual: 699.00,
+                    precio_anual: 6990.00,
+                    folios_mensuales: 1000,
+                    max_emisores: 999,
+                    max_usuarios: 999,
+                    permite_cotizaciones: true,
+                    permite_ordenes_servicio: true,
+                    permite_carta_porte: true,
+                    permite_recurrentes: true,
+                    permite_descarga_sat: true,
+                    es_popular: false,
+                    activo: true,
+                    orden: 3
+                }
+            ]);
+            console.log("[DB Migration] Planes globales predeterminados creados con éxito.");
+        }
+
+        // 8. Inicializar suscripciones en empresas existentes que tengan fecha_vencimiento nula
+        try {
+            const fechaHoy = new Date();
+            const fechaVenceDefault = new Date();
+            fechaVenceDefault.setFullYear(fechaHoy.getFullYear() + 1); // 1 año de vigencia inicial
+
+            await sequelize.query(`
+                UPDATE empresas 
+                SET 
+                    plan_codigo = IFNULL(plan_codigo, 'negocio'),
+                    periodo_suscripcion = IFNULL(periodo_suscripcion, 'mensual'),
+                    folios_incluidos = IFNULL(folios_incluidos, 200),
+                    fecha_inicio = IFNULL(fecha_inicio, '${fechaHoy.toISOString().slice(0, 19).replace('T', ' ')}'),
+                    fecha_vencimiento = IFNULL(fecha_vencimiento, '${fechaVenceDefault.toISOString().slice(0, 19).replace('T', ' ')}'),
+                    estado_suscripcion = IFNULL(estado_suscripcion, 'activa')
+                WHERE fecha_vencimiento IS NULL OR plan_codigo IS NULL
+            `);
+        } catch (initEmpErr) {
+            console.warn("[DB Migration] Advertencia inicializando datos de suscripción en empresas:", initEmpErr.message);
+        }
 
         console.log("[DB Migration] Esquema de base de datos verificado y actualizado con éxito.");
     } catch (e) {
