@@ -11,9 +11,10 @@ import { useToast } from '../context/ToastContext';
 
 export const MiSuscripcion = () => {
     const { user, activeEmpresa } = useAuth();
-    const { addToast } = useToast();
+    const { showToast } = useToast();
 
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [subData, setSubData] = useState(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     
@@ -34,29 +35,59 @@ export const MiSuscripcion = () => {
     const [copiedField, setCopiedField] = useState(null);
 
     const fetchSuscripcion = async () => {
+        if (!user) return;
         try {
             setLoading(true);
-            const { data } = await api.get('/planes/mi-suscripcion');
+            setLoadError(null);
+            const params = {};
+            if (user?.rol === 'Administrador' && activeEmpresa?.id) {
+                params.empresa_id = activeEmpresa.id;
+            }
+            const { data } = await api.get('/planes/mi-suscripcion', { params });
             setSubData(data);
             if (data.empresa?.periodo_suscripcion) {
                 setPeriodoSeleccionado(data.empresa.periodo_suscripcion);
             }
+            if (data.metodos_pago) {
+                if (!data.metodos_pago.banorte_activo && data.metodos_pago.mercadopago_activo) {
+                    setMetodoSeleccionado('mercadopago');
+                } else if (data.metodos_pago.banorte_activo) {
+                    setMetodoSeleccionado('banorte');
+                }
+            }
         } catch (error) {
             console.error('Error al cargar mi suscripción:', error);
-            addToast('Error al cargar los datos de la suscripción.', 'error');
+            const msg = error.response?.data?.message || 'Error al cargar los datos de la suscripción.';
+            setLoadError(msg);
+            showToast(msg, 'error');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        const mpStatus = query.get('pago_status');
+        if (mpStatus === 'success') {
+            showToast('¡Pago aprobado por Mercado Pago! Tu suscripción se ha actualizado.', 'success');
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (mpStatus === 'pending') {
+            showToast('Tu pago en Mercado Pago está pendiente de acreditación (OXXO/SPEI). Se activará al confirmarse.', 'info');
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (mpStatus === 'failure') {
+            showToast('El pago con Mercado Pago no fue completado. Puedes intentarlo nuevamente.', 'error');
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, []);
+
+    useEffect(() => {
         fetchSuscripcion();
-    }, [activeEmpresa]);
+    }, [user?.id, activeEmpresa?.id]);
 
     const handleCopy = (text, fieldName) => {
         navigator.clipboard.writeText(text);
         setCopiedField(fieldName);
-        addToast(`Copiado: ${text}`, 'info');
+        showToast(`Copiado: ${text}`, 'info');
         setTimeout(() => setCopiedField(null), 2500);
     };
 
@@ -64,7 +95,7 @@ export const MiSuscripcion = () => {
     const calcularMontoPagar = () => {
         if (!subData) return 0;
         const { empresa, plan } = subData;
-        if (empresa.es_personalizado) {
+        if (empresa?.es_personalizado) {
             const precioBase = parseFloat(empresa.precio_personalizado);
             return periodoSeleccionado === 'anual' ? Math.round(precioBase * 10) : precioBase;
         }
@@ -77,7 +108,7 @@ export const MiSuscripcion = () => {
     const handleReportarTransferencia = async (e) => {
         e.preventDefault();
         if (!comprobanteFile) {
-            addToast('Por favor adjunta el comprobante de la transferencia.', 'warning');
+            showToast('Por favor adjunta el comprobante de la transferencia.', 'error');
             return;
         }
 
@@ -88,20 +119,29 @@ export const MiSuscripcion = () => {
             formData.append('plan_codigo', subData?.empresa?.plan_codigo || 'negocio');
             formData.append('periodo', periodoSeleccionado);
             formData.append('monto', calcularMontoPagar());
-            formData.append('referencia_pago', referenciaRastreo || subData?.datos_bancarios?.referencia_sugerida);
+            formData.append('referencia_pago', referenciaRastreo || subData?.datos_bancarios?.referencia_sugerida || '');
+            if (user?.rol === 'Administrador' && (subData?.empresa?.id || activeEmpresa?.id)) {
+                formData.append('empresa_id', subData?.empresa?.id || activeEmpresa?.id);
+            }
+
+            const params = {};
+            if (user?.rol === 'Administrador' && (subData?.empresa?.id || activeEmpresa?.id)) {
+                params.empresa_id = subData?.empresa?.id || activeEmpresa?.id;
+            }
 
             const { data } = await api.post('/planes/reportar-transferencia', formData, {
+                params,
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            addToast(data.message || 'Comprobante recibido exitosamente.', 'success');
+            showToast(data.message || 'Comprobante recibido exitosamente.', 'success');
             setComprobanteFile(null);
             setReferenciaRastreo('');
             setIsPaymentModalOpen(false);
             fetchSuscripcion();
         } catch (error) {
             console.error('Error al reportar transferencia:', error);
-            addToast(error.response?.data?.message || 'Error al enviar comprobante.', 'error');
+            showToast(error.response?.data?.message || 'Error al enviar comprobante.', 'error');
         } finally {
             setIsSubmittingTransfer(false);
         }
@@ -112,19 +152,20 @@ export const MiSuscripcion = () => {
             setIsProcessingMP(true);
             const { data } = await api.post('/planes/crear-preferencia-mp', {
                 periodo: periodoSeleccionado,
-                plan_codigo: subData?.empresa?.plan_codigo || 'negocio'
+                plan_codigo: subData?.empresa?.plan_codigo || 'negocio',
+                empresa_id: user?.rol === 'Administrador' ? (subData?.empresa?.id || activeEmpresa?.id) : undefined
             });
 
             if (data.modo_simulacion) {
                 setMpSimulationInfo(data);
-                addToast('Integración Mercado Pago lista. Consulta los detalles en pantalla.', 'info');
+                showToast('Integración Mercado Pago lista. Consulta los detalles en pantalla.', 'info');
             } else if (data.init_point) {
                 // Redirigir a checkout oficial de Mercado Pago
                 window.location.href = data.init_point;
             }
         } catch (error) {
             console.error('Error creando preferencia MP:', error);
-            addToast(error.response?.data?.message || 'Error al iniciar pago con Mercado Pago.', 'error');
+            showToast(error.response?.data?.message || 'Error al iniciar pago con Mercado Pago.', 'error');
         } finally {
             setIsProcessingMP(false);
         }
@@ -139,15 +180,37 @@ export const MiSuscripcion = () => {
         );
     }
 
-    const { empresa, plan, datos_bancarios, historial_pagos } = subData || {};
+    if (loadError || !subData) {
+        return (
+            <div className="max-w-xl mx-auto mt-12 bg-white rounded-2xl border border-rose-200 p-8 text-center shadow-xs space-y-4">
+                <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto" />
+                <h2 className="text-lg font-bold text-slate-900">No se pudo cargar la suscripción</h2>
+                <p className="text-sm text-slate-500">
+                    {loadError || 'No hay un espacio empresarial seleccionado o disponible para consultar.'}
+                </p>
+                <button
+                    onClick={fetchSuscripcion}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition"
+                >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Reintentar</span>
+                </button>
+            </div>
+        );
+    }
+
+    const { empresa, plan, datos_bancarios, metodos_pago, historial_pagos = [] } = subData;
+    const banorteActivo = metodos_pago?.banorte_activo !== false;
+    const mpActivo = metodos_pago?.mercadopago_activo !== false;
     const diasRestantes = empresa?.dias_restantes;
+    const tieneDias = typeof diasRestantes === 'number';
     const estado = empresa?.estado_suscripcion || 'activa';
     const montoPagar = calcularMontoPagar();
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto pb-16">
             {/* Banner de Estado de Suscripción */}
-            {diasRestantes !== null && (
+            {tieneDias && (
                 <div>
                     {diasRestantes <= 0 ? (
                         <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-r-xl flex items-start justify-between shadow-xs">
@@ -282,7 +345,7 @@ export const MiSuscripcion = () => {
                                 : 'Sin fecha registrada'}
                         </p>
                         <p className="text-xs text-slate-500 mt-2">
-                            {diasRestantes !== null 
+                            {tieneDias 
                                 ? diasRestantes > 0 
                                     ? `Te restan ${diasRestantes} días de cobertura activa.` 
                                     : `Venció hace ${Math.abs(diasRestantes)} días.`
@@ -292,8 +355,8 @@ export const MiSuscripcion = () => {
 
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-xs text-slate-500 font-medium">Estado de renovación:</span>
-                        <span className={`text-xs font-bold ${diasRestantes <= 5 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                            {diasRestantes > 5 ? 'Al corriente' : diasRestantes > 0 ? 'Por vencer' : 'Requiere pago'}
+                        <span className={`text-xs font-bold ${!tieneDias || diasRestantes > 5 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {!tieneDias ? 'Sin vencimiento' : diasRestantes > 5 ? 'Al corriente' : diasRestantes > 0 ? 'Por vencer' : 'Requiere pago'}
                         </span>
                     </div>
                 </div>
@@ -371,7 +434,7 @@ export const MiSuscripcion = () => {
                     </button>
                 </div>
 
-                {historial_pagos?.length === 0 ? (
+                {!historial_pagos || historial_pagos.length === 0 ? (
                     <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-xl">
                         <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm font-medium">Aún no hay registros de pagos en este espacio.</p>
@@ -392,7 +455,7 @@ export const MiSuscripcion = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {historial_pagos.map((pago) => (
+                                {(historial_pagos || []).map((pago) => (
                                     <tr key={pago.id} className="hover:bg-slate-50/60 transition">
                                         <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
                                             {new Date(pago.createdAt || pago.fecha_pago).toLocaleDateString('es-MX', {
@@ -556,42 +619,52 @@ export const MiSuscripcion = () => {
                                     2. Selecciona la Forma de Pago
                                 </label>
                                 <div className="flex rounded-xl bg-slate-100 p-1 mb-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMetodoSeleccionado('banorte')}
-                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
-                                            metodoSeleccionado === 'banorte'
-                                                ? 'bg-white text-slate-900 shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900'
-                                        }`}
-                                    >
-                                        <Building2 className="w-4 h-4 text-red-600" />
-                                        <span>Transferencia BANORTE / SPEI</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setMetodoSeleccionado('mercadopago')}
-                                        className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
-                                            metodoSeleccionado === 'mercadopago'
-                                                ? 'bg-white text-slate-900 shadow-xs'
-                                                : 'text-slate-600 hover:text-slate-900'
-                                        }`}
-                                    >
-                                        <CreditCard className="w-4 h-4 text-sky-600" />
-                                        <span>Mercado Pago (Tarjetas, OXXO, SPEI)</span>
-                                    </button>
+                                    {banorteActivo && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setMetodoSeleccionado('banorte')}
+                                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                                                metodoSeleccionado === 'banorte'
+                                                    ? 'bg-white text-slate-900 shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            <Building2 className="w-4 h-4 text-red-600" />
+                                            <span>Transferencia {datos_bancarios?.banco || 'BANORTE'} / SPEI</span>
+                                        </button>
+                                    )}
+                                    {mpActivo && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setMetodoSeleccionado('mercadopago')}
+                                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 ${
+                                                metodoSeleccionado === 'mercadopago'
+                                                    ? 'bg-white text-slate-900 shadow-xs'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            <CreditCard className="w-4 h-4 text-sky-600" />
+                                            <span>Mercado Pago (Tarjetas, OXXO, SPEI)</span>
+                                        </button>
+                                    )}
                                 </div>
 
+                                {!banorteActivo && !mpActivo && (
+                                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+                                        Actualmente no hay formas de pago habilitadas. Contacta al administrador del sistema.
+                                    </div>
+                                )}
+
                                 {/* Pestaña BANORTE */}
-                                {metodoSeleccionado === 'banorte' && (
+                                {banorteActivo && metodoSeleccionado === 'banorte' && (
                                     <div className="space-y-4">
                                         <div className="p-4 bg-red-50/50 border border-red-200 rounded-xl space-y-3">
                                             <div className="flex items-center justify-between border-b border-red-100 pb-2">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-black text-red-800 text-sm tracking-wide">BANORTE</span>
+                                                    <span className="font-black text-red-800 text-sm tracking-wide">{datos_bancarios?.banco || 'BANORTE'}</span>
                                                     <span className="text-[10px] bg-red-200 text-red-900 font-bold px-1.5 py-0.5 rounded">SPEI</span>
                                                 </div>
-                                                <span className="text-xs text-red-700 font-medium">Net Consultores</span>
+                                                <span className="text-xs text-red-700 font-medium">{datos_bancarios?.beneficiario || 'Net Consultores'}</span>
                                             </div>
 
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -715,7 +788,7 @@ export const MiSuscripcion = () => {
                                 )}
 
                                 {/* Pestaña MERCADO PAGO */}
-                                {metodoSeleccionado === 'mercadopago' && (
+                                {mpActivo && metodoSeleccionado === 'mercadopago' && (
                                     <div className="space-y-4">
                                         <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
                                             <div className="flex items-center gap-2">
@@ -740,7 +813,7 @@ export const MiSuscripcion = () => {
                                                     Monto a liquidar: <span className="font-bold">${mpSimulationInfo.monto} MXN</span>
                                                 </p>
                                                 <div className="pt-2 text-[11px] text-slate-500">
-                                                    Para activar el cobro real por tarjeta, solo agrega tu <code className="bg-white px-1 py-0.5 rounded border border-slate-300 text-indigo-600">MERCADOPAGO_ACCESS_TOKEN</code> en el archivo <code>.env</code> de tu servidor.
+                                                    El administrador puede activar los cobros ingresando su Access Token desde <strong>Configuración → Mercado Pago y Bancos</strong>.
                                                 </div>
                                             </div>
                                         ) : (
@@ -782,3 +855,4 @@ export const MiSuscripcion = () => {
         </div>
     );
 };
+

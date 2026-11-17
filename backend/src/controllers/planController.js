@@ -1,5 +1,47 @@
-import { PlanGlobal, Empresa, PagoSuscripcion, Usuario } from '../models/index.js';
+import { PlanGlobal, Empresa, PagoSuscripcion, Usuario, ConfiguracionPlataforma } from '../models/index.js';
 import axios from 'axios';
+
+const maskToken = (token) => {
+    if (!token || typeof token !== 'string') return '';
+    const trimmed = token.trim();
+    if (trimmed.length <= 12) return '••••••••';
+    return `${trimmed.slice(0, 8)}••••••••${trimmed.slice(-4)}`;
+};
+
+/**
+ * Obtiene la configuración activa de recepción de pagos (Mercado Pago y Banorte)
+ * priorizando la tabla configuracion_plataforma en BD con fallback a variables de entorno.
+ */
+const obtenerConfigPagos = async () => {
+    let row = await ConfiguracionPlataforma.findOne({ order: [['id', 'ASC']] }).catch(() => null);
+    if (!row) {
+        row = await ConfiguracionPlataforma.create({
+            mp_activo: true,
+            mp_modo: 'produccion',
+            mp_access_token: process.env.MERCADOPAGO_ACCESS_TOKEN || null,
+            mp_public_key: process.env.MERCADOPAGO_PUBLIC_KEY || null,
+            banorte_activo: true,
+            banco_nombre: process.env.BANCO_NOMBRE || 'BANORTE',
+            banco_beneficiario: process.env.BANCO_BENEFICIARIO || 'Net Consultores',
+            banco_clabe: process.env.BANCO_CLABE || '072 180 00000000000 0',
+            banco_cuenta: process.env.BANCO_CUENTA || '0458923412'
+        }).catch(() => null);
+    }
+
+    return {
+        row,
+        mp_activo: row ? Boolean(row.mp_activo) : true,
+        mp_modo: row?.mp_modo || 'produccion',
+        mp_access_token: row?.mp_access_token || process.env.MERCADOPAGO_ACCESS_TOKEN || '',
+        mp_public_key: row?.mp_public_key || process.env.MERCADOPAGO_PUBLIC_KEY || '',
+        mp_webhook_secret: row?.mp_webhook_secret || '',
+        banorte_activo: row ? Boolean(row.banorte_activo) : true,
+        banco_nombre: row?.banco_nombre || process.env.BANCO_NOMBRE || 'BANORTE',
+        banco_beneficiario: row?.banco_beneficiario || process.env.BANCO_BENEFICIARIO || 'Net Consultores',
+        banco_clabe: row?.banco_clabe || process.env.BANCO_CLABE || '072 180 00000000000 0',
+        banco_cuenta: row?.banco_cuenta || process.env.BANCO_CUENTA || '0458923412'
+    };
+};
 
 /**
  * Obtiene todos los planes globales disponibles
@@ -231,13 +273,44 @@ export const updateSuscripcionEmpresa = async (req, res) => {
 };
 
 /**
+ * Resuelve el ID de empresa objetivo, permitiendo al Administrador consultar o operar sobre
+ * la empresa seleccionada en el selector superior o la primera empresa registrada.
+ */
+const resolveEmpresaId = async (req) => {
+    let empresaId = req.usuario?.empresa_id || null;
+
+    if (req.usuario?.rol === 'Administrador') {
+        const paramId = req.query?.empresa_id || req.query?.empresaId || req.body?.empresa_id || req.body?.empresaId;
+        if (paramId) {
+            return Number(paramId);
+        }
+    }
+
+    if (!empresaId && req.usuario?.id) {
+        const userDb = await Usuario.findByPk(req.usuario.id);
+        if (userDb?.empresa_id) {
+            empresaId = userDb.empresa_id;
+        }
+    }
+
+    if (!empresaId && req.usuario?.rol === 'Administrador') {
+        const firstEmpresa = await Empresa.findOne({ order: [['id', 'ASC']] });
+        if (firstEmpresa) {
+            empresaId = firstEmpresa.id;
+        }
+    }
+
+    return empresaId;
+};
+
+/**
  * Consulta la suscripción propia de la empresa del usuario en sesión
  */
 export const getMiSuscripcion = async (req, res) => {
     try {
-        const empresaId = req.usuario.empresa_id;
+        const empresaId = await resolveEmpresaId(req);
         if (!empresaId) {
-            return res.status(400).json({ message: 'Usuario sin empresa asignada.' });
+            return res.status(400).json({ message: 'No se encontró un espacio empresarial asociado a este usuario.' });
         }
 
         const empresa = await Empresa.findByPk(empresaId, {
@@ -298,12 +371,13 @@ export const getMiSuscripcion = async (req, res) => {
             limit: 10
         });
 
-        // Datos de cuenta Banorte para transferencias
+        // Datos de cuenta Banorte y métodos activos desde la configuración global de la plataforma
+        const configPagos = await obtenerConfigPagos();
         const datosBancarios = {
-            banco: process.env.BANCO_NOMBRE || 'BANORTE',
-            beneficiario: process.env.BANCO_BENEFICIARIO || 'Net Consultores',
-            clabe: process.env.BANCO_CLABE || '072 180 00000000000 0',
-            cuenta: process.env.BANCO_CUENTA || '0458923412',
+            banco: configPagos.banco_nombre,
+            beneficiario: configPagos.banco_beneficiario,
+            clabe: configPagos.banco_clabe,
+            cuenta: configPagos.banco_cuenta,
             referencia_sugerida: `ESP-${String(empresa.id).padStart(4, '0')}`
         };
 
@@ -326,6 +400,12 @@ export const getMiSuscripcion = async (req, res) => {
             },
             plan: planGlobal,
             datos_bancarios: datosBancarios,
+            metodos_pago: {
+                mercadopago_activo: configPagos.mp_activo,
+                mercadopago_configurado: Boolean(configPagos.mp_access_token),
+                mercadopago_modo: configPagos.mp_modo,
+                banorte_activo: configPagos.banorte_activo
+            },
             historial_pagos: historialPagos
         });
     } catch (error) {
@@ -339,9 +419,9 @@ export const getMiSuscripcion = async (req, res) => {
  */
 export const reportarPagoTransferencia = async (req, res) => {
     try {
-        const empresaId = req.usuario.empresa_id;
+        const empresaId = await resolveEmpresaId(req);
         if (!empresaId) {
-            return res.status(400).json({ message: 'Usuario sin empresa asignada.' });
+            return res.status(400).json({ message: 'No se encontró un espacio empresarial asociado a este usuario.' });
         }
 
         const file = req.file;
@@ -386,7 +466,10 @@ export const reportarPagoTransferencia = async (req, res) => {
  */
 export const crearPreferenciaMercadoPago = async (req, res) => {
     try {
-        const empresaId = req.usuario.empresa_id;
+        const empresaId = await resolveEmpresaId(req);
+        if (!empresaId) {
+            return res.status(400).json({ message: 'No se encontró un espacio empresarial asociado a este usuario.' });
+        }
         const empresa = await Empresa.findByPk(empresaId, {
             include: [{ model: PlanGlobal, as: 'planGlobal' }]
         });
@@ -412,10 +495,28 @@ export const crearPreferenciaMercadoPago = async (req, res) => {
         }
 
         const diasExtendidos = periodo === 'anual' ? 365 : 30;
-        const mpAccessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+        const configPagos = await obtenerConfigPagos();
 
-        // Registrar registro de intención de pago
+        if (!configPagos.mp_activo) {
+            return res.status(400).json({ message: 'Los pagos en línea con Mercado Pago se encuentran deshabilitados temporalmente por el administrador.' });
+        }
+
+        const mpAccessToken = configPagos.mp_access_token;
         const externalReference = `SUSC-${empresa.id}-${Date.now()}`;
+
+        if (!mpAccessToken) {
+            // Modo simulación informativa si aún no configuran el Access Token desde el módulo de Configuración
+            return res.json({
+                modo_simulacion: true,
+                message: 'Falta configurar el Access Token de Mercado Pago. Ve a Configuración > Mercado Pago y Bancos para activarlo.',
+                monto: monto,
+                periodo: periodo,
+                referencia: externalReference,
+                init_point: null
+            });
+        }
+
+        // Registrar intención de pago
         const nuevoPago = await PagoSuscripcion.create({
             empresa_id: empresa.id,
             usuario_id: req.usuario.id,
@@ -428,22 +529,10 @@ export const crearPreferenciaMercadoPago = async (req, res) => {
             dias_extendidos: diasExtendidos
         });
 
-        if (!mpAccessToken) {
-            // Modo simulación informativa / Sandbox si aún no colocan sus credenciales
-            return res.json({
-                modo_simulacion: true,
-                message: 'Mercado Pago listo. Configura MERCADOPAGO_ACCESS_TOKEN en tu .env para pasarelas en producción.',
-                monto: monto,
-                periodo: periodo,
-                referencia: externalReference,
-                pago_id: nuevoPago.id,
-                init_point: null
-            });
-        }
-
         // Crear la preferencia real en la API de Mercado Pago
         const clientOrigin = req.headers.origin || 'http://localhost:3000';
-        const apiHost = req.protocol + '://' + req.get('host');
+        const proto = req.headers['x-forwarded-proto'] || req.protocol;
+        const apiHost = `${proto}://${req.get('host')}`;
 
         const mpBody = {
             items: [
@@ -476,9 +565,14 @@ export const crearPreferenciaMercadoPago = async (req, res) => {
             }
         });
 
+        const checkoutUrl = configPagos.mp_modo === 'sandbox'
+            ? (mpResponse.data.sandbox_init_point || mpResponse.data.init_point)
+            : mpResponse.data.init_point;
+
         res.json({
             modo_simulacion: false,
-            init_point: mpResponse.data.init_point,
+            modo: configPagos.mp_modo,
+            init_point: checkoutUrl,
             sandbox_init_point: mpResponse.data.sandbox_init_point,
             preference_id: mpResponse.data.id,
             monto: monto,
@@ -486,7 +580,7 @@ export const crearPreferenciaMercadoPago = async (req, res) => {
         });
     } catch (error) {
         console.error('Error al crear preferencia Mercado Pago:', error?.response?.data || error);
-        res.status(500).json({ message: 'Error al inicializar pago con Mercado Pago.', error: error.message });
+        res.status(500).json({ message: 'Error al inicializar pago con Mercado Pago.', error: error?.response?.data?.message || error.message });
     }
 };
 
@@ -495,12 +589,16 @@ export const crearPreferenciaMercadoPago = async (req, res) => {
  */
 export const webhookMercadoPago = async (req, res) => {
     try {
-        const { type, data } = req.body;
-        console.log('[Webhook Mercado Pago] Recibido:', type, data);
+        const type = req.body?.type || req.query?.type || req.query?.topic;
+        const paymentId = req.body?.data?.id || req.query?.['data.id'] || req.query?.id;
+        console.log('[Webhook Mercado Pago] Recibido:', type, paymentId);
 
-        if (type === 'payment' && data?.id && process.env.MERCADOPAGO_ACCESS_TOKEN) {
-            const paymentResponse = await axios.get(`https://api.mercadopago.com/v1/payments/${data.id}`, {
-                headers: { 'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` }
+        const configPagos = await obtenerConfigPagos();
+        const mpAccessToken = configPagos.mp_access_token;
+
+        if (type === 'payment' && paymentId && mpAccessToken) {
+            const paymentResponse = await axios.get(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+                headers: { 'Authorization': `Bearer ${mpAccessToken}` }
             });
 
             const payment = paymentResponse.data;
@@ -546,9 +644,9 @@ export const getComprobantesPendientes = async (req, res) => {
         }
 
         const pendientes = await PagoSuscripcion.findAll({
-            where: { estado: 'pendiente' },
+            where: { estado: 'pendiente', metodo_pago: 'transferencia_banorte' },
             include: [
-                { model: Empresa, attributes: ['id', 'nombre', 'rfc', 'telefono', 'email'] },
+                { model: Empresa, attributes: ['id', 'nombre'] },
                 { model: Usuario, attributes: ['id', 'nombre', 'email'] },
                 { model: PlanGlobal, as: 'planGlobal', attributes: ['codigo', 'nombre'] }
             ],
@@ -647,5 +745,168 @@ export const rechazarPagoSuscripcion = async (req, res) => {
         res.status(500).json({ message: 'Error al rechazar el pago.', error: error.message });
     }
 };
+
+/**
+ * Obtiene la configuración global de pasarelas de pago (Mercado Pago y Banorte) (Solo Administrador)
+ */
+export const getConfiguracionPagos = async (req, res) => {
+    try {
+        if (req.usuario.rol !== 'Administrador') {
+            return res.status(403).json({ message: 'Acceso denegado. Solo administradores.' });
+        }
+
+        const config = await obtenerConfigPagos();
+
+        res.json({
+            mp_activo: config.mp_activo,
+            mp_modo: config.mp_modo,
+            mp_token_configurado: Boolean(config.mp_access_token),
+            mp_token_preview: maskToken(config.mp_access_token),
+            mp_public_key: config.mp_public_key || '',
+            mp_webhook_secret: config.mp_webhook_secret || '',
+            banorte_activo: config.banorte_activo,
+            banco_nombre: config.banco_nombre,
+            banco_beneficiario: config.banco_beneficiario,
+            banco_clabe: config.banco_clabe,
+            banco_cuenta: config.banco_cuenta
+        });
+    } catch (error) {
+        console.error('Error al obtener configuración de pagos:', error);
+        res.status(500).json({ message: 'Error al obtener la configuración de pasarelas.', error: error.message });
+    }
+};
+
+/**
+ * Actualiza la configuración global de Mercado Pago y cuenta bancaria Banorte (Solo Administrador)
+ */
+export const updateConfiguracionPagos = async (req, res) => {
+    try {
+        if (req.usuario.rol !== 'Administrador') {
+            return res.status(403).json({ message: 'Acceso denegado. Solo administradores.' });
+        }
+
+        const {
+            mp_activo,
+            mp_modo,
+            mp_access_token,
+            limpiar_mp_token,
+            mp_public_key,
+            mp_webhook_secret,
+            banorte_activo,
+            banco_nombre,
+            banco_beneficiario,
+            banco_clabe,
+            banco_cuenta
+        } = req.body;
+
+        const config = await obtenerConfigPagos();
+        let row = config.row;
+
+        if (!row) {
+            row = await ConfiguracionPlataforma.create({});
+        }
+
+        const updateData = {};
+        if (mp_activo !== undefined) updateData.mp_activo = Boolean(mp_activo);
+        if (mp_modo !== undefined) updateData.mp_modo = mp_modo === 'sandbox' ? 'sandbox' : 'produccion';
+        if (mp_public_key !== undefined) updateData.mp_public_key = mp_public_key.trim();
+        if (mp_webhook_secret !== undefined) updateData.mp_webhook_secret = mp_webhook_secret.trim();
+
+        if (limpiar_mp_token === true) {
+            updateData.mp_access_token = null;
+            delete process.env.MERCADOPAGO_ACCESS_TOKEN;
+        } else if (mp_access_token && typeof mp_access_token === 'string' && mp_access_token.trim() !== '') {
+            updateData.mp_access_token = mp_access_token.trim();
+            process.env.MERCADOPAGO_ACCESS_TOKEN = mp_access_token.trim();
+        }
+
+        if (banorte_activo !== undefined) updateData.banorte_activo = Boolean(banorte_activo);
+        if (banco_nombre !== undefined) updateData.banco_nombre = banco_nombre.trim() || 'BANORTE';
+        if (banco_beneficiario !== undefined) updateData.banco_beneficiario = banco_beneficiario.trim();
+        if (banco_clabe !== undefined) updateData.banco_clabe = banco_clabe.trim();
+        if (banco_cuenta !== undefined) updateData.banco_cuenta = banco_cuenta.trim();
+
+        await row.update(updateData);
+
+        const refreshed = await obtenerConfigPagos();
+        res.json({
+            message: 'Configuración de recepción de pagos guardada exitosamente.',
+            config: {
+                mp_activo: refreshed.mp_activo,
+                mp_modo: refreshed.mp_modo,
+                mp_token_configurado: Boolean(refreshed.mp_access_token),
+                mp_token_preview: maskToken(refreshed.mp_access_token),
+                mp_public_key: refreshed.mp_public_key || '',
+                mp_webhook_secret: refreshed.mp_webhook_secret || '',
+                banorte_activo: refreshed.banorte_activo,
+                banco_nombre: refreshed.banco_nombre,
+                banco_beneficiario: refreshed.banco_beneficiario,
+                banco_clabe: refreshed.banco_clabe,
+                banco_cuenta: refreshed.banco_cuenta
+            }
+        });
+    } catch (error) {
+        console.error('Error al actualizar configuración de pagos:', error);
+        res.status(500).json({ message: 'Error al guardar la configuración de pagos.', error: error.message });
+    }
+};
+
+/**
+ * Prueba la validez del Access Token contra la API oficial de Mercado Pago (Solo Administrador)
+ */
+export const probarMercadoPago = async (req, res) => {
+    try {
+        if (req.usuario.rol !== 'Administrador') {
+            return res.status(403).json({ message: 'Acceso denegado. Solo administradores.' });
+        }
+
+        const { mp_access_token } = req.body;
+        const config = await obtenerConfigPagos();
+        const tokenToTest = (mp_access_token && mp_access_token.trim()) ? mp_access_token.trim() : config.mp_access_token;
+
+        if (!tokenToTest) {
+            return res.status(400).json({
+                ok: false,
+                message: 'No hay ningún Access Token ingresado ni guardado para probar.'
+            });
+        }
+
+        const mpResponse = await axios.get('https://api.mercadopago.com/users/me', {
+            headers: {
+                'Authorization': `Bearer ${tokenToTest}`
+            },
+            timeout: 10000
+        });
+
+        const account = mpResponse.data;
+        const esTokenPrueba = tokenToTest.startsWith('TEST-');
+
+        res.json({
+            ok: true,
+            message: `Conexión exitosa con Mercado Pago (${esTokenPrueba ? 'Entorno Sandbox / Pruebas' : 'Entorno Producción'}).`,
+            es_sandbox: esTokenPrueba,
+            cuenta: {
+                id: account.id,
+                nickname: account.nickname,
+                email: account.email,
+                nombre: `${account.first_name || ''} ${account.last_name || ''}`.trim() || account.nickname,
+                site_id: account.site_id,
+                country_id: account.country_id
+            }
+        });
+    } catch (error) {
+        const status = error?.response?.status;
+        const detail = error?.response?.data?.message || error.message;
+        console.warn('[Mercado Pago Test] Falló validación:', status, detail);
+        res.status(400).json({
+            ok: false,
+            message: status === 401
+                ? 'Access Token inválido o expirado (Error 401 de Mercado Pago). Verifica haber copiado el "Access Token" y no la "Public Key".'
+                : `No se pudo validar el token con Mercado Pago: ${detail}`,
+            detalle: detail
+        });
+    }
+};
+
 
 

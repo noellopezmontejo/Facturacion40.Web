@@ -39,6 +39,7 @@ import { DetalleFacturacionRecurrente } from './DetalleFacturacionRecurrente.js'
 import { HistorialFacturacionRecurrente } from './HistorialFacturacionRecurrente.js';
 import { PlanGlobal } from './PlanGlobal.js';
 import { PagoSuscripcion } from './PagoSuscripcion.js';
+import { ConfiguracionPlataforma } from './ConfiguracionPlataforma.js';
 
 
 // Junction models
@@ -283,6 +284,7 @@ export {
     HistorialFacturacionRecurrente,
     PlanGlobal,
     PagoSuscripcion,
+    ConfiguracionPlataforma,
     sequelize
 };
 

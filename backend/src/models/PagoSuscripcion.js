@@ -20,3 +20,4 @@ export const PagoSuscripcion = sequelize.define('PagoSuscripcion', {
     tableName: 'pagos_suscripciones',
     timestamps: true
 });
+

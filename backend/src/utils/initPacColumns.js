@@ -6,6 +6,7 @@ import { DetalleFacturacionRecurrente } from '../models/DetalleFacturacionRecurr
 import { HistorialFacturacionRecurrente } from '../models/HistorialFacturacionRecurrente.js';
 import { PlanGlobal } from '../models/PlanGlobal.js';
 import { PagoSuscripcion } from '../models/PagoSuscripcion.js';
+import { ConfiguracionPlataforma } from '../models/ConfiguracionPlataforma.js';
 
 export const ensurePacColumns = async () => {
     try {
@@ -151,6 +152,23 @@ export const ensurePacColumns = async () => {
         await HistorialFacturacionRecurrente.sync().catch(e => console.warn('HistorialFacturacionRecurrente sync notice:', e.message));
         await PlanGlobal.sync().catch(e => console.warn('PlanGlobal sync notice:', e.message));
         await PagoSuscripcion.sync().catch(e => console.warn('PagoSuscripcion sync notice:', e.message));
+        await ConfiguracionPlataforma.sync().catch(e => console.warn('ConfiguracionPlataforma sync notice:', e.message));
+
+        // Sembrar configuración de pagos inicial si no existe
+        const configCount = await ConfiguracionPlataforma.count().catch(() => 0);
+        if (configCount === 0) {
+            await ConfiguracionPlataforma.create({
+                mp_activo: true,
+                mp_modo: 'produccion',
+                mp_access_token: process.env.MERCADOPAGO_ACCESS_TOKEN || null,
+                mp_public_key: process.env.MERCADOPAGO_PUBLIC_KEY || null,
+                banorte_activo: true,
+                banco_nombre: process.env.BANCO_NOMBRE || 'BANORTE',
+                banco_beneficiario: process.env.BANCO_BENEFICIARIO || 'Net Consultores',
+                banco_clabe: process.env.BANCO_CLABE || '072 180 00000000000 0',
+                banco_cuenta: process.env.BANCO_CUENTA || '0458923412'
+            }).catch(e => console.warn('ConfiguracionPlataforma seed notice:', e.message));
+        }
 
         // 7. Sembrar planes globales si no existen
         const planesCount = await PlanGlobal.count();

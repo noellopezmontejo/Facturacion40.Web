@@ -5,7 +5,8 @@ import {
     CheckCircle2, Plus, List, ArrowRight, Sparkles, Layers,
     Zap, Activity, Search, RefreshCw, FileText, Check, ShieldCheck, 
     History, ArrowUpRight, Filter, AlertTriangle, ExternalLink, Calendar, Hash, Key, Mail, Send,
-    CreditCard, Tag, DollarSign, Edit3, Clock, CheckCircle, Percent, X, XCircle
+    CreditCard, Tag, DollarSign, Edit3, Clock, CheckCircle, Percent, X, XCircle,
+    Eye, EyeOff, Copy, Globe
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -25,7 +26,13 @@ export const Configuracion = () => {
 
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
-    const initialTab = (tabParam === 'pac' && isAdmin) ? 'pac' : (tabParam === 'planes' && isAdmin) ? 'planes' : 'espacios';
+    const initialTab = (tabParam === 'pac' && isAdmin)
+        ? 'pac'
+        : (tabParam === 'planes' && isAdmin)
+            ? 'planes'
+            : (tabParam === 'pagos' && isAdmin)
+                ? 'pagos'
+                : 'espacios';
     const [activeTab, setActiveTab] = useState(initialTab);
     
     const { showToast } = useToast();
@@ -63,6 +70,27 @@ export const Configuracion = () => {
     const [comprobantesPendientes, setComprobantesPendientes] = useState([]);
     const [loadingComprobantes, setLoadingComprobantes] = useState(false);
     const [procesandoPagoId, setProcesandoPagoId] = useState(null);
+
+    // Estados para Configuración de Pasarelas de Pago (Mercado Pago y Banorte - Admin)
+    const [configPagos, setConfigPagos] = useState({
+        mp_activo: true,
+        mp_modo: 'produccion',
+        mp_token_configurado: false,
+        mp_token_preview: '',
+        mp_access_token: '',
+        mp_public_key: '',
+        mp_webhook_secret: '',
+        banorte_activo: true,
+        banco_nombre: 'BANORTE',
+        banco_beneficiario: 'Net Consultores',
+        banco_clabe: '072 180 00000000000 0',
+        banco_cuenta: '0458923412'
+    });
+    const [loadingConfigPagos, setLoadingConfigPagos] = useState(false);
+    const [savingConfigPagos, setSavingConfigPagos] = useState(false);
+    const [showMpToken, setShowMpToken] = useState(false);
+    const [probandoMp, setProbandoMp] = useState(false);
+    const [mpTestResult, setMpTestResult] = useState(null);
 
     // Modal para editar suscripción a discreción
     const [showSuscripcionModal, setShowSuscripcionModal] = useState(false);
@@ -118,17 +146,17 @@ export const Configuracion = () => {
     });
     const [guardandoCredenciales, setGuardandoCredenciales] = useState(false);
 
-    // Forzar fallback a 'espacios' si el usuario no es Administrador y tiene seleccionada la pestaña 'pac' o 'planes'
+    // Forzar fallback a 'espacios' si el usuario no es Administrador y tiene seleccionada una pestaña de admin
     useEffect(() => {
-        if (!isAdmin && (activeTab === 'pac' || activeTab === 'planes')) {
+        if (!isAdmin && (activeTab === 'pac' || activeTab === 'planes' || activeTab === 'pagos')) {
             setActiveTab('espacios');
             setSearchParams({});
         }
     }, [isAdmin, activeTab]);
 
-    // Actualizar URL cuando cambia la pestaña (solo permite 'pac' o 'planes' a administradores)
+    // Actualizar URL cuando cambia la pestaña (solo permite 'pac', 'planes' o 'pagos' a administradores)
     const handleTabChange = (tabId) => {
-        if ((tabId === 'pac' || tabId === 'planes') && !isAdmin) return;
+        if ((tabId === 'pac' || tabId === 'planes' || tabId === 'pagos') && !isAdmin) return;
         setActiveTab(tabId);
         setSearchParams(tabId !== 'espacios' ? { tab: tabId } : {});
     };
@@ -267,6 +295,97 @@ export const Configuracion = () => {
         }
     };
 
+    // Consultas y gestión de Pasarelas de Pago (Mercado Pago y Banorte - Admin)
+    const fetchConfiguracionPagos = async () => {
+        setLoadingConfigPagos(true);
+        try {
+            const { data } = await api.get('/planes/configuracion-pagos');
+            setConfigPagos(prev => ({
+                ...prev,
+                ...data,
+                mp_access_token: ''
+            }));
+        } catch (error) {
+            console.error("Error al cargar configuración de pagos:", error);
+        } finally {
+            setLoadingConfigPagos(false);
+        }
+    };
+
+    const handleSaveConfiguracionPagos = async (e) => {
+        if (e) e.preventDefault();
+        setSavingConfigPagos(true);
+        try {
+            const payload = {
+                mp_activo: configPagos.mp_activo,
+                mp_modo: configPagos.mp_modo,
+                mp_public_key: configPagos.mp_public_key,
+                mp_webhook_secret: configPagos.mp_webhook_secret,
+                banorte_activo: configPagos.banorte_activo,
+                banco_nombre: configPagos.banco_nombre,
+                banco_beneficiario: configPagos.banco_beneficiario,
+                banco_clabe: configPagos.banco_clabe,
+                banco_cuenta: configPagos.banco_cuenta
+            };
+
+            if (configPagos.mp_access_token && configPagos.mp_access_token.trim() !== '') {
+                payload.mp_access_token = configPagos.mp_access_token.trim();
+            }
+
+            const { data } = await api.put('/planes/configuracion-pagos', payload);
+            setConfigPagos(prev => ({
+                ...prev,
+                ...data.config,
+                mp_access_token: ''
+            }));
+            showToast(data.message || 'Configuración de pasarelas guardada exitosamente.');
+        } catch (error) {
+            console.error("Error guardando configuración de pagos:", error);
+            showToast(error.response?.data?.message || "Error al guardar la configuración de pagos.", "error");
+        } finally {
+            setSavingConfigPagos(false);
+        }
+    };
+
+    const handleLimpiarMpToken = async () => {
+        if (!window.confirm('¿Deseas eliminar el Access Token guardado de Mercado Pago? Los cobros con Mercado Pago pasarán a modo informativo hasta ingresar uno nuevo.')) {
+            return;
+        }
+        setSavingConfigPagos(true);
+        try {
+            const { data } = await api.put('/planes/configuracion-pagos', { limpiar_mp_token: true });
+            setConfigPagos(prev => ({
+                ...prev,
+                ...data.config,
+                mp_access_token: ''
+            }));
+            setMpTestResult(null);
+            showToast('Access Token de Mercado Pago eliminado.');
+        } catch (error) {
+            showToast(error.response?.data?.message || 'Error al eliminar token.', 'error');
+        } finally {
+            setSavingConfigPagos(false);
+        }
+    };
+
+    const handleProbarMercadoPago = async () => {
+        setProbandoMp(true);
+        setMpTestResult(null);
+        try {
+            const { data } = await api.post('/planes/probar-mercadopago', {
+                mp_access_token: configPagos.mp_access_token || ''
+            });
+            setMpTestResult(data);
+            showToast(data.message || 'Conexión con Mercado Pago exitosa.');
+        } catch (error) {
+            const errData = error.response?.data || { ok: false, message: error.message };
+            setMpTestResult(errData);
+            showToast(errData.message || 'Error probando Mercado Pago.', 'error');
+        } finally {
+            setProbandoMp(false);
+        }
+    };
+
     const fetchEmpresa = async () => {
         setLoading(true);
         try {
@@ -353,6 +472,7 @@ export const Configuracion = () => {
             fetchAllEmpresas();
             fetchPlanes();
             fetchComprobantesPendientes();
+            fetchConfiguracionPagos();
             fetchPacResumen();
             fetchHistorial();
         }
@@ -705,6 +825,25 @@ export const Configuracion = () => {
                                     {comprobantesPendientes.length} pendientes
                                 </span>
                             )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('pagos')}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all ${
+                                activeTab === 'pagos'
+                                    ? 'bg-white text-indigo-700 shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                        >
+                            <Globe className="w-4 h-4 text-sky-600" />
+                            <span>Mercado Pago y Bancos</span>
+                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${
+                                configPagos.mp_token_configurado 
+                                    ? 'bg-sky-100 text-sky-800' 
+                                    : 'bg-amber-100 text-amber-800'
+                            }`}>
+                                {configPagos.mp_token_configurado ? 'Conectado' : 'Configurar'}
+                            </span>
                         </button>
                         <button
                             type="button"
@@ -2148,6 +2287,369 @@ export const Configuracion = () => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* PESTAÑA 4: CONFIGURACIÓN DE MERCADO PAGO Y BANCOS (EXCLUSIVO ADMINISTRADOR) */}
+            {isAdmin && activeTab === 'pagos' && (
+                <form onSubmit={handleSaveConfiguracionPagos} className="space-y-6 animate-in fade-in duration-200">
+                    {/* Encabezado */}
+                    <div className="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white rounded-2xl p-6 shadow-md border border-sky-800/50 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-sky-400 text-slate-950 flex items-center gap-1 shadow-xs">
+                                        <CreditCard className="w-3 h-3" /> Pasarelas de Recepción de Pagos
+                                    </span>
+                                    {configPagos.mp_token_configurado ? (
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                            Mercado Pago Conectado ({configPagos.mp_modo === 'sandbox' ? 'Sandbox' : 'Producción'})
+                                        </span>
+                                    ) : (
+                                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                                            Mercado Pago sin Access Token
+                                        </span>
+                                    )}
+                                </div>
+                                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                                    Configuración de Mercado Pago y Cuenta Bancaria Banorte
+                                </h2>
+                                <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+                                    Administra directamente desde aquí tus credenciales de Mercado Pago y los datos bancarios donde tus clientes depositan sus suscripciones mensuales y anuales, sin necesidad de modificar archivos en el servidor.
+                                </p>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={savingConfigPagos || loadingConfigPagos}
+                                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-lg transition shrink-0"
+                            >
+                                {savingConfigPagos ? (
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                <span>{savingConfigPagos ? 'Guardando...' : 'Guardar Configuración'}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* TARJETA 1: MERCADO PAGO */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5 flex flex-col justify-between">
+                            <div className="space-y-5">
+                                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <CreditCard className="w-5 h-5 text-sky-600" />
+                                            Mercado Pago (Pago en Línea)
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Cobros automáticos con Tarjetas, SPEI inmediato y OXXO Pay.
+                                        </p>
+                                    </div>
+                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={configPagos.mp_activo}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, mp_activo: e.target.checked })}
+                                            className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
+                                        />
+                                        <span className="text-xs font-bold text-slate-700">
+                                            {configPagos.mp_activo ? 'Habilitado' : 'Deshabilitado'}
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {/* Entorno */}
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-2">
+                                        Entorno de Operación
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfigPagos({ ...configPagos, mp_modo: 'produccion' })}
+                                            className={`p-3 rounded-xl border-2 text-left transition ${
+                                                configPagos.mp_modo === 'produccion'
+                                                    ? 'border-sky-600 bg-sky-50/50 text-slate-900'
+                                                    : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                            }`}
+                                        >
+                                            <span className="text-xs font-black block">Producción (Real)</span>
+                                            <span className="text-[11px] text-slate-500">Token inicia con <code className="font-mono">APP_USR-</code></span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfigPagos({ ...configPagos, mp_modo: 'sandbox' })}
+                                            className={`p-3 rounded-xl border-2 text-left transition ${
+                                                configPagos.mp_modo === 'sandbox'
+                                                    ? 'border-amber-500 bg-amber-50/50 text-slate-900'
+                                                    : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                            }`}
+                                        >
+                                            <span className="text-xs font-black block">Pruebas (Sandbox)</span>
+                                            <span className="text-[11px] text-slate-500">Token de usuario de prueba</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Access Token */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs font-bold text-slate-700">
+                                            Access Token (Credencial Privada)
+                                        </label>
+                                        {configPagos.mp_token_configurado && (
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                                    Actual: {configPagos.mp_token_preview}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleLimpiarMpToken}
+                                                    className="text-[11px] text-rose-600 hover:text-rose-800 font-bold hover:underline"
+                                                >
+                                                    Quitar
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type={showMpToken ? 'text' : 'password'}
+                                            value={configPagos.mp_access_token}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, mp_access_token: e.target.value })}
+                                            placeholder={
+                                                configPagos.mp_token_configurado
+                                                    ? 'Deja en blanco para conservar el Access Token guardado, o pega uno nuevo...'
+                                                    : 'Pega aquí tu Access Token (ej: APP_USR-123456789...)'
+                                            }
+                                            className="w-full pl-3.5 pr-10 py-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:outline-sky-500"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMpToken(!showMpToken)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            title={showMpToken ? 'Ocultar' : 'Mostrar'}
+                                        >
+                                            {showMpToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 mt-1">
+                                        Encuéntralo en <a href="https://www.mercadopago.com.mx/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline font-semibold">Mercado Pago Developers</a> → Tus integraciones → Credenciales.
+                                    </p>
+                                </div>
+
+                                {/* Public Key y Webhook Secret */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">
+                                            Public Key (Opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={configPagos.mp_public_key}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, mp_public_key: e.target.value })}
+                                            placeholder="APP_USR-..."
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:outline-sky-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">
+                                            Clave Secreta Webhook (Opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={configPagos.mp_webhook_secret}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, mp_webhook_secret: e.target.value })}
+                                            placeholder="Firma secreta MP"
+                                            className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:outline-sky-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* URL de Webhook */}
+                                <div className="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-sky-900">URL de Webhook (Activación Automática)</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const url = `${window.location.origin}/api/planes/webhook-mp`;
+                                                navigator.clipboard.writeText(url);
+                                                showToast(`URL copiada: ${url}`);
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 hover:text-sky-900 bg-white px-2 py-1 rounded border border-sky-200 shadow-2xs"
+                                        >
+                                            <Copy className="w-3 h-3" /> Copiar URL
+                                        </button>
+                                    </div>
+                                    <code className="block text-[11px] font-mono text-sky-800 bg-white px-2.5 py-1.5 rounded-lg border border-sky-100 break-all">
+                                        {window.location.origin}/api/planes/webhook-mp
+                                    </code>
+                                    <p className="text-[11px] text-sky-800/80 leading-relaxed">
+                                        Pega esta URL en el panel de tu aplicación de Mercado Pago (sección <strong>Webhooks</strong>, evento <strong>Pagos / payment</strong>) para que las suscripciones se renueven automáticamente al aprobarse un pago.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Botón Probar Conexión Mercado Pago */}
+                            <div className="pt-4 border-t border-slate-100 space-y-3">
+                                <button
+                                    type="button"
+                                    onClick={handleProbarMercadoPago}
+                                    disabled={probandoMp}
+                                    className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2"
+                                >
+                                    {probandoMp ? (
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Activity className="w-4 h-4 text-sky-400" />
+                                    )}
+                                    <span>{probandoMp ? 'Verificando Token con Mercado Pago...' : 'Probar Conexión con Mercado Pago'}</span>
+                                </button>
+
+                                {mpTestResult && (
+                                    <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+                                        mpTestResult.ok
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                            : 'bg-rose-50 border-rose-200 text-rose-900'
+                                    }`}>
+                                        <div className="font-bold flex items-center gap-1.5">
+                                            {mpTestResult.ok ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                                            )}
+                                            <span>{mpTestResult.message}</span>
+                                        </div>
+                                        {mpTestResult.cuenta && (
+                                            <div className="text-[11px] text-emerald-800 pl-5.5 space-y-0.5 pt-1">
+                                                <p><strong>Cuenta:</strong> {mpTestResult.cuenta.nombre} ({mpTestResult.cuenta.nickname})</p>
+                                                <p><strong>Email:</strong> {mpTestResult.cuenta.email}</p>
+                                                <p><strong>ID / País:</strong> #{mpTestResult.cuenta.id} • {mpTestResult.cuenta.country_id} ({mpTestResult.cuenta.site_id})</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* TARJETA 2: BANORTE / TRANSFERENCIA BANCARIA */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5 flex flex-col justify-between">
+                            <div className="space-y-4">
+                                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                            <Building2 className="w-5 h-5 text-red-600" />
+                                            Transferencia Bancaria Directa (BANORTE)
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Datos bancarios visibles para los clientes al elegir transferencia SPEI.
+                                        </p>
+                                    </div>
+                                    <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={configPagos.banorte_activo}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, banorte_activo: e.target.checked })}
+                                            className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
+                                        />
+                                        <span className="text-xs font-bold text-slate-700">
+                                            {configPagos.banorte_activo ? 'Habilitado' : 'Deshabilitado'}
+                                        </span>
+                                    </label>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">
+                                            Institución Bancaria
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={configPagos.banco_nombre}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, banco_nombre: e.target.value })}
+                                            placeholder="Ej: BANORTE"
+                                            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-bold focus:outline-red-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-700 block mb-1">
+                                            Número de Cuenta (Opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={configPagos.banco_cuenta}
+                                            onChange={(e) => setConfigPagos({ ...configPagos, banco_cuenta: e.target.value })}
+                                            placeholder="Ej: 0458923412"
+                                            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-mono focus:outline-red-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                                        Nombre del Beneficiario / Titular
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={configPagos.banco_beneficiario}
+                                        onChange={(e) => setConfigPagos({ ...configPagos, banco_beneficiario: e.target.value })}
+                                        placeholder="Ej: Net Consultores / Tu Nombre o Razón Social"
+                                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-red-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                                        CLABE Interbancaria (18 dígitos)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={configPagos.banco_clabe}
+                                        onChange={(e) => setConfigPagos({ ...configPagos, banco_clabe: e.target.value })}
+                                        placeholder="072 180 00000000000 0"
+                                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-mono font-bold tracking-wider focus:outline-red-500"
+                                    />
+                                </div>
+
+                                {/* Vista Previa del Cliente */}
+                                <div className="p-4 bg-red-50/60 border border-red-200 rounded-xl space-y-2 mt-2">
+                                    <div className="flex items-center justify-between border-b border-red-100 pb-1.5">
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-red-800">
+                                            Vista previa que verá el cliente
+                                        </span>
+                                        <span className="text-[10px] bg-red-200 text-red-900 font-bold px-1.5 py-0.5 rounded">SPEI</span>
+                                    </div>
+                                    <div className="text-xs space-y-1 text-slate-700">
+                                        <p><span className="text-slate-500">Banco:</span> <strong>{configPagos.banco_nombre || 'BANORTE'}</strong></p>
+                                        <p><span className="text-slate-500">Beneficiario:</span> <strong>{configPagos.banco_beneficiario || '-'}</strong></p>
+                                        <p><span className="text-slate-500">CLABE:</span> <strong className="font-mono text-slate-900">{configPagos.banco_clabe || '-'}</strong></p>
+                                        <p><span className="text-slate-500">Concepto automático:</span> <strong className="font-mono text-indigo-700">ESP-000X</strong></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100 flex justify-end">
+                                <button
+                                    type="submit"
+                                    disabled={savingConfigPagos || loadingConfigPagos}
+                                    className="w-full py-3 px-5 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                                >
+                                    {savingConfigPagos ? (
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Save className="w-4 h-4" />
+                                    )}
+                                    <span>{savingConfigPagos ? 'Guardando...' : 'Guardar Configuración de Mercado Pago y Bancos'}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
             )}
 
             {/* MODAL 1: ASIGNAR TIMBRES A EMISOR (SOLO ADMIN) */}

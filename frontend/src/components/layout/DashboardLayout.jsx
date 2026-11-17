@@ -7,7 +7,7 @@ import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
 
 export const DashboardLayout = ({ children }) => {
-    const { activeEmpresa } = useAuth();
+    const { user, activeEmpresa } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -15,13 +15,18 @@ export const DashboardLayout = ({ children }) => {
     const [bannerDismissed, setBannerDismissed] = useState(false);
 
     useEffect(() => {
+        if (!user) return;
         const checkSuscripcion = async () => {
             try {
-                const { data } = await api.get('/planes/mi-suscripcion');
+                const params = {};
+                if (user?.rol === 'Administrador' && activeEmpresa?.id) {
+                    params.empresa_id = activeEmpresa.id;
+                }
+                const { data } = await api.get('/planes/mi-suscripcion', { params });
                 const dias = data?.empresa?.dias_restantes;
                 const estado = data?.empresa?.estado_suscripcion;
 
-                if (dias !== null && dias !== undefined) {
+                if (typeof dias === 'number') {
                     if (dias <= 5) {
                         setSubNotice({
                             dias,
@@ -38,7 +43,7 @@ export const DashboardLayout = ({ children }) => {
         };
 
         checkSuscripcion();
-    }, [activeEmpresa?.id]);
+    }, [user?.id, activeEmpresa?.id]);
 
     const isAlreadyOnSuscripcionPage = location.pathname === '/mi-suscripcion';
 

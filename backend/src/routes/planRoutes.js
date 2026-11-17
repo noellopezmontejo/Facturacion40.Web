@@ -14,7 +14,10 @@ import {
     webhookMercadoPago,
     getComprobantesPendientes,
     aprobarPagoSuscripcion,
-    rechazarPagoSuscripcion
+    rechazarPagoSuscripcion,
+    getConfiguracionPagos,
+    updateConfiguracionPagos,
+    probarMercadoPago
 } from '../controllers/planController.js';
 import { verifyToken } from '../middleware/auth.js';
 
@@ -66,6 +69,11 @@ router.post('/webhook-mp', webhookMercadoPago);
 router.get('/comprobantes-pendientes', verifyToken, getComprobantesPendientes);
 router.post('/aprobar-pago/:id', verifyToken, aprobarPagoSuscripcion);
 router.post('/rechazar-pago/:id', verifyToken, rechazarPagoSuscripcion);
+
+// Rutas de configuración de pasarelas de pago (Mercado Pago y Banorte - Admin)
+router.get('/configuracion-pagos', verifyToken, getConfiguracionPagos);
+router.put('/configuracion-pagos', verifyToken, updateConfiguracionPagos);
+router.post('/probar-mercadopago', verifyToken, probarMercadoPago);
 
 // Rutas de suscripción por empresa (Admin)
 router.get('/empresa/:id', verifyToken, getSuscripcionEmpresa);
