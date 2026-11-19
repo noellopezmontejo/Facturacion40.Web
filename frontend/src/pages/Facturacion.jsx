@@ -105,7 +105,9 @@ export const NuevaFactura = () => {
                 api.get('/catalogos/metodos-pago'),
                 api.get('/catalogos/tipos-documento'),
                 api.get(`/emisores/${activeEmisor.id}/series`),
-                api.get('/impuestos-locales'),
+                api.get('/impuestos-locales', {
+                    params: activeEmisor.empresa_id ? { empresa_id: activeEmisor.empresa_id } : {}
+                }),
                 api.get(`/documentos?emisorId=${activeEmisor.id}&tipoComprobante=I`)
             ]);
 

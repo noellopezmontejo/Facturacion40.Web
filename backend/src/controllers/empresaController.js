@@ -1,5 +1,6 @@
 import { Empresa, Emisor, PlanGlobal } from '../models/index.js';
 import { probarConexionSmtp } from '../services/emailService.js';
+import { seedImpuestosLocalesParaEmpresa } from './impuestoLocalController.js';
 
 export const getEmpresas = async (req, res) => {
     try {
@@ -210,6 +211,8 @@ export const createEmpresa = async (req, res) => {
             fecha_vencimiento: fechaVence,
             estado_suscripcion: 'activa'
         });
+
+        await seedImpuestosLocalesParaEmpresa(nuevaEmpresa.id);
         
         // Retornar la nueva empresa con emisores y plan asociado
         const result = await Empresa.findByPk(nuevaEmpresa.id, {

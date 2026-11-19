@@ -9,6 +9,7 @@ import bcrypt from 'bcryptjs';
 import { sequelize } from './config/database.js';
 import * as models from './models/index.js';
 import { ensurePacColumns } from './utils/initPacColumns.js';
+import { ensureImpuestosLocalesParaTodasLasEmpresas } from './controllers/impuestoLocalController.js';
 
 dotenv.config();
 if (fs.existsSync(path.resolve('backend/.env'))) {
@@ -254,6 +255,11 @@ app.listen(PORT, '0.0.0.0', async () => {
       ]).catch(e => console.log('Impuesto seed notice:', e.message));
       console.log('Standard CFDI 4.0 taxes initialized.');
     }
+
+    // Ensure every workspace (Empresa) has its own preloaded copy of local taxes
+    await ensureImpuestosLocalesParaTodasLasEmpresas()
+      .then(() => console.log('Local taxes verified/preloaded for all workspaces.'))
+      .catch(e => console.log('ImpuestoLocal seed notice:', e.message));
   } catch (error) {
     console.error('Unable to connect to the database or sync:', error.message);
   }

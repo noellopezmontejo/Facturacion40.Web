@@ -5,8 +5,9 @@ import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
 
 export const ImpuestosLocales = () => {
-    const { user } = useAuth();
+    const { user, activeEmpresa, activeEmisor } = useAuth();
     const { showToast } = useToast();
+    const targetEmpresaId = activeEmpresa?.id || activeEmisor?.empresa_id || user?.empresa_id;
     const [impuestos, setImpuestos] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
@@ -21,7 +22,9 @@ export const ImpuestosLocales = () => {
     const fetchImpuestos = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/impuestos-locales');
+            const res = await api.get('/impuestos-locales', {
+                params: targetEmpresaId ? { empresa_id: targetEmpresaId } : {}
+            });
             setImpuestos(res.data);
         } catch (error) {
             console.error("Error fetching impuestos locales", error);
@@ -32,7 +35,7 @@ export const ImpuestosLocales = () => {
 
     useEffect(() => {
         fetchImpuestos();
-    }, []);
+    }, [targetEmpresaId]);
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -42,6 +45,9 @@ export const ImpuestosLocales = () => {
                 await api.put(`/impuestos-locales/${editingId}`, payload);
                 showToast("✅ Impuesto local actualizado");
             } else {
+                if (targetEmpresaId) {
+                    payload.empresa_id = targetEmpresaId;
+                }
                 await api.post('/impuestos-locales', payload);
                 showToast("✅ Impuesto local guardado");
             }
