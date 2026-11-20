@@ -86,6 +86,14 @@ export const NuevaFactura = () => {
 
     const fetchData = async () => {
         if (!activeEmisor) return;
+        const fallbackTiposDoc = [
+            { clave: 1, descripcion: 'FACTURA', tipo: 'I' },
+            { clave: 2, descripcion: 'HONORARIOS', tipo: 'I' },
+            { clave: 3, descripcion: 'ARRENDAMIENTO', tipo: 'I' },
+            { clave: 4, descripcion: 'NOTAS DE CREDITO', tipo: 'E' },
+            { clave: 5, descripcion: 'CARGO', tipo: 'I' },
+            { clave: 8, descripcion: 'FACTURA GLOBAL', tipo: 'I' }
+        ];
         try {
             const [
                 resReceptores,
@@ -97,7 +105,7 @@ export const NuevaFactura = () => {
                 resSeries,
                 resImpuestosLocales,
                 resDocsIngreso
-            ] = await Promise.all([
+            ] = await Promise.allSettled([
                 api.get(`/receptores/emisor/${activeEmisor.id}`),
                 api.get(`/conceptos/emisor/${activeEmisor.id}`),
                 api.get('/catalogos/usos-cfdi'),
@@ -111,15 +119,23 @@ export const NuevaFactura = () => {
                 api.get(`/documentos?emisorId=${activeEmisor.id}&tipoComprobante=I`)
             ]);
 
-            setReceptores(resReceptores.data);
-            setConceptosCat(resConceptos.data);
-            setUsosCfdiOpt(resUsos.data);
-            setFormasPagoOpt(resFormas.data);
-            setMetodosPagoOpt(resMetodos.data);
-            setTiposDocOpt(resTipos.data);
-            setSeries(resSeries.data);
-            setCatImpuestosLocales(resImpuestosLocales.data);
-            setDocumentosIngreso((resDocsIngreso.data || []).filter(d => d.tipo_comprobante === 'I' && d.uuid));
+            if (resReceptores.status === 'fulfilled') setReceptores(resReceptores.value.data || []);
+            if (resConceptos.status === 'fulfilled') setConceptosCat(resConceptos.value.data || []);
+            if (resUsos.status === 'fulfilled') setUsosCfdiOpt(resUsos.value.data || []);
+            if (resFormas.status === 'fulfilled') setFormasPagoOpt(resFormas.value.data || []);
+            if (resMetodos.status === 'fulfilled') setMetodosPagoOpt(resMetodos.value.data || []);
+
+            if (resTipos.status === 'fulfilled' && Array.isArray(resTipos.value.data) && resTipos.value.data.length > 0) {
+                setTiposDocOpt(resTipos.value.data);
+            } else {
+                setTiposDocOpt(fallbackTiposDoc);
+            }
+
+            if (resSeries.status === 'fulfilled') setSeries(resSeries.value.data || []);
+            if (resImpuestosLocales.status === 'fulfilled') setCatImpuestosLocales(resImpuestosLocales.value.data || []);
+            if (resDocsIngreso.status === 'fulfilled') {
+                setDocumentosIngreso((resDocsIngreso.value.data || []).filter(d => d.tipo_comprobante === 'I' && d.uuid));
+            }
             
             // Consultar créditos por separado (puede tardar más por SOAP)
             setCreditosDisponibles(prev => ({ ...prev, loading: true }));

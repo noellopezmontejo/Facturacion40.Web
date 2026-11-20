@@ -185,30 +185,29 @@ export const Emisores = () => {
     // Fetch Global Catalogs on Mount
     useEffect(() => {
         const fetchSettings = async () => {
-            try {
-                const resRegimenes = await api.get('/catalogos/regimenes-fiscales');
-                setRegimenesOpt(resRegimenes.data);
-                
-                try {
-                    const resTipos = await api.get('/catalogos/tipos-documento');
-                    if (resTipos.data && resTipos.data.length > 0) {
-                        setTiposDocOpt(resTipos.data);
-                    } else {
-                        setTiposDocOpt([
-                            { clave: 1, descripcion: 'FACTURA', tipo: 'I' },
-                            { clave: 2, descripcion: 'RECIBO DE HONORARIOS', tipo: 'I' },
-                            { clave: 3, descripcion: 'NOTA DE CRÉDITO', tipo: 'E' }
-                        ]);
-                    }
-                } catch (e) {
-                    setTiposDocOpt([
-                        { clave: 1, descripcion: 'FACTURA', tipo: 'I' },
-                        { clave: 2, descripcion: 'RECIBO DE HONORARIOS', tipo: 'I' },
-                        { clave: 3, descripcion: 'NOTA DE CRÉDITO', tipo: 'E' }
-                    ]);
-                }
-            } catch (error) {
-                console.error("Error fetching global catalogs", error);
+            const fallbackTipos = [
+                { clave: 1, descripcion: 'FACTURA', tipo: 'I' },
+                { clave: 2, descripcion: 'HONORARIOS', tipo: 'I' },
+                { clave: 3, descripcion: 'ARRENDAMIENTO', tipo: 'I' },
+                { clave: 4, descripcion: 'NOTAS DE CREDITO', tipo: 'E' },
+                { clave: 5, descripcion: 'CARGO', tipo: 'I' },
+                { clave: 8, descripcion: 'FACTURA GLOBAL', tipo: 'I' }
+            ];
+            const [resRegimenes, resTipos] = await Promise.allSettled([
+                api.get('/catalogos/regimenes-fiscales'),
+                api.get('/catalogos/tipos-documento')
+            ]);
+
+            if (resRegimenes.status === 'fulfilled' && Array.isArray(resRegimenes.value.data)) {
+                setRegimenesOpt(resRegimenes.value.data);
+            } else {
+                console.error("Error fetching regimenes fiscales");
+            }
+
+            if (resTipos.status === 'fulfilled' && Array.isArray(resTipos.value.data) && resTipos.value.data.length > 0) {
+                setTiposDocOpt(resTipos.value.data);
+            } else {
+                setTiposDocOpt(fallbackTipos);
             }
         };
         
