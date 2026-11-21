@@ -9,8 +9,27 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Raíz del storage general
-export const STORAGE_BASE = path.resolve(__dirname, '..', 'storage');
+// Raíz del storage general:
+// 1. Variable de entorno STORAGE_PATH si está definida
+// 2. En Hostinger (hbuilds/versions/<uuid>/...), carpeta persistente fuera de hbuilds para no perder archivos al redesplegar
+// 3. Por defecto en local: src/storage
+const resolveStorageBase = () => {
+    if (process.env.STORAGE_PATH && process.env.STORAGE_PATH.trim()) {
+        return path.resolve(process.env.STORAGE_PATH.trim());
+    }
+    const normalized = __dirname.replace(/\\/g, '/');
+    const hbuildsIdx = normalized.indexOf('/hbuilds/');
+    if (hbuildsIdx !== -1) {
+        const domainRoot = normalized.slice(0, hbuildsIdx);
+        return path.join(domainRoot, 'storage_facturacion40');
+    }
+    return path.resolve(__dirname, '..', 'storage');
+};
+
+export const STORAGE_BASE = resolveStorageBase();
+if (!fs.existsSync(STORAGE_BASE)) {
+    fs.mkdirSync(STORAGE_BASE, { recursive: true });
+}
 
 /**
  * Devuelve (y crea si no existe) el directorio de un sub-módulo para un RFC concreto.

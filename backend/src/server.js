@@ -10,6 +10,7 @@ import { sequelize } from './config/database.js';
 import * as models from './models/index.js';
 import { ensurePacColumns } from './utils/initPacColumns.js';
 import { ensureImpuestosLocalesParaTodasLasEmpresas } from './controllers/impuestoLocalController.js';
+import { STORAGE_BASE } from './utils/storageHelper.js';
 
 dotenv.config();
 if (fs.existsSync(path.resolve('backend/.env'))) {
@@ -64,6 +65,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(morgan('dev'));
+app.use('/storage', express.static(STORAGE_BASE));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
 // API Routes
