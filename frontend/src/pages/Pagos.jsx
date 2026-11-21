@@ -15,7 +15,7 @@ import { ModalAcuseSAT } from '../components/ModalAcuseSAT';
 import { useToast } from '../context/ToastContext';
 
 export const ControlPagos = () => {
-    const { activeEmisor } = useAuth();
+    const { activeEmisor, changeActiveEmisor } = useAuth();
     const { showToast } = useToast();
     const [pagos, setPagos] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -257,7 +257,20 @@ export const ControlPagos = () => {
                 <div className="flex flex-wrap items-center gap-2.5">
                     <button
                         type="button"
-                        onClick={() => { setShowSatModal(true); fetchSolicitudesSat(); }}
+                        onClick={async () => {
+                            setShowSatModal(true);
+                            fetchSolicitudesSat();
+                            if (activeEmisor?.id && !activeEmisor?.fiel_info?.tieneCertificado) {
+                                try {
+                                    const res = await api.get('/emisores');
+                                    const fresh = (res.data || []).find(e => e.id === activeEmisor.id);
+                                    if (fresh) {
+                                        changeActiveEmisor({ ...activeEmisor, ...fresh });
+                                        if (fresh.fiel_info?.tieneCertificado) setShowFielUploader(false);
+                                    }
+                                } catch (e) { /* silencioso */ }
+                            }
+                        }}
                         className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-md group"
                         title="Descargar facturas emitidas vía Web Service oficial del SAT"
                     >

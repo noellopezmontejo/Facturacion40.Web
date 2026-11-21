@@ -1,6 +1,23 @@
 import { Empresa, Emisor, PlanGlobal } from '../models/index.js';
 import { probarConexionSmtp } from '../services/emailService.js';
 import { seedImpuestosLocalesParaEmpresa } from './impuestoLocalController.js';
+import { getFielInfo } from '../utils/csdHelper.js';
+
+const attachFielInfo = (empresa) => {
+    const plain = empresa.toJSON ? empresa.toJSON() : { ...empresa };
+    if (Array.isArray(plain.Emisors)) {
+        plain.Emisors = plain.Emisors.map((em) => {
+            let fielInfo = { tieneCertificado: false };
+            try {
+                fielInfo = getFielInfo(em.rfc);
+            } catch (err) {
+                fielInfo = { tieneCertificado: false, error: err.message };
+            }
+            return { ...em, fiel_info: fielInfo };
+        });
+    }
+    return plain;
+};
 
 export const getEmpresas = async (req, res) => {
     try {
@@ -20,7 +37,7 @@ export const getEmpresas = async (req, res) => {
             ],
             order: [['id', 'ASC']]
         });
-        res.json(empresas);
+        res.json(empresas.map(attachFielInfo));
     } catch (error) {
         console.error('Error fetching empresas:', error);
         res.status(500).json({ message: 'Error al obtener espacios de trabajo.', error: error.message });
@@ -67,7 +84,7 @@ export const getMiEmpresa = async (req, res) => {
             return res.status(404).json({ message: 'Espacio empresarial no encontrado.' });
         }
 
-        res.json(empresa);
+        res.json(attachFielInfo(empresa));
     } catch (error) {
         console.error('Error fetching empresa:', error);
         res.status(500).json({ message: 'Error al obtener espacio empresarial.', error: error.message });

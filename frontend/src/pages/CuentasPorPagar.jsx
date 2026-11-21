@@ -10,7 +10,7 @@ import api from '../api/axios';
 import { useToast } from '../context/ToastContext';
 
 export const CuentasPorPagar = () => {
-    const { activeEmisor } = useAuth();
+    const { activeEmisor, changeActiveEmisor } = useAuth();
     const { showToast } = useToast();
     
     // States
@@ -285,7 +285,20 @@ export const CuentasPorPagar = () => {
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <button
-                        onClick={() => { setShowSatModal(true); fetchSolicitudesSat(); }}
+                        onClick={async () => {
+                            setShowSatModal(true);
+                            fetchSolicitudesSat();
+                            if (activeEmisor?.id && !activeEmisor?.fiel_info?.tieneCertificado) {
+                                try {
+                                    const res = await api.get('/emisores');
+                                    const fresh = (res.data || []).find(e => e.id === activeEmisor.id);
+                                    if (fresh) {
+                                        changeActiveEmisor({ ...activeEmisor, ...fresh });
+                                        if (fresh.fiel_info?.tieneCertificado) setShowFielUploader(false);
+                                    }
+                                } catch (e) { /* silencioso */ }
+                            }
+                        }}
                         className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-md"
                     >
                         <Landmark className="w-4 h-4" />
