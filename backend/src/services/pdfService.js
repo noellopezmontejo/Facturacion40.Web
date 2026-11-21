@@ -405,7 +405,7 @@ const renderHtmlToPdf = async (htmlContent, pdfPath, margin = { top: '0px', righ
         await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000 });
         await Promise.race([
             page.evaluate(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve()),
-            new Promise((resolve) => setTimeout(resolve, 600))
+            new Promise((resolve) => setTimeout(resolve, 250))
         ]).catch(() => {});
         await page.pdf({
             path: pdfPath,

@@ -1,8 +1,11 @@
-import { Documento, DetalleDocumento, Emisor, Receptor, Concepto, Impuesto, SerieFolio, Pago, PagoDocumento } from '../models/index.js';
+import { Documento, DetalleDocumento, Emisor, Receptor, Concepto, Impuesto, SerieFolio, Pago, PagoDocumento, ConfiguracionEstilo } from '../models/index.js';
 import { generarXML, firmarXML, timbrarPAC, cancelarCFDIPAC, consultarStatusSatPAC } from '../services/cfdiService.js';
 import { generarPDF } from '../services/pdfService.js';
 import { enviarFacturaPorCorreo } from '../services/emailService.js';
 import { Op } from 'sequelize';
+import fs from 'fs';
+import path from 'path';
+import { STORAGE_BASE } from '../utils/storageHelper.js';
 
 const checkResicoApplies = async (emisor, receptor, invoiceDate = new Date()) => {
     // La retención del 1.25% solo aplica de Persona Física (RFC 13 caracteres) RESICO (626) a Persona Moral (RFC 12 caracteres)
@@ -685,12 +688,36 @@ export const previewDocumento = async (req, res) => {
  */
 export const reproducirPDF = async (req, res) => {
     const { id } = req.params;
+    const forceRegenerate = req.query?.regenerar === 'true';
     try {
         const documento = await Documento.findByPk(id, {
             include: [Emisor, Receptor]
         });
 
         if (!documento) return res.status(404).json({ message: 'Documento no encontrado' });
+
+        // Reutilizar el PDF ya generado en disco si sigue vigente (evita invocar Puppeteer en cada descarga)
+        if (!forceRegenerate && documento.pdf_url && documento.pdf_url.toLowerCase().endsWith('.pdf')) {
+            const rel = String(documento.pdf_url).split('?')[0].replace(/^\/?storage\/?/i, '');
+            const existingPdfPath = path.join(STORAGE_BASE, rel);
+            if (fs.existsSync(existingPdfPath)) {
+                const pdfStat = fs.statSync(existingPdfPath);
+                const estilo = await ConfiguracionEstilo.findOne({
+                    where: { emisor_id: documento.emisor_id },
+                    attributes: ['updatedAt']
+                });
+                const docUpdatedAt = documento.updatedAt ? new Date(documento.updatedAt) : new Date(0);
+                const estiloUpdatedAt = estilo?.updatedAt ? new Date(estilo.updatedAt) : new Date(0);
+                if (pdfStat.mtime >= docUpdatedAt && pdfStat.mtime >= estiloUpdatedAt) {
+                    return res.json({
+                        success: true,
+                        pdfUrl: `${documento.pdf_url.split('?')[0]}?t=${pdfStat.mtimeMs}`,
+                        cached: true,
+                        message: 'PDF obtenido desde caché.'
+                    });
+                }
+            }
+        }
 
         const lineas = await DetalleDocumento.findAll({
             where: { documento_id: id },
