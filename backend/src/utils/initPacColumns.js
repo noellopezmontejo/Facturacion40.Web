@@ -85,7 +85,9 @@ export const ensurePacColumns = async () => {
                 { name: 'motivo_cancelacion', def: 'VARCHAR(2) NULL' },
                 { name: 'uuid_sustitucion', def: 'VARCHAR(36) NULL' },
                 { name: 'fecha_cancelacion', def: 'DATETIME NULL' },
-                { name: 'acuse_cancelacion', def: 'LONGTEXT NULL' }
+                { name: 'acuse_cancelacion', def: 'LONGTEXT NULL' },
+                { name: 'impuestos_locales', def: 'JSON NULL' },
+                { name: 'ajuste_manual', def: 'TINYINT(1) DEFAULT 0' }
             ];
 
             for (const col of docColumnsToAdd) {
@@ -100,6 +102,31 @@ export const ensurePacColumns = async () => {
             }
         } catch (docErr) {
             console.warn("[DB Migration] Error verificando tabla documentos:", docErr.message);
+        }
+
+        // 3b. Columnas en tabla 'pagos' (Cancelación SAT CFDI 4.0)
+        try {
+            const [pagosCols] = await sequelize.query("SHOW COLUMNS FROM pagos");
+            const pagoColNames = pagosCols.map(c => c.Field);
+
+            const pagoColumnsToAdd = [
+                { name: 'estado', def: "VARCHAR(20) DEFAULT 'Activo'" },
+                { name: 'motivo_cancelacion', def: 'VARCHAR(2) NULL' },
+                { name: 'fecha_cancelacion', def: 'DATETIME NULL' }
+            ];
+
+            for (const col of pagoColumnsToAdd) {
+                if (!pagoColNames.includes(col.name)) {
+                    try {
+                        await sequelize.query(`ALTER TABLE pagos ADD COLUMN \`${col.name}\` ${col.def}`);
+                        console.log(`[DB Migration] Columna \`${col.name}\` agregada a 'pagos'.`);
+                    } catch (colErr) {
+                        console.warn(`[DB Migration] Advertencia al agregar columna ${col.name} a pagos:`, colErr.message);
+                    }
+                }
+            }
+        } catch (pagoErr) {
+            console.warn("[DB Migration] Error verificando tabla pagos:", pagoErr.message);
         }
 
         // 4. Columnas en tabla 'ordenes_servicio'

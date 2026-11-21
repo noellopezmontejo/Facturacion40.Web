@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 :: Facturacion 4.0 - Lanzador de Servicios
 :: Este script levanta el backend y el frontend en ventanas independientes de consola.
 
