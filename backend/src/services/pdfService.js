@@ -374,6 +374,50 @@ export const getPuppeteerLaunchOptions = () => {
     return options;
 };
 
+let sharedBrowser = null;
+let sharedBrowserPromise = null;
+
+const getSharedBrowser = async () => {
+    if (sharedBrowser && sharedBrowser.connected) {
+        return sharedBrowser;
+    }
+    if (sharedBrowserPromise) {
+        return sharedBrowserPromise;
+    }
+    sharedBrowserPromise = puppeteer.launch(getPuppeteerLaunchOptions())
+        .then((browser) => {
+            sharedBrowser = browser;
+            browser.on('disconnected', () => {
+                if (sharedBrowser === browser) sharedBrowser = null;
+            });
+            return browser;
+        })
+        .finally(() => {
+            sharedBrowserPromise = null;
+        });
+    return sharedBrowserPromise;
+};
+
+const renderHtmlToPdf = async (htmlContent, pdfPath, margin = { top: '0px', right: '0px', bottom: '0px', left: '0px' }) => {
+    const browser = await getSharedBrowser();
+    const page = await browser.newPage();
+    try {
+        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await Promise.race([
+            page.evaluate(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve()),
+            new Promise((resolve) => setTimeout(resolve, 600))
+        ]).catch(() => {});
+        await page.pdf({
+            path: pdfPath,
+            format: 'A4',
+            printBackground: true,
+            margin
+        });
+    } finally {
+        await page.close().catch(() => {});
+    }
+};
+
 export const createPrintableHtml = (htmlContent, title = 'CFDI 4.0 - Representación Impresa') => {
     const printToolbar = `
     <div class="net-preview-toolbar no-print" style="position: sticky; top: 0; z-index: 999999; background: #0f172a; color: #f8fafc; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 20px rgba(0,0,0,0.25); font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; border-bottom: 2px solid #0284c7;">
@@ -1186,30 +1230,12 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
 
         let pdfGenerated = false;
 
-        // Intentar renderizar PDF binario con Puppeteer
+        // Intentar renderizar PDF binario con Puppeteer (instancia compartida para mayor velocidad)
         try {
-            console.log('[PDF Service] Intentando renderizar PDF con Puppeteer...');
-            const launchOptions = getPuppeteerLaunchOptions();
-            const browser = await puppeteer.launch(launchOptions);
-
-            try {
-                const page = await browser.newPage();
-                console.log('[PDF Service] Página de Puppeteer creada. Renderizando contenido...');
-                await page.setContent(finalHtml, { waitUntil: 'networkidle2', timeout: 25000 });
-
-                console.log(`[PDF Service] Generando PDF binario en: ${pdfPath}`);
-                await page.pdf({
-                    path: pdfPath,
-                    format: 'A4',
-                    printBackground: true,
-                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
-                });
-                pdfGenerated = true;
-                console.log('[PDF Service] PDF binario generado con éxito');
-            } finally {
-                await browser.close().catch(() => { });
-                console.log('[PDF Service] Navegador Puppeteer cerrado');
-            }
+            console.log(`[PDF Service] Generando PDF binario en: ${pdfPath}`);
+            await renderHtmlToPdf(finalHtml, pdfPath, { top: '0px', right: '0px', bottom: '0px', left: '0px' });
+            pdfGenerated = true;
+            console.log('[PDF Service] PDF binario generado con éxito');
         } catch (puppeteerErr) {
             console.warn(`[PDF Service] Puppeteer no está disponible o falló en este entorno (${puppeteerErr.message}). Utilizando representación HTML imprimible de alta fidelidad como respaldo.`);
         }
@@ -1520,22 +1546,8 @@ export const generarPDFCotizacion = async (cotizacionId) => {
 
         let pdfGenerated = false;
         try {
-            console.log('[PDF Service] Intentando compilar PDF con Puppeteer para cotización...');
-            const launchOptions = getPuppeteerLaunchOptions();
-            const browser = await puppeteer.launch(launchOptions);
-            try {
-                const page = await browser.newPage();
-                await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
-                await page.pdf({
-                    path: pdfPath,
-                    format: 'A4',
-                    printBackground: true,
-                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
-                });
-                pdfGenerated = true;
-            } finally {
-                await browser.close().catch(() => {});
-            }
+            await renderHtmlToPdf(html, pdfPath, { top: '0px', right: '0px', bottom: '0px', left: '0px' });
+            pdfGenerated = true;
         } catch (pupErr) {
             console.warn(`[PDF Service] Puppeteer no disponible para cotización (${pupErr.message}). Utilizando HTML imprimible.`);
         }
@@ -1690,22 +1702,8 @@ export const generarPDFOrdenServicio = async (ordenId) => {
 
         let pdfGenerated = false;
         try {
-            console.log('[PDF Service] Intentando compilar PDF con Puppeteer para Orden de Servicio...');
-            const launchOptions = getPuppeteerLaunchOptions();
-            const browser = await puppeteer.launch(launchOptions);
-            try {
-                const page = await browser.newPage();
-                await page.setContent(html, { waitUntil: 'networkidle2', timeout: 25000 });
-                await page.pdf({
-                    path: pdfPath,
-                    format: 'A4',
-                    printBackground: true,
-                    margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' }
-                });
-                pdfGenerated = true;
-            } finally {
-                await browser.close().catch(() => {});
-            }
+            await renderHtmlToPdf(html, pdfPath, { top: '0px', right: '0px', bottom: '0px', left: '0px' });
+            pdfGenerated = true;
         } catch (pupErr) {
             console.warn(`[PDF Service] Puppeteer no disponible para orden de servicio (${pupErr.message}). Utilizando HTML imprimible.`);
         }

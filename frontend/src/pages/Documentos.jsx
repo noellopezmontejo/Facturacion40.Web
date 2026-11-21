@@ -19,7 +19,8 @@ import {
     Mail, 
     Ban, 
     XCircle, 
-    FileCheck 
+    FileCheck,
+    Loader2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ModalCancelarCFDI } from '../components/ModalCancelarCFDI';
@@ -31,6 +32,7 @@ export const Documentos = () => {
     const [documentos, setDocumentos] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isTimbrando, setIsTimbrando] = useState(null); // ID del documento procesándose
+    const [generatingPdfId, setGeneratingPdfId] = useState(null);
     const [selectedDocRelacionados, setSelectedDocRelacionados] = useState(null);
     const [docParaCorreo, setDocParaCorreo] = useState(null);
     const [correoDestino, setCorreoDestino] = useState('');
@@ -139,7 +141,7 @@ export const Documentos = () => {
     };
 
     const handleDownloadActualizado = async (docId) => {
-        setIsTimbrando(docId); // Reusamos el estado de carga para feedback visual
+        setGeneratingPdfId(docId);
         try {
             const res = await api.get(`/documentos/${docId}/pdf`);
             if (res.data.success) {
@@ -149,7 +151,7 @@ export const Documentos = () => {
             console.error('Error al generar PDF actualizado', error);
             showToast('Error al generar PDF con el diseño actual', 'error');
         } finally {
-            setIsTimbrando(null);
+            setGeneratingPdfId(null);
         }
     };
 
@@ -339,11 +341,15 @@ export const Documentos = () => {
                                             <div className="flex items-center justify-center gap-1.5">
                                                 <button
                                                     onClick={() => handleDownloadActualizado(doc.id)}
-                                                    disabled={isTimbrando === doc.id}
-                                                    className={`p-1.5 rounded transition-colors ${isTimbrando === doc.id ? 'opacity-50 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                                    title={doc.estado_sat === 'Cancelado' ? "Descargar PDF (Con sello de CANCELADO)" : "Descargar PDF (Diseño Actual)"}
+                                                    disabled={generatingPdfId === doc.id || isTimbrando === doc.id}
+                                                    className={`p-1.5 rounded transition-colors ${generatingPdfId === doc.id ? 'text-red-600 bg-red-50 cursor-wait' : isTimbrando === doc.id ? 'opacity-50 cursor-not-allowed' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                                    title={generatingPdfId === doc.id ? "Generando PDF..." : (doc.estado_sat === 'Cancelado' ? "Descargar PDF (Con sello de CANCELADO)" : "Descargar PDF (Diseño Actual)")}
                                                 >
-                                                    <FileText className="w-4 h-4" />
+                                                    {generatingPdfId === doc.id ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <FileText className="w-4 h-4" />
+                                                    )}
                                                 </button>
                                                 <button
                                                     onClick={() => handleDownload(doc.xml_url)}
@@ -894,6 +900,13 @@ export const Documentos = () => {
                 isOpen={Boolean(docParaAcuse)}
                 onClose={() => setDocParaAcuse(null)}
             />
+
+            {generatingPdfId !== null && (
+                <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-xl border border-slate-700 text-xs font-semibold animate-in fade-in slide-in-from-bottom-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary-400" />
+                    <span>Generando PDF, por favor espera...</span>
+                </div>
+            )}
         </div>
     );
 };
