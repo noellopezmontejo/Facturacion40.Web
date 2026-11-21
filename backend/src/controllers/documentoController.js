@@ -689,6 +689,7 @@ export const previewDocumento = async (req, res) => {
 export const reproducirPDF = async (req, res) => {
     const { id } = req.params;
     const forceRegenerate = req.query?.regenerar === 'true';
+    const t0 = Date.now();
     try {
         const documento = await Documento.findByPk(id, {
             include: [Emisor, Receptor]
@@ -709,6 +710,7 @@ export const reproducirPDF = async (req, res) => {
                 const docUpdatedAt = documento.updatedAt ? new Date(documento.updatedAt) : new Date(0);
                 const estiloUpdatedAt = estilo?.updatedAt ? new Date(estilo.updatedAt) : new Date(0);
                 if (pdfStat.mtime >= docUpdatedAt && pdfStat.mtime >= estiloUpdatedAt) {
+                    console.log(`[reproducirPDF] ID=${id} servido desde caché en ${Date.now() - t0} ms`);
                     return res.json({
                         success: true,
                         pdfUrl: `${documento.pdf_url.split('?')[0]}?t=${pdfStat.mtimeMs}`,
@@ -732,6 +734,7 @@ export const reproducirPDF = async (req, res) => {
             pdfRes.pdfUrl += `?t=${Date.now()}`;
         }
 
+        console.log(`[reproducirPDF] ID=${id} generado en ${Date.now() - t0} ms (fallback=${Boolean(pdfRes.isHtmlFallback)})`);
         res.json(pdfRes);
     } catch (error) {
         console.error('Error re-generando PDF:', error);

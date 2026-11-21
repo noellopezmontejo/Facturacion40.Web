@@ -351,6 +351,7 @@ export const getPuppeteerLaunchOptions = () => {
 
     const options = {
         headless: 'new',
+        timeout: 8000,
         args
     };
 
@@ -376,21 +377,32 @@ export const getPuppeteerLaunchOptions = () => {
 
 let sharedBrowser = null;
 let sharedBrowserPromise = null;
+let puppeteerDisabledUntil = 0;
 
 const getSharedBrowser = async () => {
+    if (Date.now() < puppeteerDisabledUntil) {
+        throw new Error('Puppeteer en enfriamiento tras fallo previo');
+    }
     if (sharedBrowser && sharedBrowser.connected) {
         return sharedBrowser;
     }
     if (sharedBrowserPromise) {
         return sharedBrowserPromise;
     }
+    const tLaunch = Date.now();
     sharedBrowserPromise = puppeteer.launch(getPuppeteerLaunchOptions())
         .then((browser) => {
+            console.log(`[PDF Service] Chromium iniciado en ${Date.now() - tLaunch} ms`);
             sharedBrowser = browser;
             browser.on('disconnected', () => {
                 if (sharedBrowser === browser) sharedBrowser = null;
             });
             return browser;
+        })
+        .catch((err) => {
+            // Evitar esperar 8s en cada petición si Chromium no está disponible en el servidor
+            puppeteerDisabledUntil = Date.now() + 5 * 60 * 1000;
+            throw err;
         })
         .finally(() => {
             sharedBrowserPromise = null;
@@ -399,20 +411,23 @@ const getSharedBrowser = async () => {
 };
 
 const renderHtmlToPdf = async (htmlContent, pdfPath, margin = { top: '0px', right: '0px', bottom: '0px', left: '0px' }) => {
+    const t0 = Date.now();
     const browser = await getSharedBrowser();
     const page = await browser.newPage();
     try {
-        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded', timeout: 8000 });
         await Promise.race([
             page.evaluate(() => (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve()),
-            new Promise((resolve) => setTimeout(resolve, 250))
+            new Promise((resolve) => setTimeout(resolve, 200))
         ]).catch(() => {});
         await page.pdf({
             path: pdfPath,
             format: 'A4',
             printBackground: true,
-            margin
+            margin,
+            timeout: 10000
         });
+        console.log(`[PDF Service] renderHtmlToPdf completado en ${Date.now() - t0} ms`);
     } finally {
         await page.close().catch(() => {});
     }
