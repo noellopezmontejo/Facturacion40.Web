@@ -545,13 +545,28 @@ export const CuentasPorPagar = () => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
-                                                <button
-                                                    onClick={() => setSelectedDoc(doc)}
-                                                    className="inline-flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-700"
-                                                >
-                                                    Ver Detalle
-                                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                                                </button>
+                                                <div className="inline-flex items-center gap-1.5">
+                                                    {doc.xml_url && (
+                                                        <a
+                                                            href={doc.xml_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            download
+                                                            title="Descargar XML"
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors text-xs font-semibold"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5" />
+                                                            XML
+                                                        </a>
+                                                    )}
+                                                    <button
+                                                        onClick={() => setSelectedDoc(doc)}
+                                                        className="inline-flex items-center gap-1 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-700"
+                                                    >
+                                                        Ver Detalle
+                                                        <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -1036,6 +1051,18 @@ export const CuentasPorPagar = () => {
 
                         {/* Modal Footer */}
                         <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                            {selectedDoc.xml_url && (
+                                <a
+                                    href={selectedDoc.xml_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 border border-emerald-200 rounded-lg hover:bg-emerald-100 text-xs font-semibold text-emerald-700 bg-emerald-50"
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    Descargar XML
+                                </a>
+                            )}
                             <button
                                 onClick={() => setSelectedDoc(null)}
                                 className="px-4 py-2 border border-slate-200 rounded-lg hover:bg-slate-50 text-xs font-semibold text-slate-700 bg-white"

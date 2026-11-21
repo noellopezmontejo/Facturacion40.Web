@@ -568,13 +568,18 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         let xmlDocData = null;
         if (documento.uuid) {
             try {
-                const xmlFilePath = getXmlPath(emisor.rfc, documento.uuid);
+                let xmlFilePath = getXmlPath(emisor.rfc, documento.uuid);
+                if (!fs.existsSync(xmlFilePath) && documento.xml_url) {
+                    const rel = String(documento.xml_url).replace(/^\/?storage\/?/i, '');
+                    const altPath = path.join(STORAGE_BASE, rel);
+                    if (fs.existsSync(altPath)) xmlFilePath = altPath;
+                }
                 if (fs.existsSync(xmlFilePath)) {
                     const xmlContent = fs.readFileSync(xmlFilePath, 'utf8');
                     const xmlParser = new xml2js.Parser({ explicitArray: false, mergeAttrs: true });
                     const parsed = await xmlParser.parseStringPromise(xmlContent);
-                    if (parsed && parsed['cfdi:Comprobante']) {
-                        xmlDocData = parsed['cfdi:Comprobante'];
+                    if (parsed && (parsed['cfdi:Comprobante'] || parsed['Comprobante'])) {
+                        xmlDocData = parsed['cfdi:Comprobante'] || parsed['Comprobante'];
                         console.log(`[PDF Service] Impuestos y datos CFDI leídos directamente del XML oficial para UUID: ${documento.uuid}`);
                     }
                 }
@@ -687,12 +692,28 @@ export const generarPDF = async (documento, emisor, receptor, detalles, override
         let totalTraslados = 0;
         let totalRetenciones = 0;
 
-        const xmlConceptNodes = xmlDocData?.['cfdi:Conceptos']?.['cfdi:Concepto'];
+        const xmlConceptNodes = xmlDocData?.['cfdi:Conceptos']?.['cfdi:Concepto'] || xmlDocData?.Conceptos?.Concepto;
         const xmlConcepts = Array.isArray(xmlConceptNodes) ? xmlConceptNodes : (xmlConceptNodes ? [xmlConceptNodes] : []);
-        const xmlImpuestos = xmlDocData?.['cfdi:Impuestos'];
+        const xmlImpuestos = xmlDocData?.['cfdi:Impuestos'] || xmlDocData?.Impuestos;
+
+        // Si el documento fue importado del SAT (sin registros en detalle_documentos), reconstruir conceptos desde el XML
+        const detallesSource = (Array.isArray(detalles) && detalles.length > 0)
+            ? detalles
+            : xmlConcepts.map((c) => ({
+                cantidad: c.Cantidad || 1,
+                valor_unitario: c.ValorUnitario || 0,
+                importe: c.Importe || 0,
+                descuento: c.Descuento || 0,
+                clave_sat: c.ClaveProdServ || '84111506',
+                clave_unidad: c.ClaveUnidad || 'E48',
+                unidad: c.Unidad || c.ClaveUnidad || 'Servicio',
+                no_identificacion: c.NoIdentificacion || '',
+                descripcion: c.Descripcion || 'Concepto sin descripción',
+                objeto_imp: c.ObjetoImp || '02'
+            }));
 
         // Mapear conceptos / detalles con todos los campos SAT CFDI 4.0
-        const detallesFormatted = detalles.map((d, idx) => {
+        const detallesFormatted = detallesSource.map((d, idx) => {
             const raw = d.toJSON ? d.toJSON() : d;
             const conceptoObj = raw.Concepto || {};
             const cant = parseFloat(raw.cantidad || 1);
