@@ -11,6 +11,7 @@ import * as models from './models/index.js';
 import { ensurePacColumns } from './utils/initPacColumns.js';
 import { ensureImpuestosLocalesParaTodasLasEmpresas } from './controllers/impuestoLocalController.js';
 import { STORAGE_BASE } from './utils/storageHelper.js';
+import { verifyToken, requireRole } from './middleware/auth.js';
 
 dotenv.config();
 if (fs.existsSync(path.resolve('backend/.env'))) {
@@ -61,10 +62,41 @@ import { procesarSuscripcionesPendientes } from './services/recurrenteService.js
 
 
 // Middlewares
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(morgan('dev'));
+
+// Bloquear estrictamente cualquier acceso HTTP directo a llaves privadas (.key), certificados (.cer), carpetas CSD/FIEL o scripts ejecutables en /storage
+app.use('/storage', (req, res, next) => {
+  let decodedPath = req.path || '';
+  try {
+    decodedPath = decodeURIComponent(decodedPath);
+  } catch {
+    return res.status(400).json({ message: 'Ruta inválida.' });
+  }
+  const lower = decodedPath.toLowerCase().replace(/\\/g, '/');
+  if (
+    lower.includes('..') ||
+    lower.includes('/csd/') ||
+    lower.endsWith('/csd') ||
+    lower.includes('/fiel/') ||
+    lower.endsWith('/fiel') ||
+    /\.(key|cer|pem|pfx|p12|env|sql|sh|bat|cmd|js|mjs|cjs)$/i.test(lower)
+  ) {
+    return res.status(403).json({ message: 'Acceso prohibido a certificados y llaves criptográficas.' });
+  }
+  // Evitar ejecución de scripts inline si se sirve algún documento
+  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf; sandbox");
+  next();
+});
 app.use('/storage', express.static(STORAGE_BASE));
 app.use('/storage', express.static(path.join(__dirname, 'storage')));
 
@@ -96,39 +128,26 @@ app.use('/api/planes', planRoutes);
 
 
 
-// Basic health check & DB diagnostic
+// Basic health check (no expone credenciales ni topología interna de BD)
 app.get('/api/health', async (req, res) => {
   try {
     await sequelize.authenticate();
-    const [tables] = await sequelize.query('SHOW TABLES');
-    const userCount = await models.Usuario.count().catch(() => 0);
     res.json({
       status: 'ok',
       message: 'Facturación CFDI 4.0 Backend Running',
-      database: {
-        connected: true,
-        host: process.env.DB_HOST || 'localhost',
-        name: process.env.DB_NAME,
-        user: process.env.DB_USER,
-        totalTables: tables.length,
-        totalUsers: userCount
-      }
+      database: { connected: true }
     });
   } catch (error) {
     res.status(500).json({
       status: 'error',
       message: 'Error al conectar con la base de datos',
-      error: error.message,
-      code: error.original?.code || error.code,
-      host: process.env.DB_HOST || 'localhost',
-      name: process.env.DB_NAME,
-      user: process.env.DB_USER
+      database: { connected: false }
     });
   }
 });
 
-// Endpoint manual de sincronización e inicialización si se requiere
-app.get('/api/db-init', async (req, res) => {
+// Endpoint manual de sincronización e inicialización (Protegido: Solo Administrador)
+app.get('/api/db-init', verifyToken, requireRole(['Administrador']), async (req, res) => {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: false });

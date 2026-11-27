@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     Bell, Search, ChevronDown, Check, LogOut, Building2, 
-    AlertTriangle, Plus, Layers, ShieldCheck, Sparkles 
+    AlertTriangle, Plus, Layers, ShieldCheck, Sparkles, HelpCircle 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 
-export const Topbar = () => {
+export const Topbar = ({ onOpenHelp }) => {
     const { 
         user, 
         activeEmisor, 
@@ -353,6 +353,19 @@ export const Topbar = () => {
                 </div>
 
                 <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
+                {onOpenHelp && (
+                    <button
+                        type="button"
+                        onClick={onOpenHelp}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors"
+                        title="Manual Interactivo Contextual (F1)"
+                    >
+                        <HelpCircle className="w-4 h-4" />
+                        <span className="hidden sm:inline">Ayuda</span>
+                        <kbd className="hidden md:inline px-1 py-0.5 text-[9px] font-mono bg-white border border-indigo-200 rounded text-indigo-600">F1</kbd>
+                    </button>
+                )}
 
                 <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors" title="Notificaciones">
                     <Bell className="w-5 h-5" />

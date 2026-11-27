@@ -9,12 +9,18 @@ import {
 } from '../models/index.js';
 import { ejecutarSuscripcion, procesarSuscripcionesPendientes, calcularProximaFecha } from '../services/recurrenteService.js';
 import { Op } from 'sequelize';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getRecurrentes = async (req, res) => {
     try {
         const { emisorId, estado, search } = req.query;
+        const allowedIds = await getAuthorizedEmisorIds(req, emisorId);
         let where = {};
-        if (emisorId) where.emisor_id = emisorId;
+        if (allowedIds !== null) {
+            where.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisorId) {
+            where.emisor_id = emisorId;
+        }
         if (estado && estado !== 'Todos') where.estado = estado;
 
         if (search) {
@@ -69,6 +75,9 @@ export const getRecurrenteById = async (req, res) => {
         if (!recurrente) {
             return res.status(404).json({ message: 'Suscripción recurrente no encontrada' });
         }
+        if (!(await canAccessEmisorId(req, recurrente.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta suscripción recurrente.' });
+        }
 
         res.json(recurrente);
     } catch (error) {
@@ -80,6 +89,9 @@ export const getRecurrenteById = async (req, res) => {
 export const createRecurrente = async (req, res) => {
     try {
         const { detalles, ...recurrenteData } = req.body;
+        if (!(await canAccessEmisorId(req, recurrenteData.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para crear suscripciones en este emisor.' });
+        }
         recurrenteData.usuario_id = req.usuario.id;
 
         // Calcular primera fecha de emisión si no viene provista
@@ -168,6 +180,9 @@ export const updateRecurrente = async (req, res) => {
         const recurrente = await FacturacionRecurrente.findByPk(id);
         if (!recurrente) {
             return res.status(404).json({ message: 'Suscripción recurrente no encontrada' });
+        }
+        if (!(await canAccessEmisorId(req, recurrente.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta suscripción recurrente.' });
         }
 
         const allowedFields = [
@@ -261,6 +276,9 @@ export const updateRecurrenteEstado = async (req, res) => {
 
         const recurrente = await FacturacionRecurrente.findByPk(id);
         if (!recurrente) return res.status(404).json({ message: 'Suscripción no encontrada' });
+        if (!(await canAccessEmisorId(req, recurrente.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar esta suscripción.' });
+        }
 
         recurrente.estado = estado;
         await recurrente.save();
@@ -275,6 +293,11 @@ export const updateRecurrenteEstado = async (req, res) => {
 export const ejecutarRecurrenteManual = async (req, res) => {
     try {
         const { id } = req.params;
+        const rec = await FacturacionRecurrente.findByPk(id, { attributes: ['id', 'emisor_id'] });
+        if (!rec) return res.status(404).json({ message: 'Suscripción no encontrada' });
+        if (!(await canAccessEmisorId(req, rec.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para ejecutar esta suscripción.' });
+        }
         const result = await ejecutarSuscripcion(id, req.usuario.id);
         res.json({
             success: true,
@@ -292,6 +315,9 @@ export const deleteRecurrente = async (req, res) => {
         const { id } = req.params;
         const recurrente = await FacturacionRecurrente.findByPk(id);
         if (!recurrente) return res.status(404).json({ message: 'Suscripción no encontrada' });
+        if (!(await canAccessEmisorId(req, recurrente.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar esta suscripción.' });
+        }
 
         await recurrente.destroy();
         res.json({ success: true, message: 'Suscripción eliminada' });
@@ -303,6 +329,9 @@ export const deleteRecurrente = async (req, res) => {
 
 export const procesarPendientesBatch = async (req, res) => {
     try {
+        if (req.usuario.rol !== 'Administrador') {
+            return res.status(403).json({ message: 'Solo los administradores pueden ejecutar el lote global de suscripciones.' });
+        }
         const resultado = await procesarSuscripcionesPendientes();
         res.json({
             success: true,
@@ -318,8 +347,13 @@ export const procesarPendientesBatch = async (req, res) => {
 export const getRecurrentesStats = async (req, res) => {
     try {
         const { emisorId } = req.query;
+        const allowedIds = await getAuthorizedEmisorIds(req, emisorId);
         let where = {};
-        if (emisorId) where.emisor_id = emisorId;
+        if (allowedIds !== null) {
+            where.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisorId) {
+            where.emisor_id = emisorId;
+        }
 
         const all = await FacturacionRecurrente.findAll({ where });
 

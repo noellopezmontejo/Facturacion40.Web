@@ -2,10 +2,14 @@ import { ConfiguracionEstilo, Emisor } from '../models/index.js';
 import fs from 'fs';
 import path from 'path';
 import { getEmissorDir } from '../utils/storageHelper.js';
+import { canAccessEmisorId } from '../middleware/auth.js';
 
 export const getEstilo = async (req, res) => {
     const { emisorId } = req.params;
     try {
+        if (!(await canAccessEmisorId(req, emisorId))) {
+            return res.status(403).json({ message: 'No tienes permisos para consultar el estilo de este emisor.' });
+        }
         let estilo = await ConfiguracionEstilo.findOne({ where: { emisor_id: emisorId } });
 
         if (!estilo) {
@@ -31,6 +35,9 @@ export const updateEstilo = async (req, res) => {
     const { color_primario, color_secundario, tipo_letra, layout_id, template_mapping, config_adicional } = req.body;
 
     try {
+        if (!(await canAccessEmisorId(req, emisorId))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar el estilo de este emisor.' });
+        }
         const emisor = await Emisor.findByPk(emisorId);
         if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
 
@@ -70,9 +77,12 @@ export const updateEstilo = async (req, res) => {
         if (req.body.remove_logo === 'true' || req.body.remove_logo === true) {
             updateData.logo_url = null;
         } else if (req.file) {
-            // Procesar nuevo logo usando el helper de storage
+            const ext = (path.extname(req.file.originalname) || '.png').toLowerCase();
+            const allowedLogoExts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+            if (!allowedLogoExts.includes(ext)) {
+                return res.status(400).json({ message: 'Formato de logotipo no permitido. Usa PNG, JPG o WEBP.' });
+            }
             const fullPath = getEmissorDir(emisor.rfc, 'logos');
-            const ext = path.extname(req.file.originalname) || '.png';
             const fileName = `logo_${Date.now()}${ext}`;
             fs.writeFileSync(path.join(fullPath, fileName), req.file.buffer);
 

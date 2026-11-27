@@ -309,8 +309,15 @@ export const consultarPeticionesPendientesGlobal = async (req, res) => {
 };
 
 /**
- * Consulta las credenciales activas del PAC
+ * Consulta las credenciales activas del PAC (enmascarando tokens sensibles)
  */
+const maskPacSecret = (val) => {
+    if (!val || typeof val !== 'string') return '';
+    const t = val.trim();
+    if (t.length <= 6) return '••••••••';
+    return `${t.slice(0, 4)}••••••••${t.slice(-3)}`;
+};
+
 export const getCredencialesPAC = async (req, res) => {
     try {
         const token = getPacToken();
@@ -320,8 +327,9 @@ export const getCredencialesPAC = async (req, res) => {
         res.json({
             success: true,
             rfc_integrador: rfc,
-            usuario_integrador: token,
-            password_integrador: process.env.PAC_PROFACT_PASSWORD || token,
+            usuario_integrador: maskPacSecret(token),
+            password_integrador: '••••••••',
+            token_configurado: Boolean(token),
             modo_entorno: pacEnv === 'sandbox' || pacEnv === 'pruebas' ? 'sandbox' : 'production'
         });
     } catch (error) {
@@ -334,37 +342,46 @@ export const getCredencialesPAC = async (req, res) => {
  */
 export const guardarCredencialesPAC = async (req, res) => {
     const { rfc_integrador, usuario_integrador, password_integrador, modo_entorno } = req.body;
+    const sanitizeEnvValue = (str) => String(str || '').replace(/[\r\n]/g, '').trim();
+    const isMasked = (str) => !str || str.includes('••••') || str === '********';
+
     try {
-        if (rfc_integrador && rfc_integrador.trim()) {
-            process.env.PAC_RFC_INTEGRADOR = rfc_integrador.trim().toUpperCase();
+        const cleanRfc = sanitizeEnvValue(rfc_integrador).toUpperCase();
+        const cleanUser = isMasked(usuario_integrador) ? '' : sanitizeEnvValue(usuario_integrador);
+        const cleanPass = isMasked(password_integrador) ? '' : sanitizeEnvValue(password_integrador);
+        const cleanModo = sanitizeEnvValue(modo_entorno);
+
+        if (cleanRfc) {
+            process.env.PAC_RFC_INTEGRADOR = cleanRfc;
         }
-        if (usuario_integrador && usuario_integrador.trim()) {
-            process.env.PAC_PROFACT_USER = usuario_integrador.trim();
+        if (cleanUser) {
+            process.env.PAC_PROFACT_USER = cleanUser;
         }
-        if (password_integrador && password_integrador.trim()) {
-            process.env.PAC_PROFACT_PASSWORD = password_integrador.trim();
+        if (cleanPass) {
+            process.env.PAC_PROFACT_PASSWORD = cleanPass;
         }
-        if (modo_entorno && modo_entorno.trim()) {
-            process.env.PAC_ENV = modo_entorno.trim();
+        if (cleanModo) {
+            process.env.PAC_ENV = cleanModo;
         }
 
-        // Intentar actualizar el archivo .env físico en disco para persistencia
+        // Intentar actualizar el archivo .env físico en disco para persistencia (con valores libres de saltos de línea)
         try {
             const envPath = path.resolve(process.cwd(), '.env');
             if (fs.existsSync(envPath)) {
                 let envContent = fs.readFileSync(envPath, 'utf-8');
                 const updateVar = (key, val) => {
+                    const safeVal = sanitizeEnvValue(val);
                     const regex = new RegExp(`^${key}=.*$`, 'm');
                     if (regex.test(envContent)) {
-                        envContent = envContent.replace(regex, `${key}=${val}`);
+                        envContent = envContent.replace(regex, `${key}=${safeVal}`);
                     } else {
-                        envContent += `\n${key}=${val}`;
+                        envContent += `\n${key}=${safeVal}`;
                     }
                 };
-                if (rfc_integrador) updateVar('PAC_RFC_INTEGRADOR', rfc_integrador.trim().toUpperCase());
-                if (usuario_integrador) updateVar('PAC_PROFACT_USER', usuario_integrador.trim());
-                if (password_integrador) updateVar('PAC_PROFACT_PASSWORD', password_integrador.trim());
-                if (modo_entorno) updateVar('PAC_ENV', modo_entorno.trim());
+                if (cleanRfc) updateVar('PAC_RFC_INTEGRADOR', cleanRfc);
+                if (cleanUser) updateVar('PAC_PROFACT_USER', cleanUser);
+                if (cleanPass) updateVar('PAC_PROFACT_PASSWORD', cleanPass);
+                if (cleanModo) updateVar('PAC_ENV', cleanModo);
                 fs.writeFileSync(envPath, envContent);
             }
         } catch (e) {

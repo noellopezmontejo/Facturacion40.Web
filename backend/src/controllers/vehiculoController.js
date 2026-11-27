@@ -1,8 +1,14 @@
 import { CatVehiculo } from '../models/index.js';
+import { Op } from 'sequelize';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getVehiculos = async (req, res) => {
     try {
-        const vehiculos = await CatVehiculo.findAll({ where: { emisor_id: req.query.emisor_id } });
+        const allowedIds = await getAuthorizedEmisorIds(req, req.query.emisor_id);
+        const whereClause = allowedIds !== null
+            ? { emisor_id: { [Op.in]: allowedIds } }
+            : (req.query.emisor_id ? { emisor_id: req.query.emisor_id } : {});
+        const vehiculos = await CatVehiculo.findAll({ where: whereClause });
         res.json(vehiculos);
     } catch (error) {
         console.error('Error fetching vehículos:', error);
@@ -12,6 +18,9 @@ export const getVehiculos = async (req, res) => {
 
 export const createVehiculo = async (req, res) => {
     try {
+        if (!(await canAccessEmisorId(req, req.body.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para registrar vehículos en este emisor.' });
+        }
         const nuevo = await CatVehiculo.create({ ...req.body, emisor_id: req.body.emisor_id });
         res.status(201).json(nuevo);
     } catch (error) {
@@ -23,7 +32,10 @@ export const createVehiculo = async (req, res) => {
 export const updateVehiculo = async (req, res) => {
     try {
         const vehiculo = await CatVehiculo.findByPk(req.params.id);
-        if(!vehiculo) return res.status(404).json({message: 'Vehículo no encontrado'});
+        if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+        if (!(await canAccessEmisorId(req, vehiculo.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar este vehículo.' });
+        }
         await vehiculo.update(req.body);
         res.json(vehiculo);
     } catch (error) {
@@ -35,7 +47,10 @@ export const updateVehiculo = async (req, res) => {
 export const deleteVehiculo = async (req, res) => {
     try {
         const vehiculo = await CatVehiculo.findByPk(req.params.id);
-        if(!vehiculo) return res.status(404).json({message: 'Vehículo no encontrado'});
+        if (!vehiculo) return res.status(404).json({ message: 'Vehículo no encontrado' });
+        if (!(await canAccessEmisorId(req, vehiculo.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para eliminar este vehículo.' });
+        }
         await vehiculo.destroy();
         res.json({ message: 'Vehículo eliminado.' });
     } catch (error) {

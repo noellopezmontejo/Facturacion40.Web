@@ -232,9 +232,15 @@ export const enviarFacturaPorCorreo = async (documento, receptor, xmlPath, pdfPa
             });
         }
 
+        const escapeHtml = (str = '') =>
+            String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
         const totalFormatted = `$${parseFloat(documento.total || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${documento.moneda || 'MXN'}`;
         const notaPersonalizada = opcionesExtras.mensaje
-            ? `<div style="margin: 18px 0; padding: 14px 16px; background: #f8fafc; border-left: 4px solid #4f46e5; color: #334155; font-size: 14px; border-radius: 6px;">${opcionesExtras.mensaje.replace(/\n/g, '<br/>')}</div>`
+            ? `<div style="margin: 18px 0; padding: 14px 16px; background: #f8fafc; border-left: 4px solid #4f46e5; color: #334155; font-size: 14px; border-radius: 6px;">${escapeHtml(opcionesExtras.mensaje).replace(/\n/g, '<br/>')}</div>`
             : '';
 
         const asunto = opcionesExtras.asunto || `${tipoLabel} ${folioLabel} - ${emisor?.razon_social || emisor?.rfc}`;

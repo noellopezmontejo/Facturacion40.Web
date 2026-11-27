@@ -1,14 +1,21 @@
 import { OrdenServicio, DetalleOrdenServicio, Emisor, Receptor, Concepto, Impuesto } from '../models/index.js';
 import fs from 'fs';
 import path from 'path';
+import { Op } from 'sequelize';
 import { generarPDFOrdenServicio } from '../services/pdfService.js';
 import { getOrdenEvidenciasDir, STORAGE_BASE } from '../utils/storageHelper.js';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getOrdenesServicio = async (req, res) => {
     try {
         const { emisorId } = req.query;
+        const allowedIds = await getAuthorizedEmisorIds(req, emisorId);
         let where = {};
-        if (emisorId) where.emisor_id = emisorId;
+        if (allowedIds !== null) {
+            where.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisorId) {
+            where.emisor_id = emisorId;
+        }
 
         const ordenes = await OrdenServicio.findAll({
             where,
@@ -28,7 +35,7 @@ export const getOrdenesServicio = async (req, res) => {
         res.json(formatted);
     } catch (error) {
         console.error('Error fetching ordenes de servicio:', error);
-        res.status(500).json({ message: 'Error al obtener ordenes de servicio', error: error.message, stack: error.stack });
+        res.status(500).json({ message: 'Error al obtener ordenes de servicio', error: error.message });
     }
 };
 
@@ -52,6 +59,9 @@ export const getOrdenServicioById = async (req, res) => {
             ]
         });
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
         
         const raw = orden.toJSON ? orden.toJSON() : orden;
         raw.evidencias_multimedia = Array.isArray(raw.evidencias_multimedia)
@@ -68,6 +78,9 @@ export const getOrdenServicioById = async (req, res) => {
 export const createOrdenServicio = async (req, res) => {
     try {
         const { detalles, ...ordenData } = req.body;
+        if (!(await canAccessEmisorId(req, ordenData.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para crear órdenes en este emisor.' });
+        }
         ordenData.usuario_id = req.usuario.id;
         
         const nuevaOrden = await OrdenServicio.create(ordenData);
@@ -94,6 +107,9 @@ export const updateOrdenServicioStatus = async (req, res) => {
         
         const orden = await OrdenServicio.findByPk(id);
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
         
         if (estado) orden.estado = estado;
         if (diagnostico_tecnico !== undefined) orden.diagnostico_tecnico = diagnostico_tecnico;
@@ -115,6 +131,9 @@ export const updateOrdenServicio = async (req, res) => {
 
         const orden = await OrdenServicio.findByPk(id);
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
 
         const allowedFields = [
             'estado',
@@ -243,6 +262,9 @@ export const addDetallesOrdenServicio = async (req, res) => {
         
         const orden = await OrdenServicio.findByPk(id);
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
         
         const detallesConOrdenId = detalles.map(det => ({
             ...det,
@@ -262,6 +284,11 @@ export const addDetallesOrdenServicio = async (req, res) => {
 export const getOrdenServicioPdf = async (req, res) => {
     try {
         const { id } = req.params;
+        const orden = await OrdenServicio.findByPk(id, { attributes: ['id', 'emisor_id'] });
+        if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
         const result = await generarPDFOrdenServicio(id);
         res.json(result);
     } catch (error) {
@@ -277,6 +304,9 @@ export const uploadEvidenciasOrdenServicio = async (req, res) => {
             include: [{ model: Emisor }]
         });
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
 
         const files = req.files || (req.file ? [req.file] : []);
         if (files.length === 0) {
@@ -295,9 +325,15 @@ export const uploadEvidenciasOrdenServicio = async (req, res) => {
 
         const addedItems = [];
 
+        const ALLOWED_EVIDENCIA_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.pdf', '.mp4', '.webm', '.mov'];
+
         for (const file of files) {
-            const isVideo = file.mimetype.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi)$/i.test(file.originalname);
-            const ext = path.extname(file.originalname) || (isVideo ? '.mp4' : '.jpg');
+            const isVideo = file.mimetype.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.originalname);
+            const rawExt = (path.extname(file.originalname) || (isVideo ? '.mp4' : '.jpg')).toLowerCase();
+            if (!ALLOWED_EVIDENCIA_EXTS.includes(rawExt)) {
+                return res.status(400).json({ message: `Tipo de archivo no permitido (${rawExt}). Solo imágenes, PDF o videos MP4/WEBM/MOV.` });
+            }
+            const ext = rawExt;
             const safeBaseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
             const filename = `${Date.now()}_${safeBaseName}${ext}`;
             const targetPath = path.join(evidenciasDir, filename);
@@ -342,6 +378,9 @@ export const deleteEvidenciaOrdenServicio = async (req, res) => {
             include: [{ model: Emisor }]
         });
         if (!orden) return res.status(404).json({ message: 'Orden de servicio no encontrada' });
+        if (!(await canAccessEmisorId(req, orden.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para acceder a esta orden de servicio.' });
+        }
 
         const emisor = orden.Emisor || {};
         const rfc = emisor.rfc ? emisor.rfc.trim().toUpperCase() : 'GENERICO';

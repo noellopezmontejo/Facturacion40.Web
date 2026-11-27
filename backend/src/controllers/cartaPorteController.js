@@ -6,8 +6,12 @@ import {
     CartaPorteFigura, Emisor, Receptor, DetalleDocumento 
 } from '../models/index.js';
 import { generarXMLCartaPorte, firmarXML, timbrarPAC } from '../services/cfdiService.js';
+import { canAccessEmisorId } from '../middleware/auth.js';
 
 export const emitirCartaPorte = async (req, res) => {
+    if (!(await canAccessEmisorId(req, req.body?.emisor_id))) {
+        return res.status(403).json({ message: 'No tienes permisos para emitir Carta Porte con este emisor.' });
+    }
     const t = await sequelize.transaction();
     try {
         const {
@@ -100,8 +104,6 @@ export const emitirCartaPorte = async (req, res) => {
 
         // 3. Generar XML
         const xmlBase = await generarXMLCartaPorte(nuevoDoc, emisor, receptor, detallesInst, cartaPorte);
-        const fsDebug = await import('fs');
-        fsDebug.writeFileSync('carta_porte_debug.xml', xmlBase);
         
         // 4. Firmar XML
         const xmlFirmado = await firmarXML(xmlBase, emisor.id);

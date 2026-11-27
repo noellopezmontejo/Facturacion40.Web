@@ -605,7 +605,9 @@ export const webhookMercadoPago = async (req, res) => {
             if (payment.status === 'approved') {
                 const extRef = payment.external_reference;
                 const pago = await PagoSuscripcion.findOne({ where: { referencia_pago: extRef } });
-                if (pago && pago.estado !== 'aprobado') {
+                const paidAmount = parseFloat(payment.transaction_amount || 0);
+                const expectedAmount = parseFloat(pago?.monto || 0);
+                if (pago && pago.estado !== 'aprobado' && (expectedAmount <= 0 || paidAmount >= expectedAmount - 1)) {
                     pago.estado = 'aprobado';
                     pago.fecha_aprobacion = new Date();
                     pago.notas_admin = `Aprobado automáticamente por Mercado Pago ID: ${payment.id}`;

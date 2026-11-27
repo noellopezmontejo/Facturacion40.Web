@@ -451,14 +451,16 @@ export const firmarXML = async (xmlString, emisorId) => {
     doc.root().att('Sello', selloDigital);
     const finalXml = doc.end({ prettyPrint: false });
 
-    // Guardar XML final firmado para diagnóstico
-    try {
-        const scratchDir = path.join(process.cwd(), 'scratch');
-        fs.writeFileSync(path.join(scratchDir, 'ultimo_xml_firmado.xml'), finalXml);
-    } catch (e) {}
-
     return finalXml;
 };
+
+const escapeXml = (str = '') =>
+    String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
 
 export const isEmisorInSandbox = (emisor = {}) => {
     if (emisor && typeof emisor.modo_prueba !== 'undefined' && emisor.modo_prueba !== null) {
@@ -506,7 +508,7 @@ export const timbrarPAC = async (xmlFirmado, emisor) => {
     const xmlLimpio = xmlFirmado.replace(/^<\?xml.*?\?>\s*/, '').trim();
     const xmlBase64 = Buffer.from(xmlLimpio, 'utf-8').toString('base64');
     
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><TimbraCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><xmlComprobanteBase64>${xmlBase64}</xmlComprobanteBase64><idComprobante></idComprobante></TimbraCFDI></s:Body></s:Envelope>`;
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><TimbraCFDI xmlns="http://tempuri.org/"><usuarioIntegrador>${escapeXml(pacToken)}</usuarioIntegrador><xmlComprobanteBase64>${xmlBase64}</xmlComprobanteBase64><idComprobante></idComprobante></TimbraCFDI></s:Body></s:Envelope>`;
 
     try {
         const response = await axios.post(pacUrl, soapEnvelope, {
@@ -591,7 +593,7 @@ export const getCreditosDisponibles = async (emisor = {}) => {
     }
 
     const rfcParam = (emisor?.rfc || '').trim();
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ObtieneTimbresDisponibles xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${rfcParam}</rfcEmisor></ObtieneTimbresDisponibles></s:Body></s:Envelope>`;
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><ObtieneTimbresDisponibles xmlns="http://tempuri.org/"><usuarioIntegrador>${escapeXml(pacToken)}</usuarioIntegrador><rfcEmisor>${escapeXml(rfcParam)}</rfcEmisor></ObtieneTimbresDisponibles></s:Body></s:Envelope>`;
     
     try {
         const startTime = Date.now();
@@ -690,7 +692,7 @@ export const registrarEmisorPAC = async (emisor, customPassword = null) => {
     const cerBase64 = fs.readFileSync(cerPath).toString('base64');
     const keyBase64 = fs.readFileSync(keyPath).toString('base64');
 
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><RegistraEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor><base64Cer>${cerBase64}</base64Cer><base64Key>${keyBase64}</base64Key><contrasena>${passwordCsd}</contrasena></RegistraEmisor></s:Body></s:Envelope>`;
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><RegistraEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${escapeXml(pacToken)}</usuarioIntegrador><rfcEmisor>${escapeXml(emisor.rfc)}</rfcEmisor><base64Cer>${cerBase64}</base64Cer><base64Key>${keyBase64}</base64Key><contrasena>${escapeXml(passwordCsd)}</contrasena></RegistraEmisor></s:Body></s:Envelope>`;
 
     try {
         console.log(`[CFDI Service] Registrando emisor ${emisor.rfc} en el PAC (${isSandbox ? 'Sandbox' : 'Producción'})...`);
@@ -763,7 +765,7 @@ export const asignarTimbresPAC = async (emisor, noTimbres) => {
         return { success: false, mensaje: 'La cantidad de timbres a asignar debe ser un número entero mayor a 0.' };
     }
 
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><AsignaTimbresEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${emisor.rfc}</rfcEmisor><noTimbres>${cant}</noTimbres></AsignaTimbresEmisor></s:Body></s:Envelope>`;
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><AsignaTimbresEmisor xmlns="http://tempuri.org/"><usuarioIntegrador>${escapeXml(pacToken)}</usuarioIntegrador><rfcEmisor>${escapeXml(emisor.rfc)}</rfcEmisor><noTimbres>${cant}</noTimbres></AsignaTimbresEmisor></s:Body></s:Envelope>`;
 
     try {
         const response = await axios.post(pacUrl, soapEnvelope, {
@@ -824,7 +826,7 @@ export const cancelarCFDIPAC = async (emisor, folioUUID, motivoCancelacion = '02
         };
     }
 
-    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><CancelaCFDIAck40 xmlns="http://tempuri.org/"><usuarioIntegrador>${pacToken}</usuarioIntegrador><rfcEmisor>${(emisor.rfc || '').trim()}</rfcEmisor><folioUUID>${uuidClean}</folioUUID><motivoCancelacion>${motivoClean}</motivoCancelacion><folioUUIDSustitucion>${sustitucionClean}</folioUUIDSustitucion></CancelaCFDIAck40></s:Body></s:Envelope>`;
+    const soapEnvelope = `<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><CancelaCFDIAck40 xmlns="http://tempuri.org/"><usuarioIntegrador>${escapeXml(pacToken)}</usuarioIntegrador><rfcEmisor>${escapeXml((emisor.rfc || '').trim())}</rfcEmisor><folioUUID>${escapeXml(uuidClean)}</folioUUID><motivoCancelacion>${escapeXml(motivoClean)}</motivoCancelacion><folioUUIDSustitucion>${escapeXml(sustitucionClean)}</folioUUIDSustitucion></CancelaCFDIAck40></s:Body></s:Envelope>`;
 
     try {
         console.log(`[CFDI Service] Solicitando cancelación CFDI 4.0 (${isSandbox ? 'Sandbox' : 'Producción'}) UUID=${uuidClean} Motivo=${motivoClean} Sustitucion=${sustitucionClean || 'N/A'}`);
@@ -1123,11 +1125,6 @@ export const generarXMLPago = async (pago, emisor, receptor, doctosRelacionados)
     };
 
     const xmlString = create({ version: '1.0', encoding: 'UTF-8' }, cfdiObject).end({ prettyPrint: false });
-    try { 
-        const scratchDir = path.join(process.cwd(), 'scratch');
-        if (!fs.existsSync(scratchDir)) fs.mkdirSync(scratchDir);
-        fs.writeFileSync(path.join(scratchDir, 'ultimo_xml_generado.xml'), xmlString); 
-    } catch (e) {}
     return xmlString;
 };
 

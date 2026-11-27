@@ -1,4 +1,5 @@
 import { Receptor, Emisor } from '../models/index.js';
+import { canAccessEmisorId } from '../middleware/auth.js';
 
 export const getReceptoresByEmisor = async (req, res) => {
     const { emisorId } = req.params;
@@ -43,6 +44,9 @@ export const getReceptoresByEmisor = async (req, res) => {
 
 export const createReceptor = async (req, res) => {
     try {
+        if (!(await canAccessEmisorId(req, req.body.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para registrar clientes en este emisor.' });
+        }
         const newReceptor = await Receptor.create(req.body);
         res.status(201).json(newReceptor);
     } catch (error) {

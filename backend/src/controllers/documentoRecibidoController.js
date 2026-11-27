@@ -17,6 +17,7 @@ import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
 import fs from 'fs';
 import { getFielCerPath, getFielKeyPath, getXmlPath, getPublicUrl } from '../utils/storageHelper.js';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 /**
  * Helper para recalcular el saldo y estado de pago de una factura recibida.
@@ -67,14 +68,18 @@ export const importarXMLs = async (req, res) => {
     }
 
     let defaultEmisorId = emisor_id ? parseInt(emisor_id, 10) : null;
-    
-    // Si no viene emisor_id, tomamos el primero registrado en el sistema
+    if (defaultEmisorId && !(await canAccessEmisorId(req, defaultEmisorId))) {
+        return res.status(403).json({ message: 'No tienes permisos para importar documentos en este emisor.' });
+    }
+
+    // Si no viene emisor_id, tomamos el primero registrado de la empresa del usuario
     if (!defaultEmisorId) {
-        const primerEmisor = await Emisor.findOne();
+        const whereEmisor = req.usuario.rol === 'Administrador' ? {} : { empresa_id: req.usuario.empresa_id };
+        const primerEmisor = await Emisor.findOne({ where: whereEmisor });
         if (primerEmisor) {
             defaultEmisorId = primerEmisor.id;
         } else {
-            return res.status(400).json({ message: 'No hay emisores registrados en el sistema para asociar los documentos' });
+            return res.status(400).json({ message: 'No hay emisores registrados en tu espacio de trabajo para asociar los documentos' });
         }
     }
 
@@ -265,9 +270,14 @@ export const getDocumentosRecibidos = async (req, res) => {
     const { emisor_id, proveedor_id, estado_pago, metodo_pago, search } = req.query;
 
     try {
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
         const whereClause = {};
 
-        if (emisor_id) whereClause.emisor_id = emisor_id;
+        if (allowedIds !== null) {
+            whereClause.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisor_id) {
+            whereClause.emisor_id = emisor_id;
+        }
         if (proveedor_id) whereClause.proveedor_id = proveedor_id;
         if (estado_pago) whereClause.estado_pago = estado_pago;
         if (metodo_pago) whereClause.metodo_pago = metodo_pago;
@@ -305,8 +315,13 @@ export const getDocumentosRecibidos = async (req, res) => {
 export const getResumenCuentasPorPagar = async (req, res) => {
     const { emisor_id } = req.query;
     try {
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
         const whereClause = {};
-        if (emisor_id) whereClause.emisor_id = emisor_id;
+        if (allowedIds !== null) {
+            whereClause.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisor_id) {
+            whereClause.emisor_id = emisor_id;
+        }
 
         // 1. Obtener todas las facturas recibidas de tipo PPD y PUE
         const documentos = await DocumentoRecibido.findAll({
@@ -393,6 +408,9 @@ export const solicitarDescargaSAT = async (req, res) => {
         if (!emisor) {
             return res.status(404).json({ message: 'Emisor del sistema no encontrado' });
         }
+        if (!(await canAccessEmisorId(req, emisor.id))) {
+            return res.status(403).json({ message: 'No tienes permisos para solicitar descargas de este emisor.' });
+        }
 
         let customCreds = null;
         if (req.files && req.files['fiel_cer'] && req.files['fiel_key']) {
@@ -469,7 +487,10 @@ export const solicitarDescargaSAT = async (req, res) => {
 export const getSolicitudesDescarga = async (req, res) => {
     const { emisor_id } = req.query;
     try {
-        const whereClause = emisor_id ? { emisor_id: Number(emisor_id) } : {};
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
+        const whereClause = allowedIds !== null
+            ? { emisor_id: { [Op.in]: allowedIds } }
+            : (emisor_id ? { emisor_id: Number(emisor_id) } : {});
         const solicitudes = await SolicitudDescargaSat.findAll({
             where: whereClause,
             order: [['createdAt', 'DESC']],
@@ -493,6 +514,9 @@ export const verificarSolicitudSAT = async (req, res) => {
         });
         if (!solicitud) {
             return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+        if (!(await canAccessEmisorId(req, solicitud.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos sobre esta solicitud.' });
         }
 
         const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);
@@ -534,6 +558,9 @@ export const simularPaquetesPrueba = async (req, res) => {
         if (!solicitud) {
             return res.status(404).json({ message: 'Solicitud no encontrada' });
         }
+        if (!(await canAccessEmisorId(req, solicitud.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos sobre esta solicitud.' });
+        }
 
         solicitud.estado_sat = 'Terminada';
         solicitud.codigo_estado = '5000';
@@ -564,6 +591,9 @@ export const descargarEImportarPaquetesSAT = async (req, res) => {
         });
         if (!solicitud) {
             return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+        if (!(await canAccessEmisorId(req, solicitud.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos sobre esta solicitud.' });
         }
 
         const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);

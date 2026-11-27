@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { HelpDrawer } from '../help/HelpDrawer';
 import { AlertTriangle, Clock, X, ArrowRight } from 'lucide-react';
 import api from '../../api/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +14,18 @@ export const DashboardLayout = ({ children }) => {
 
     const [subNotice, setSubNotice] = useState(null);
     const [bannerDismissed, setBannerDismissed] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
+
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            if (e.key === 'F1') {
+                e.preventDefault();
+                setHelpOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
 
     useEffect(() => {
         if (!user) return;
@@ -51,7 +64,7 @@ export const DashboardLayout = ({ children }) => {
         <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-                <Topbar />
+                <Topbar onOpenHelp={() => setHelpOpen(true)} />
 
                 {/* Banner Global de Vencimiento de Suscripción */}
                 {subNotice && !bannerDismissed && !isAlreadyOnSuscripcionPage && (
@@ -107,6 +120,7 @@ export const DashboardLayout = ({ children }) => {
                     </div>
                 </main>
             </div>
+            <HelpDrawer isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
         </div>
     );
 };

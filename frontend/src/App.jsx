@@ -28,6 +28,7 @@ import { Reportes } from './pages/Reportes';
 import { Recurrentes } from './pages/Recurrentes';
 import { RestablecerPassword } from './pages/RestablecerPassword';
 import { MiSuscripcion } from './pages/MiSuscripcion';
+import { CentroAyuda } from './pages/CentroAyuda';
 
 
 function App() {
@@ -189,6 +190,13 @@ function App() {
                     <ProtectedRoute>
                         <DashboardLayout>
                             <MiSuscripcion />
+                        </DashboardLayout>
+                    </ProtectedRoute>
+                } />
+                <Route path="/ayuda" element={
+                    <ProtectedRoute>
+                        <DashboardLayout>
+                            <CentroAyuda />
                         </DashboardLayout>
                     </ProtectedRoute>
                 } />

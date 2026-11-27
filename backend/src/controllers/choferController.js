@@ -1,8 +1,14 @@
 import { CatChofer } from '../models/index.js';
+import { Op } from 'sequelize';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getChoferes = async (req, res) => {
     try {
-        const choferes = await CatChofer.findAll({ where: { emisor_id: req.query.emisor_id } });
+        const allowedIds = await getAuthorizedEmisorIds(req, req.query.emisor_id);
+        const whereClause = allowedIds !== null
+            ? { emisor_id: { [Op.in]: allowedIds } }
+            : (req.query.emisor_id ? { emisor_id: req.query.emisor_id } : {});
+        const choferes = await CatChofer.findAll({ where: whereClause });
         res.json(choferes);
     } catch (error) {
         console.error('Error fetching choferes:', error);
@@ -12,6 +18,9 @@ export const getChoferes = async (req, res) => {
 
 export const createChofer = async (req, res) => {
     try {
+        if (!(await canAccessEmisorId(req, req.body.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para registrar choferes en este emisor.' });
+        }
         const nuevo = await CatChofer.create({ ...req.body, emisor_id: req.body.emisor_id });
         res.status(201).json(nuevo);
     } catch (error) {
@@ -23,7 +32,10 @@ export const createChofer = async (req, res) => {
 export const updateChofer = async (req, res) => {
     try {
         const chofer = await CatChofer.findByPk(req.params.id);
-        if(!chofer) return res.status(404).json({message: 'Chofer no encontrado'});
+        if (!chofer) return res.status(404).json({ message: 'Chofer no encontrado' });
+        if (!(await canAccessEmisorId(req, chofer.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar este chofer.' });
+        }
         await chofer.update(req.body);
         res.json(chofer);
     } catch (error) {
@@ -35,7 +47,10 @@ export const updateChofer = async (req, res) => {
 export const deleteChofer = async (req, res) => {
     try {
         const chofer = await CatChofer.findByPk(req.params.id);
-        if(!chofer) return res.status(404).json({message: 'Chofer no encontrado'});
+        if (!chofer) return res.status(404).json({ message: 'Chofer no encontrado' });
+        if (!(await canAccessEmisorId(req, chofer.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para eliminar este chofer.' });
+        }
         await chofer.destroy();
         res.json({ message: 'Chofer eliminado.' });
     } catch (error) {

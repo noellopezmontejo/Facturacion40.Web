@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Building2, FileText, CreditCard, Settings, LogOut, Package, FilePlus, Palette, Truck, UserSquare2, MapPinned, Tag, Landmark, ClipboardList, Wrench, BarChart3, CalendarClock, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, FileText, CreditCard, Settings, LogOut, Package, FilePlus, Palette, Truck, UserSquare2, MapPinned, Tag, Landmark, ClipboardList, Wrench, BarChart3, CalendarClock, Sparkles, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { NetLogo } from '../NetLogo';
 
@@ -23,6 +23,7 @@ const mainNavItems = [
     { name: 'Diseñador de Facturas', path: '/configuracion/diseno', icon: Palette, roles: ['Administrador'] },
     { name: 'Mi Suscripción', path: '/mi-suscripcion', icon: Sparkles },
     { name: 'Configuración', path: '/configuracion', icon: Settings },
+    { name: 'Manual de Ayuda', path: '/ayuda', icon: HelpCircle },
 ];
 
 const cartaPorteItems = [

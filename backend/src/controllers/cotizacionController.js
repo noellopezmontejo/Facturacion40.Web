@@ -1,11 +1,18 @@
 import { Cotizacion, DetalleCotizacion, Emisor, Receptor, Concepto, Impuesto } from '../models/index.js';
 import { generarPDFCotizacion } from '../services/pdfService.js';
+import { Op } from 'sequelize';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getCotizaciones = async (req, res) => {
     try {
         const { emisorId } = req.query;
+        const allowedIds = await getAuthorizedEmisorIds(req, emisorId);
         let where = {};
-        if (emisorId) where.emisor_id = emisorId;
+        if (allowedIds !== null) {
+            where.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisorId) {
+            where.emisor_id = emisorId;
+        }
 
         const cotizaciones = await Cotizacion.findAll({
             where,
@@ -18,7 +25,7 @@ export const getCotizaciones = async (req, res) => {
         res.json(cotizaciones);
     } catch (error) {
         console.error('Error fetching cotizaciones:', error);
-        res.status(500).json({ message: 'Error al obtener cotizaciones', error: error.message, stack: error.stack });
+        res.status(500).json({ message: 'Error al obtener cotizaciones', error: error.message });
     }
 };
 
@@ -42,6 +49,9 @@ export const getCotizacionById = async (req, res) => {
             ]
         });
         if (!cotizacion) return res.status(404).json({ message: 'Cotización no encontrada' });
+        if (!(await canAccessEmisorId(req, cotizacion.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para consultar esta cotización.' });
+        }
         res.json(cotizacion);
     } catch (error) {
         console.error('Error fetching cotizacion:', error);
@@ -52,6 +62,9 @@ export const getCotizacionById = async (req, res) => {
 export const createCotizacion = async (req, res) => {
     try {
         const { detalles, ...cotizacionData } = req.body;
+        if (!(await canAccessEmisorId(req, cotizacionData.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para crear cotizaciones en este emisor.' });
+        }
         cotizacionData.usuario_id = req.usuario.id;
         
         const nuevaCotizacion = await Cotizacion.create(cotizacionData);
@@ -78,10 +91,13 @@ export const updateCotizacionStatus = async (req, res) => {
         
         const cotizacion = await Cotizacion.findByPk(id);
         if (!cotizacion) return res.status(404).json({ message: 'Cotización no encontrada' });
-        
+        if (!(await canAccessEmisorId(req, cotizacion.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para modificar esta cotización.' });
+        }
+
         cotizacion.estado = estado;
         if (documento_id) cotizacion.documento_id = documento_id;
-        
+
         await cotizacion.save();
         res.json(cotizacion);
     } catch (error) {
@@ -93,6 +109,11 @@ export const updateCotizacionStatus = async (req, res) => {
 export const getCotizacionPdf = async (req, res) => {
     try {
         const { id } = req.params;
+        const cotizacion = await Cotizacion.findByPk(id, { attributes: ['id', 'emisor_id'] });
+        if (!cotizacion) return res.status(404).json({ message: 'Cotización no encontrada' });
+        if (!(await canAccessEmisorId(req, cotizacion.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para generar el PDF de esta cotización.' });
+        }
         const result = await generarPDFCotizacion(id);
         res.json(result);
     } catch (error) {

@@ -32,14 +32,37 @@ if (!fs.existsSync(STORAGE_BASE)) {
 }
 
 /**
+ * Sanitiza un RFC para evitar ataques de Path Traversal (../, barras, caracteres nulos).
+ */
+export const sanitizeRfcForPath = (rfc) => {
+    const clean = String(rfc || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9Ñ&_-]/g, '');
+    if (!clean || clean.length < 3 || clean.length > 20) {
+        throw new Error('RFC inválido para operación de almacenamiento.');
+    }
+    return clean;
+};
+
+/**
  * Devuelve (y crea si no existe) el directorio de un sub-módulo para un RFC concreto.
  * @param {string} rfc   RFC del emisor  (ej. "EKU9003173C9")
- * @param {'xml'|'pdf'|'csd'} tipo Subdirectorio deseado
+ * @param {'xml'|'pdf'|'csd'|'fiel'|'logos'|'ordenes_servicio'} tipo Subdirectorio deseado
  * @returns {string} Ruta absoluta al directorio
  */
 export const getEmissorDir = (rfc, tipo) => {
     if (!rfc) throw new Error('RFC requerido para resolver el directorio del emisor.');
-    const dir = path.join(STORAGE_BASE, rfc, tipo);
+    const safeRfc = sanitizeRfcForPath(rfc);
+    const safeTipo = String(tipo || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const dir = path.resolve(STORAGE_BASE, safeRfc, safeTipo);
+
+    // Verificar que la ruta resultante permanezca estrictamente dentro de STORAGE_BASE
+    const baseResolved = path.resolve(STORAGE_BASE);
+    if (!dir.startsWith(baseResolved + path.sep)) {
+        throw new Error('Acceso a directorio fuera de STORAGE_BASE bloqueado por seguridad.');
+    }
+
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     return dir;
 };
@@ -67,18 +90,25 @@ export const getFielKeyPath = (rfc) => path.join(getEmissorDir(rfc, 'fiel'), 'fi
 /**
  * Ruta para guardar un XML timbrado
  */
-export const getXmlPath = (rfc, uuid) => path.join(getEmissorDir(rfc, 'xml'), `${uuid}.xml`);
+export const getXmlPath = (rfc, uuid) => {
+    const safeUuid = String(uuid || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    return path.join(getEmissorDir(rfc, 'xml'), `${safeUuid}.xml`);
+};
 
 /**
  * Ruta para guardar un PDF
  */
-export const getPdfPath = (rfc, uuid) => path.join(getEmissorDir(rfc, 'pdf'), `${uuid}.pdf`);
+export const getPdfPath = (rfc, uuid) => {
+    const safeUuid = String(uuid || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    return path.join(getEmissorDir(rfc, 'pdf'), `${safeUuid}.pdf`);
+};
 
 /**
  * Directorio para evidencias de una orden de servicio
  */
 export const getOrdenEvidenciasDir = (rfc, ordenId) => {
-    const dir = path.join(getEmissorDir(rfc, 'ordenes_servicio'), String(ordenId));
+    const safeOrdenId = String(ordenId || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const dir = path.join(getEmissorDir(rfc, 'ordenes_servicio'), safeOrdenId);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     return dir;
 };
@@ -86,4 +116,8 @@ export const getOrdenEvidenciasDir = (rfc, ordenId) => {
 /**
  * URL pública relativa para acceder a un recurso vía /storage/...
  */
-export const getPublicUrl = (rfc, tipo, filename) => `/storage/${rfc}/${tipo}/${filename}`;
+export const getPublicUrl = (rfc, tipo, filename) => {
+    const safeRfc = sanitizeRfcForPath(rfc);
+    const safeTipo = String(tipo || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    return `/storage/${safeRfc}/${safeTipo}/${filename}`;
+};

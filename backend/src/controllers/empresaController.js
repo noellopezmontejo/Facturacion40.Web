@@ -5,6 +5,8 @@ import { getFielInfo } from '../utils/csdHelper.js';
 
 const attachFielInfo = (empresa) => {
     const plain = empresa.toJSON ? empresa.toJSON() : { ...empresa };
+    plain.tiene_smtp_pass = Boolean(plain.smtp_pass);
+    plain.smtp_pass = plain.smtp_pass ? '••••••••' : '';
     if (Array.isArray(plain.Emisors)) {
         plain.Emisors = plain.Emisors.map((em) => {
             let fielInfo = { tieneCertificado: false };
@@ -136,12 +138,14 @@ export const updateMiEmpresa = async (req, res) => {
         if (smtp_port !== undefined) updateData.smtp_port = parseInt(smtp_port) || 587;
         if (smtp_secure !== undefined) updateData.smtp_secure = Boolean(smtp_secure);
         if (smtp_user !== undefined) updateData.smtp_user = smtp_user;
-        if (smtp_pass !== undefined && smtp_pass !== '') updateData.smtp_pass = smtp_pass;
+        if (smtp_pass !== undefined && smtp_pass !== '' && smtp_pass !== '••••••••' && smtp_pass !== '********') {
+            updateData.smtp_pass = smtp_pass;
+        }
         if (smtp_from_name !== undefined) updateData.smtp_from_name = smtp_from_name;
         if (smtp_from_email !== undefined) updateData.smtp_from_email = smtp_from_email;
 
         await empresa.update(updateData);
-        res.json({ message: 'Espacio empresarial actualizado con éxito.', empresa });
+        res.json({ message: 'Espacio empresarial actualizado con éxito.', empresa: attachFielInfo(empresa) });
     } catch (error) {
         console.error('Error updating empresa:', error);
         res.status(500).json({ message: 'Error al actualizar espacio empresarial.', error: error.message });
@@ -162,9 +166,10 @@ export const testSmtpEmpresa = async (req, res) => {
             empresa_id
         } = req.body;
 
-        let passToUse = smtp_pass;
+        let passToUse = (smtp_pass && smtp_pass !== '••••••••' && smtp_pass !== '********') ? smtp_pass : '';
         if (!passToUse && (empresa_id || req.usuario.empresa_id)) {
-            const emp = await Empresa.findByPk(empresa_id || req.usuario.empresa_id);
+            const targetId = req.usuario.rol === 'Administrador' ? (empresa_id || req.usuario.empresa_id) : req.usuario.empresa_id;
+            const emp = await Empresa.findByPk(targetId);
             if (emp?.smtp_pass) passToUse = emp.smtp_pass;
         }
 

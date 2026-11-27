@@ -50,7 +50,25 @@ import forge from 'node-forge';
 
 // Configuración de Multer para memoria (luego procesamos nosotros el guardado por RFC)
 const storage = multer.memoryStorage();
-export const upload = multer({ storage: storage });
+export const upload = multer({
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const RFC_REGEX = /^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$/;
+
+// Oculta contraseñas sensibles antes de enviar el objeto Emisor al frontend
+const sanitizeEmisorOutput = (emisorInstance) => {
+    if (!emisorInstance) return null;
+    const json = typeof emisorInstance.toJSON === 'function' ? emisorInstance.toJSON() : { ...emisorInstance };
+    json.tiene_password_csd = Boolean(json.password_csd);
+    json.tiene_password_fiel = Boolean(json.password_fiel);
+    json.tiene_smtp_pass = Boolean(json.smtp_pass);
+    json.password_csd = json.password_csd ? '••••••••' : '';
+    json.password_fiel = json.password_fiel ? '••••••••' : '';
+    json.smtp_pass = json.smtp_pass ? '••••••••' : '';
+    return json;
+};
 
 export const getEmisores = async (req, res) => {
     try {
@@ -78,7 +96,7 @@ export const getEmisores = async (req, res) => {
             });
         }
         const emisoresWithCsd = emisores.map(e => {
-            const json = e.toJSON();
+            const json = sanitizeEmisorOutput(e);
             try {
                 json.csd_info = getCsdInfo(e.rfc);
             } catch (csdErr) {
@@ -114,6 +132,9 @@ export const createEmisor = async (req, res) => {
         }
 
         emisorData.rfc = emisorData.rfc.trim().toUpperCase();
+        if (!RFC_REGEX.test(emisorData.rfc)) {
+            return res.status(400).json({ message: 'El formato del RFC del emisor no es válido (12 o 13 caracteres alfanuméricos SAT).' });
+        }
         emisorData.razon_social = emisorData.razon_social.trim();
 
         // Validar si el RFC ya existe en el sistema
@@ -177,7 +198,7 @@ export const createEmisor = async (req, res) => {
             include: [{ model: Empresa, attributes: ['id', 'nombre', 'activo'] }]
         });
 
-        res.status(201).json(emisorCompleto);
+        res.status(201).json(sanitizeEmisorOutput(emisorCompleto));
     } catch (error) {
         console.error('Error creating emisor:', error);
         if (error.name === 'SequelizeUniqueConstraintError') {
@@ -209,12 +230,27 @@ export const updateEmisor = async (req, res) => {
         if (!emisor) return res.status(404).json({ message: 'Emisor no encontrado' });
 
         const updatePayload = { ...req.body };
+        if (updatePayload.rfc) {
+            updatePayload.rfc = String(updatePayload.rfc).trim().toUpperCase();
+            if (!RFC_REGEX.test(updatePayload.rfc)) {
+                return res.status(400).json({ message: 'El formato del RFC no es válido.' });
+            }
+        }
+        if (req.usuario.rol !== 'Administrador') {
+            delete updatePayload.empresa_id;
+        }
         if (!updatePayload.smtp_pass || updatePayload.smtp_pass === '********' || updatePayload.smtp_pass === '••••••••') {
             delete updatePayload.smtp_pass;
         }
+        if (!updatePayload.password_csd || updatePayload.password_csd === '********' || updatePayload.password_csd === '••••••••') {
+            delete updatePayload.password_csd;
+        }
+        if (!updatePayload.password_fiel || updatePayload.password_fiel === '********' || updatePayload.password_fiel === '••••••••') {
+            delete updatePayload.password_fiel;
+        }
 
         await emisor.update(updatePayload);
-        res.json(emisor);
+        res.json(sanitizeEmisorOutput(emisor));
     } catch (error) {
         console.error('Error updating emisor:', error);
         res.status(500).json({ message: 'Error al actualizar emisor' });
@@ -452,16 +488,17 @@ export const uploadCSD = async (req, res) => {
         fs.writeFileSync(cerDest, cerFile.buffer);
         fs.writeFileSync(keyDest, keyFile.buffer);
 
-        // Actualizar base de datos con rutas relativas/públicas
+        // Actualizar base de datos con rutas relativas
+        const cleanPassCsd = (password_csd && password_csd !== '••••••••' && password_csd !== '********') ? password_csd : emisor.password_csd;
         await emisor.update({
             certificado_path: getPublicUrl(emisor.rfc, 'csd', 'certificado.cer'),
             llave_privada_path: getPublicUrl(emisor.rfc, 'csd', 'llave.key'),
-            password_csd: password_csd || emisor.password_csd
+            password_csd: cleanPassCsd
         });
 
         res.json({
             message: 'Certificados actualizados correctamente',
-            emisor,
+            emisor: sanitizeEmisorOutput(emisor),
             csd_info: getCsdInfo(emisor.rfc),
             fiel_info: getFielInfo(emisor.rfc)
         });
@@ -509,16 +546,17 @@ export const uploadFIEL = async (req, res) => {
         fs.writeFileSync(cerDest, cerFile.buffer);
         fs.writeFileSync(keyDest, keyFile.buffer);
 
-        // Actualizar base de datos con rutas relativas/públicas
+        // Actualizar base de datos con rutas relativas
+        const cleanPassFiel = (password_fiel && password_fiel !== '••••••••' && password_fiel !== '********') ? password_fiel : emisor.password_fiel;
         await emisor.update({
             fiel_certificado_path: getPublicUrl(emisor.rfc, 'fiel', 'fiel.cer'),
             fiel_llave_privada_path: getPublicUrl(emisor.rfc, 'fiel', 'fiel.key'),
-            password_fiel: password_fiel || emisor.password_fiel
+            password_fiel: cleanPassFiel
         });
 
         res.json({
             message: 'e.firma (FIEL) actualizada correctamente',
-            emisor,
+            emisor: sanitizeEmisorOutput(emisor),
             fiel_info: getFielInfo(emisor.rfc)
         });
     } catch (error) {
@@ -553,8 +591,13 @@ export const uploadLogoEmisor = async (req, res) => {
             return res.status(400).json({ message: 'No se envió ningún archivo de imagen' });
         }
 
+        const ext = (path.extname(req.file.originalname) || '.png').toLowerCase();
+        const allowedLogoExts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+        if (!allowedLogoExts.includes(ext)) {
+            return res.status(400).json({ message: 'Formato de logotipo no permitido. Usa PNG, JPG o WEBP.' });
+        }
+
         const fullPath = getEmissorDir(emisor.rfc, 'logos');
-        const ext = path.extname(req.file.originalname) || '.png';
         const fileName = `logo_${Date.now()}${ext}`;
         fs.writeFileSync(path.join(fullPath, fileName), req.file.buffer);
 

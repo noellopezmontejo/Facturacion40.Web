@@ -1,4 +1,5 @@
 import { Concepto, Impuesto, Emisor } from '../models/index.js';
+import { canAccessEmisorId } from '../middleware/auth.js';
 
 export const getConceptosByEmisor = async (req, res) => {
     const { emisorId } = req.params;
@@ -51,6 +52,9 @@ export const getConceptosByEmisor = async (req, res) => {
 export const createConcepto = async (req, res) => {
     const { impuestosIds, impuestos: rawImpuestos, ...conceptoData } = req.body;
     try {
+        if (!(await canAccessEmisorId(req, conceptoData.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para registrar conceptos en este emisor.' });
+        }
         const newConcepto = await Concepto.create(conceptoData);
 
         const idsToAssign = impuestosIds || (Array.isArray(rawImpuestos) ? rawImpuestos.map(i => i.id || i) : null);

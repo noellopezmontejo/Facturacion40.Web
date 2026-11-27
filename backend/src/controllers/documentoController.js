@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 import fs from 'fs';
 import path from 'path';
 import { STORAGE_BASE } from '../utils/storageHelper.js';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 const checkResicoApplies = async (emisor, receptor, invoiceDate = new Date()) => {
     // La retención del 1.25% solo aplica de Persona Física (RFC 13 caracteres) RESICO (626) a Persona Moral (RFC 12 caracteres)
@@ -375,6 +376,9 @@ export const timbrarDocumento = async (req, res) => {
         if (!documento) {
             return res.status(404).json({ message: 'Documento no encontrado.' });
         }
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para operar sobre este documento.' });
+        }
 
         if (documento.estado_sat === 'Timbrado') {
             return res.status(400).json({ message: 'El documento ya se encuentra timbrado.' });
@@ -472,7 +476,10 @@ export const getDocumentos = async (req, res) => {
         } else if (!tipoComprobante) {
             whereClause.tipo_comprobante = 'I';
         }
-        if (emisorId) whereClause.emisor_id = emisorId;
+        const allowedEmisorIds = await getAuthorizedEmisorIds(req, emisorId);
+        if (allowedEmisorIds !== null) {
+            whereClause.emisor_id = { [Op.in]: allowedEmisorIds };
+        }
         if (receptorId) whereClause.receptor_id = receptorId;
 
         const documentos = await Documento.findAll({
@@ -496,8 +503,14 @@ export const getDocumentos = async (req, res) => {
         });
 
         // Buscar Notas de Crédito / Devoluciones / CFDI que relacionan a estos documentos de ingreso
+        const relWhere = {};
+        if (allowedEmisorIds !== null) {
+            relWhere.emisor_id = { [Op.in]: allowedEmisorIds };
+        } else if (emisorId) {
+            relWhere.emisor_id = emisorId;
+        }
         const docsRelacionadosEmisor = await Documento.findAll({
-            where: emisorId ? { emisor_id: emisorId } : {},
+            where: relWhere,
             attributes: ['id', 'serie', 'folio', 'uuid', 'fecha', 'tipo_comprobante', 'tipo_documento_id', 'tipo_relacion', 'uuids_relacionados', 'subtotal', 'total', 'moneda', 'estado_sat', 'motivo_cancelacion', 'fecha_cancelacion', 'acuse_cancelacion', 'pdf_url', 'xml_url'],
             order: [['fecha', 'ASC']]
         });
@@ -667,8 +680,6 @@ export const previewDocumento = async (req, res) => {
             impuestos_locales: impuestosLocales
         };
 
-        const fs = await import('fs');
-        fs.appendFileSync('preview_debug.log', `[${new Date().toISOString()}] Detalles sample: ${JSON.stringify(lineas[0], null, 2)}\n`);
         const pdfRes = await generarPDF(dummyDoc, emisor, receptorFinal, lineas);
 
         // Añadir timestamp para evitar caché
@@ -696,6 +707,9 @@ export const reproducirPDF = async (req, res) => {
         });
 
         if (!documento) return res.status(404).json({ message: 'Documento no encontrado' });
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para consultar este documento.' });
+        }
 
         // Reutilizar el PDF ya generado en disco si sigue vigente (evita invocar Puppeteer en cada descarga)
         if (!forceRegenerate && documento.pdf_url && documento.pdf_url.toLowerCase().endsWith('.pdf')) {
@@ -755,6 +769,9 @@ export const enviarDocumentoPorCorreo = async (req, res) => {
         });
 
         if (!documento) return res.status(404).json({ message: 'Documento no encontrado' });
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para consultar este documento.' });
+        }
 
         // Si el documento no tiene pdf_url generado aún, generarlo primero
         let pdfUrl = documento.pdf_url;
@@ -815,6 +832,9 @@ export const descargarXML = async (req, res) => {
         if (!documento || !documento.uuid) {
             return res.status(404).json({ message: 'Archivo XML no encontrado o documento sin timbrar.' });
         }
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para descargar este XML.' });
+        }
         const { getXmlPath } = await import('../utils/storageHelper.js');
         const fs = await import('fs');
         const xmlPath = getXmlPath(documento.Emisor?.rfc || '', documento.uuid);
@@ -857,6 +877,9 @@ export const verificarPreCancelacion = async (req, res) => {
 
         if (!documento) {
             return res.status(404).json({ message: 'Documento no encontrado.' });
+        }
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para operar sobre este documento.' });
         }
 
         const round2 = (num) => Math.round((parseFloat(num) || 0) * 100) / 100;
@@ -1111,6 +1134,9 @@ export const cancelarDocumento = async (req, res) => {
 
         if (!documento) {
             return res.status(404).json({ message: 'Documento no encontrado.' });
+        }
+        if (!(await canAccessEmisorId(req, documento.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para operar sobre este documento.' });
         }
 
         if (documento.estado_sat === 'Cancelado') {

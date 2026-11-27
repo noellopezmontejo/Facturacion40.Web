@@ -13,12 +13,15 @@ import { parseCFDI } from '../services/xmlParserService.js';
 import fs from 'fs';
 import path from 'path';
 import { STORAGE_BASE, getXmlPath, getPublicUrl } from '../utils/storageHelper.js';
+import { getAuthorizedEmisorIds, canAccessEmisorId } from '../middleware/auth.js';
 
 export const getPagos = async (req, res) => {
     const { emisor_id } = req.query;
     try {
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
+        const whereClause = allowedIds !== null ? { emisor_id: { [Op.in]: allowedIds } } : (emisor_id ? { emisor_id } : {});
         const pagos = await Pago.findAll({
-            where: emisor_id ? { emisor_id } : {},
+            where: whereClause,
             include: [
                 { model: Receptor, attributes: ['razon_social', 'rfc'] },
                 {
@@ -40,9 +43,11 @@ export const getPagos = async (req, res) => {
 export const getCartera = async (req, res) => {
     const { emisor_id } = req.query;
     try {
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
+        const emisorFilter = allowedIds !== null ? { [Op.in]: allowedIds } : emisor_id;
         const documentos = await Documento.findAll({
             where: {
-                emisor_id,
+                emisor_id: emisorFilter,
                 tipo_comprobante: 'I',
                 metodo_pago: 'PPD',
                 estado_sat: { [Op.ne]: 'Cancelado' },
@@ -74,10 +79,10 @@ export const getCartera = async (req, res) => {
 export const getFacturasPendientes = async (req, res) => {
     const { emisor_id, receptor_id } = req.query;
     try {
-        console.log(`[PagoController] Buscando facturas pendientes - Emisor: ${emisor_id}, Receptor: ${receptor_id}`);
-        
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
+        const emisorFilter = allowedIds !== null ? { [Op.in]: allowedIds } : emisor_id;
         const whereClause = {
-            emisor_id,
+            emisor_id: emisorFilter,
             tipo_comprobante: 'I',
             metodo_pago: 'PPD',
             uuid: { [Op.not]: null }
@@ -208,6 +213,9 @@ export const emitirREP = async (req, res) => {
         });
 
         if (!pago) return res.status(404).json({ message: 'Pago no encontrado' });
+        if (!(await canAccessEmisorId(req, pago.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para timbrar este pago.' });
+        }
         if (pago.documento_rep_id) return res.status(400).json({ message: 'Este pago ya tiene un REP emitido' });
 
         // Obtener los detalles de los documentos relacionados con sus saldos
@@ -349,6 +357,9 @@ export const cancelarPago = async (req, res) => {
 
         if (!pago) {
             return res.status(404).json({ message: 'Pago no encontrado.' });
+        }
+        if (!(await canAccessEmisorId(req, pago.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos para cancelar este pago.' });
         }
 
         if (pago.estado === 'Cancelado') {
@@ -558,8 +569,13 @@ export const solicitarDescargaEmitidosSAT = async (req, res) => {
 export const getSolicitudesEmitidosSAT = async (req, res) => {
     const { emisor_id } = req.query;
     try {
+        const allowedIds = await getAuthorizedEmisorIds(req, emisor_id);
         const whereClause = { tipo_descarga: 'Emitidos' };
-        if (emisor_id) whereClause.emisor_id = emisor_id;
+        if (allowedIds !== null) {
+            whereClause.emisor_id = { [Op.in]: allowedIds };
+        } else if (emisor_id) {
+            whereClause.emisor_id = emisor_id;
+        }
 
         const solicitudes = await SolicitudDescargaSat.findAll({
             where: whereClause,
@@ -582,6 +598,9 @@ export const verificarSolicitudEmitidosSAT = async (req, res) => {
             include: [{ model: Emisor }]
         });
         if (!solicitud) return res.status(404).json({ message: 'Solicitud no encontrada' });
+        if (!(await canAccessEmisorId(req, solicitud.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos sobre esta solicitud.' });
+        }
 
         const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);
         const creds = resolverCredenciales(emisor);
@@ -614,6 +633,9 @@ export const descargarEImportarEmitidosSAT = async (req, res) => {
             include: [{ model: Emisor }]
         });
         if (!solicitud) return res.status(404).json({ message: 'Solicitud no encontrada' });
+        if (!(await canAccessEmisorId(req, solicitud.emisor_id))) {
+            return res.status(403).json({ message: 'No tienes permisos sobre esta solicitud.' });
+        }
 
         const emisor = solicitud.Emisor || await Emisor.findByPk(solicitud.emisor_id);
         const creds = resolverCredenciales(emisor);
